@@ -18,6 +18,7 @@ const commentRoutes = require('./routes/comments');
 const auditLogRoutes = require('./routes/auditLogs');
 const notificationRoutes = require('./routes/notifications');
 const permissionRoutes = require('./routes/permissions');
+const userRoutes = require('./routes/users');
 
 const app = express();
 const PORT = config.port;
@@ -44,7 +45,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 // 路由（GET 请求添加缓存）
 app.use('/api/requirements', cacheMiddleware(30), requirementRoutes);
 app.use('/api/email', emailRoutes);
-app.use('/api/developers', cacheMiddleware(300), developerRoutes);
+app.use('/api/developers', developerRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
@@ -52,6 +53,7 @@ app.use('/api/comments', cacheMiddleware(10), commentRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/permissions', permissionRoutes);
+app.use('/api/users', userRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: '需求管理平台运行中' });

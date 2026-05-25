@@ -3,6 +3,24 @@
     <div class="page-header">
       <h1>权限管理</h1>
     </div>
+    <div class="session-debug">
+      <div class="session-debug-header">
+        <h2>当前登录账号（实时）</h2>
+        <button class="btn-refresh" @click="refreshSessionDebug" :disabled="debugLoading">
+          {{ debugLoading ? '刷新中...' : '刷新 /auth/me' }}
+        </button>
+      </div>
+      <div class="session-debug-grid">
+        <div><strong>用户名：</strong>{{ sessionDebug.username || '-' }}</div>
+        <div><strong>姓名：</strong>{{ sessionDebug.name || '-' }}</div>
+        <div><strong>角色：</strong>{{ sessionDebug.role || '-' }}</div>
+        <div><strong>权限数：</strong>{{ sessionDebug.permissions.length }}</div>
+      </div>
+      <div class="session-debug-permissions">
+        <span v-for="code in sessionDebug.permissions" :key="code" class="perm-chip">{{ code }}</span>
+        <span v-if="sessionDebug.permissions.length === 0" class="empty-perms">无权限</span>
+      </div>
+    </div>
 
     <div class="roles-grid">
       <div v-for="role in roles" :key="role.id" class="role-card" :class="{ active: selectedRole === role.id }" @click="selectRole(role.id)">
@@ -59,12 +77,16 @@
         </tbody>
       </table>
     </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { permissionApi } from '../api'
+import { permissionApi, authApi } from '../api'
+import { refreshCurrentUser } from '../utils/session'
+import { getPermissionSaveSuccessMessage } from '../utils/permissionMessages'
+import { showToast } from '../utils/toastService'
 
 const roles = ref([
   { id: 'role-admin', name: '管理员', description: '拥有系统所有权限' },
@@ -77,6 +99,13 @@ const modules = ref([])
 const selectedRole = ref(null)
 const selectedPermissions = ref([])
 const saving = ref(false)
+const debugLoading = ref(false)
+const sessionDebug = ref({
+  username: '',
+  name: '',
+  role: '',
+  permissions: []
+})
 
 const selectedRoleName = computed(() => {
   const role = roles.value.find(r => r.id === selectedRole.value)
@@ -100,10 +129,12 @@ const getPermissionsByModule = (module) => {
 const getModuleLabel = (module) => {
   const map = {
     requirement: '需求管理',
-    user: '用户管理',
+    project: '项目进度',
     developer: '开发人员管理',
+    notification: '通知中心',
     audit: '审计日志',
-    system: '系统配置'
+    permission: '权限管理',
+    user: '用户管理'
   }
   return map[module] || module
 }
@@ -114,10 +145,11 @@ const savePermissions = async () => {
   try {
     saving.value = true
     await permissionApi.assignPermissions(selectedRole.value, selectedPermissions.value)
-    alert('权限保存成功')
+    await refreshCurrentUser()
+    showToast(getPermissionSaveSuccessMessage(), { type: 'success', title: '保存成功' })
   } catch (error) {
     console.error('保存权限失败:', error)
-    alert('保存失败: ' + (error.response?.data?.message || error.message))
+    showToast('保存失败: ' + (error.response?.data?.message || error.message), { type: 'error', duration: 3200, title: '保存失败' })
   } finally {
     saving.value = false
   }
@@ -134,6 +166,25 @@ const loadData = async () => {
     modules.value = moduleRes.data.data
   } catch (error) {
     console.error('加载数据失败:', error)
+  }
+}
+
+const refreshSessionDebug = async () => {
+  try {
+    debugLoading.value = true
+    const res = await authApi.me()
+    if (res.data?.success && res.data?.data) {
+      sessionDebug.value = {
+        username: res.data.data.username || '',
+        name: res.data.data.name || '',
+        role: res.data.data.role || '',
+        permissions: Array.isArray(res.data.data.permissions) ? res.data.data.permissions : []
+      }
+    }
+  } catch (error) {
+    console.error('刷新当前登录账号信息失败:', error)
+  } finally {
+    debugLoading.value = false
   }
 }
 
@@ -156,6 +207,68 @@ onMounted(() => {
   font-size: 24px;
   font-weight: 700;
   color: var(--tech-text-primary);
+}
+
+.session-debug {
+  background: var(--tech-card);
+  border: 1px solid var(--tech-border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.session-debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.session-debug-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.btn-refresh {
+  padding: 6px 12px;
+  border: 1px solid var(--tech-border);
+  border-radius: 8px;
+  background: var(--tech-bg);
+  color: var(--tech-text-primary);
+  cursor: pointer;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.session-debug-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--tech-text-secondary);
+  font-size: 13px;
+}
+
+.session-debug-permissions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.perm-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--tech-blue);
+}
+
+.empty-perms {
+  font-size: 12px;
+  color: var(--tech-text-secondary);
 }
 
 .roles-grid {

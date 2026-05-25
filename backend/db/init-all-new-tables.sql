@@ -102,14 +102,16 @@ CREATE INDEX idx_role_permissions_permissionId ON role_permissions(permissionId)
 -- 插入默认权限
 INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-001', 'requirement:view', '查看需求', 'requirement', '查看需求列表和详情');
 INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-002', 'requirement:create', '创建需求', 'requirement', '创建新需求');
-INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-003', 'requirement:edit', '编辑需求', 'requirement', '编辑已有需求');
+INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-003', 'requirement:update', '更新需求', 'requirement', '更新已有需求');
 INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-004', 'requirement:delete', '删除需求', 'requirement', '删除需求');
 INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-005', 'requirement:approve', '审批需求', 'requirement', '审批需求');
 INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-006', 'requirement:score', '评分需求', 'requirement', '对需求进行评分');
-INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-007', 'user:manage', '用户管理', 'user', '管理用户和角色');
-INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-008', 'developer:manage', '开发人员管理', 'developer', '管理开发人员');
-INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-009', 'audit:view', '查看审计日志', 'audit', '查看系统审计日志');
-INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-010', 'system:config', '系统配置', 'system', '修改系统配置');
+INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-007', 'developer:view', '查看开发人员', 'developer', '查看开发人员列表和负载统计');
+INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-008', 'developer:create', '创建开发人员', 'developer', '创建开发人员');
+INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-009', 'developer:update', '更新开发人员', 'developer', '更新开发人员信息');
+INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-010', 'developer:delete', '删除开发人员', 'developer', '删除开发人员');
+INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-011', 'audit:view', '查看审计日志', 'audit', '查看系统审计日志');
+INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-012', 'permission:manage', '权限管理', 'permission', '查看和分配角色权限');
 
 -- 为 admin 角色分配所有权限
 INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-001', 'role-admin', 'perm-001');
@@ -122,11 +124,17 @@ INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-007', 'role-
 INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-008', 'role-admin', 'perm-008');
 INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-009', 'role-admin', 'perm-009');
 INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-010', 'role-admin', 'perm-010');
+INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-019', 'role-admin', 'perm-011');
+INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-020', 'role-admin', 'perm-012');
 
 -- 为 user 角色分配基础权限
 INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-011', 'role-user', 'perm-001');
 INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-012', 'role-user', 'perm-002');
 INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-013', 'role-user', 'perm-003');
 INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-014', 'role-user', 'perm-006');
+
+-- 为 developer 角色分配基础权限
+INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-015', 'role-developer', 'perm-001');
+INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-016', 'role-developer', 'perm-007');
 
 COMMIT;

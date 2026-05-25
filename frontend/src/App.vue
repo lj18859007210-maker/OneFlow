@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <router-view v-if="isLoginPage" />
   <div v-else class="tech-layout">
     <aside class="tech-sidebar">
@@ -53,7 +53,7 @@
         </div>
       </div>
       <nav class="tech-nav">
-        <router-link to="/" class="tech-nav-item" active-class="active">
+        <router-link v-if="hasPermission(currentUser, 'requirement:view')" to="/" class="tech-nav-item" active-class="active">
           <span class="tech-nav-icon">
             <svg
               width="20"
@@ -74,6 +74,7 @@
           <span>需求列表</span>
         </router-link>
         <router-link
+          v-if="hasPermission(currentUser, 'requirement:view')"
           to="/my-requirements"
           class="tech-nav-item"
           active-class="active"
@@ -95,7 +96,7 @@
           </span>
           <span>我的需求</span>
         </router-link>
-        <router-link to="/approval" class="tech-nav-item" active-class="active">
+        <router-link v-if="hasPermission(currentUser, 'requirement:approve')" to="/approval" class="tech-nav-item" active-class="active">
           <span class="tech-nav-icon">
             <svg
               width="20"
@@ -115,7 +116,7 @@
           </span>
           <span>审批中心</span>
         </router-link>
-        <router-link to="/timeline" class="tech-nav-item" active-class="active">
+        <router-link v-if="hasPermission(currentUser, 'project:timeline:view')" to="/timeline" class="tech-nav-item" active-class="active">
           <span class="tech-nav-icon">
             <svg
               width="20"
@@ -138,7 +139,7 @@
           </span>
           <span>项目进度</span>
         </router-link>
-        <router-link to="/notifications" class="tech-nav-item" active-class="active">
+        <router-link v-if="hasPermission(currentUser, 'notification:view')" to="/notifications" class="tech-nav-item" active-class="active">
           <span class="tech-nav-icon">
             <svg
               width="20"
@@ -156,7 +157,25 @@
           </span>
           <span>通知中心</span>
         </router-link>
-        <router-link v-if="currentUser.role === 'admin'" to="/developers" class="tech-nav-item" active-class="active">
+        <router-link v-if="hasPermission(currentUser, 'audit:view')" to="/audit-logs" class="tech-nav-item" active-class="active">
+          <span class="tech-nav-icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 8v4l3 3" />
+              <circle cx="12" cy="12" r="9" />
+            </svg>
+          </span>
+          <span>审计日志</span>
+        </router-link>
+        <router-link v-if="hasPermission(currentUser, 'developer:view')" to="/developers" class="tech-nav-item" active-class="active">
           <span class="tech-nav-icon">
             <svg
               width="20"
@@ -176,7 +195,7 @@
           </span>
           <span>人员管理</span>
         </router-link>
-        <router-link v-if="currentUser.role === 'admin'" to="/permissions" class="tech-nav-item" active-class="active">
+        <router-link v-if="hasPermission(currentUser, 'permission:manage')" to="/permissions" class="tech-nav-item" active-class="active">
           <span class="tech-nav-icon">
             <svg
               width="20"
@@ -192,6 +211,26 @@
             </svg>
           </span>
           <span>权限管理</span>
+        </router-link>
+        <router-link v-if="hasPermission(currentUser, 'user:role:manage')" to="/user-roles" class="tech-nav-item" active-class="active">
+          <span class="tech-nav-icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="8.5" cy="7" r="4" />
+              <path d="M20 8v6" />
+              <path d="M23 11h-6" />
+            </svg>
+          </span>
+          <span>用户角色管理</span>
         </router-link>
       </nav>
     </aside>
@@ -215,6 +254,7 @@
               <circle cx="12" cy="7" r="4" />
             </svg>
             <span>{{ currentUser.name }}</span>
+            <span class="tech-user-meta">{{ currentRoleLabel }} | {{ permissionCount }}项权限</span>
           </div>
           <button
             class="tech-logout-btn"
@@ -243,25 +283,42 @@
       </div>
     </main>
     <AIChat v-if="!isLoginPage" />
+    <TechToast
+      :visible="toastState.visible.value"
+      :message="toastState.message.value"
+      :type="toastState.type.value"
+      :title="toastState.title.value"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, provide, ref, onMounted, watch } from "vue";
+import { computed, provide, ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import api from "./api";
 import AIChat from "./components/AIChat.vue";
 import NotificationBell from "./components/NotificationBell.vue";
+import TechToast from "./components/TechToast.vue";
+import { hasPermission } from "./utils/access";
+import { toastState } from "./utils/toastService";
 
 const route = useRoute();
 const router = useRouter();
 
 const isLoginPage = computed(() => route.path === "/login");
 
-const currentUser = ref({ name: "未登录", email: "", role: "user" });
+const currentUser = ref({ name: "未登录", email: "", role: "user", permissions: [] });
+const roleLabelMap = {
+  admin: "管理员",
+  user: "普通用户",
+  developer: "开发人员",
+  "role-admin": "管理员",
+  "role-user": "普通用户",
+  "role-developer": "开发人员"
+};
 
 function getDefaultUser() {
-  return { name: "未登录", email: "", role: "user" };
+  return { name: "未登录", email: "", role: "user", permissions: [] };
 }
 
 function parseCurrentUser(stored) {
@@ -292,10 +349,20 @@ syncCurrentUser();
 
 watch(() => route.path, syncCurrentUser);
 
+function handleCurrentUserUpdated() {
+  syncCurrentUser();
+}
+
 onMounted(async () => {
   if (!isLoginPage.value && !localStorage.getItem("token")) {
     router.push("/login");
+    return;
   }
+  window.addEventListener('current-user-updated', handleCurrentUserUpdated);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('current-user-updated', handleCurrentUserUpdated);
 });
 
 provide("currentUser", currentUser);
@@ -313,10 +380,24 @@ const pageTitle = computed(() => {
     "/approval": "审批中心",
     "/timeline": "项目进度",
     "/notifications": "通知中心",
+    "/audit-logs": "审计日志",
     "/developers": "开发人员管理",
     "/permissions": "权限管理",
+    "/user-roles": "用户角色管理",
   };
   if (route.path.startsWith("/detail")) return "需求详情";
   return map[route.path] || "需求管理平台";
 });
+
+const currentRoleLabel = computed(() => roleLabelMap[currentUser.value?.role] || String(currentUser.value?.role || "未知角色"));
+const permissionCount = computed(() => Array.isArray(currentUser.value?.permissions) ? currentUser.value.permissions.length : 0);
 </script>
+
+<style scoped>
+.tech-user-meta {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--tech-text-secondary);
+}
+</style>
+

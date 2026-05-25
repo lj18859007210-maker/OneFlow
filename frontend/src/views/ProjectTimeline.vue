@@ -199,6 +199,7 @@
 import { ref, computed, onMounted, watch, watchEffect, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { requirementApi } from '../api'
+import { showToast } from '../utils/toastService'
 
 const router = useRouter()
 const currentUser = inject('currentUser', ref({ name: '未登录', role: 'user' }))
@@ -399,7 +400,7 @@ const canViewDetail = (req) => {
 
 const viewRequirement = (req) => {
   if (!canViewDetail(req)) {
-    alert('您没有权限查看该需求')
+    showToast('您没有权限查看该需求', { type: 'error', title: '无权限' })
     return
   }
   router.push(`/detail/${req.id}`)

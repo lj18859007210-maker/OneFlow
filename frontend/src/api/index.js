@@ -27,7 +27,8 @@ api.interceptors.response.use(
 
 export const authApi = {
   getPublicKey: () => api.get('/auth/public-key'),
-  login: (username, encryptedPassword) => api.post('/auth/login', { username, encryptedPassword })
+  login: (username, encryptedPassword) => api.post('/auth/login', { username, encryptedPassword }),
+  me: () => api.get('/auth/me')
 }
 
 export const requirementApi = {
@@ -51,13 +52,13 @@ export const emailApi = {
 }
 
 export const developerApi = {
-  getAll: (filters) => api.get('/developers', { params: filters }),
+  getAll: (filters = {}) => api.get('/developers', { params: { ...filters, _t: Date.now() } }),
   getById: (id) => api.get(`/developers/${id}`),
   create: (data) => api.post('/developers', data),
   update: (id, data) => api.put(`/developers/${id}`, data),
   remove: (id) => api.delete(`/developers/${id}`),
-  getLoadStats: () => api.get('/developers/load-stats'),
-  getDepartments: () => api.get('/developers/departments')
+  getLoadStats: () => api.get('/developers/load-stats', { params: { _t: Date.now() } }),
+  getDepartments: () => api.get('/developers/departments', { params: { _t: Date.now() } })
 }
 
 export const commentApi = {
@@ -87,6 +88,11 @@ export const permissionApi = {
   getModules: () => api.get('/permissions/modules'),
   getByRole: (roleId) => api.get(`/permissions/role/${roleId}`),
   assignPermissions: (roleId, permissionIds) => api.put(`/permissions/role/${roleId}`, { permissionIds })
+}
+
+export const userApi = {
+  getAll: () => api.get('/users'),
+  updateRole: (id, role) => api.put(`/users/${id}/role`, { role })
 }
 
 export default api

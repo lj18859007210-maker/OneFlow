@@ -1,6 +1,7 @@
-﻿const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4 } = require('uuid');
 const oracledb = require('oracledb');
 const db = require('../db/oracle');
+const { normalizeRoleId } = require('../utils/roleAccess');
 
 async function getAll() {
   let connection;
@@ -31,6 +32,11 @@ async function getAll() {
 }
 
 async function getByRoleId(roleId) {
+  const normalizedRoleId = normalizeRoleId(roleId);
+  if (!normalizedRoleId) {
+    return [];
+  }
+
   let connection;
   try {
     connection = await db.getConnection();
@@ -39,7 +45,7 @@ async function getByRoleId(roleId) {
        INNER JOIN role_permissions rp ON p.id = rp.permissionId
        WHERE rp.roleId = :roleId
        ORDER BY p.module, p.code`,
-      { roleId },
+      { roleId: normalizedRoleId },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     return result.rows.map(row => ({
@@ -55,6 +61,11 @@ async function getByRoleId(roleId) {
 }
 
 async function checkPermission(roleId, permissionCode) {
+  const normalizedRoleId = normalizeRoleId(roleId);
+  if (!normalizedRoleId) {
+    return false;
+  }
+
   let connection;
   try {
     connection = await db.getConnection();
@@ -62,7 +73,7 @@ async function checkPermission(roleId, permissionCode) {
       `SELECT COUNT(*) as cnt FROM role_permissions rp
        INNER JOIN permissions p ON rp.permissionId = p.id
        WHERE rp.roleId = :roleId AND p.code = :permissionCode`,
-      { roleId, permissionCode }
+      { roleId: normalizedRoleId, permissionCode }
     );
     return result.rows[0][0] > 0;
   } finally {
@@ -71,6 +82,11 @@ async function checkPermission(roleId, permissionCode) {
 }
 
 async function assignPermissions(roleId, permissionIds) {
+  const normalizedRoleId = normalizeRoleId(roleId);
+  if (!normalizedRoleId) {
+    throw new Error(`Invalid role: ${roleId}`);
+  }
+
   let connection;
   try {
     connection = await db.getConnection();
@@ -78,7 +94,7 @@ async function assignPermissions(roleId, permissionIds) {
     // Remove existing permissions first.
     await connection.execute(
       `DELETE FROM role_permissions WHERE roleId = :roleId`,
-      { roleId }
+      { roleId: normalizedRoleId }
     );
 
     // Insert the new permissions.
@@ -86,7 +102,7 @@ async function assignPermissions(roleId, permissionIds) {
       for (const permId of permissionIds) {
         await connection.execute(
           `INSERT INTO role_permissions (id, roleId, permissionId) VALUES (:id, :roleId, :permissionId)`,
-          { id: uuidv4(), roleId, permissionId: permId }
+          { id: uuidv4(), roleId: normalizedRoleId, permissionId: permId }
         );
       }
     }
@@ -116,5 +132,6 @@ module.exports = {
   getByRoleId,
   checkPermission,
   assignPermissions,
-  getModules
+  getModules,
+  normalizeRoleId
 };

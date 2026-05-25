@@ -42,7 +42,7 @@
           审批意见: {{ req.approvalComment }}
         </div>
 
-        <div v-if="req.approvalStatus === 'pending'" class="tech-approval-actions">
+        <div v-if="req.approvalStatus === 'pending' && canApprove" class="tech-approval-actions">
           <div style="flex:1;margin-right:0">
             <div class="tech-form-group" style="margin-bottom:8px">
               <textarea v-model="comments[req.id]" class="tech-textarea" style="min-height:60px" placeholder="请输入审批意见"></textarea>
@@ -53,6 +53,10 @@
               <span class="tech-link" @click="$router.push(`/detail/${req.id}`)" style="padding:6px 0;font-size:12px">查看详情</span>
             </div>
           </div>
+        </div>
+
+        <div v-else-if="req.approvalStatus === 'pending'" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--tech-border);font-size:13px;color:var(--tech-text-secondary)">
+          当前账号没有审批权限，仅可查看列表。
         </div>
 
         <div v-else style="margin-top:12px;padding-top:12px;border-top:1px solid var(--tech-border);display:flex;justify-content:space-between">
@@ -115,10 +119,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import { requirementApi, emailApi } from '../api'
+import { hasPermission } from '../utils/access'
 
 const requirements = ref([])
+const currentUser = inject('currentUser', ref({ name: '未登录', role: 'user', permissions: [] }))
 const activeTab = ref('pending')
 const comments = ref({})
 const loading = ref(true)
@@ -135,6 +141,8 @@ const tabs = [
   { label: '已拒绝', value: 'rejected' },
   { label: '全部', value: 'all' }
 ]
+
+const canApprove = computed(() => hasPermission(currentUser.value, 'requirement:approve'))
 
 const filteredRequirements = computed(() => {
   if (activeTab.value === 'all') return requirements.value

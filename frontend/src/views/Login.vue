@@ -116,6 +116,7 @@ async function handleLogin() {
           name: user.name,
           email: user.email,
           role: user.role,
+          permissions: user.permissions || [],
         }),
       );
       router.push("/");

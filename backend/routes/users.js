@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permission');
-const auditController = require('../controllers/auditLogController');
+const userController = require('../controllers/userController');
 
 router.use(authMiddleware);
+router.use(requirePermission('user:role:manage'));
 
-router.get('/', requirePermission('audit:view'), auditController.getList);
-router.get('/actions', requirePermission('audit:view'), auditController.getActions);
+router.get('/', userController.getAll);
+router.put('/:id/role', userController.updateRole);
 
 module.exports = router;

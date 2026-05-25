@@ -1,4 +1,5 @@
 const db = require('./oracle');
+const { PERMISSIONS, ROLE_DEFAULT_PERMISSION_CODES, buildPermissionInsertSql } = require('../utils/permissionCatalog');
 
 const TABLES = {
   notifications: `
@@ -86,16 +87,7 @@ const SEED_DATA = [
   `INSERT INTO developers (id, name, email, department, skills, maxLoad, currentLoad, status) VALUES ('dev-004', '陈勇', 'chenyong@cmcc.cn', '平台架构部', '["Java","Microservices","Docker"]', 5, 0, 1)`,
   `INSERT INTO developers (id, name, email, department, skills, maxLoad, currentLoad, status) VALUES ('dev-005', '刘洋', 'liuyang@cmcc.cn', '质量测试部', '["Selenium","Jest","Cypress"]', 5, 0, 1)`,
   // permissions
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-001', 'requirement:view', '查看需求', 'requirement', '查看需求列表和详情')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-002', 'requirement:create', '创建需求', 'requirement', '创建新需求')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-003', 'requirement:edit', '编辑需求', 'requirement', '编辑已有需求')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-004', 'requirement:delete', '删除需求', 'requirement', '删除需求')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-005', 'requirement:approve', '审批需求', 'requirement', '审批需求')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-006', 'requirement:score', '评分需求', 'requirement', '对需求进行评分')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-007', 'user:manage', '用户管理', 'user', '管理用户和角色')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-008', 'developer:manage', '开发人员管理', 'developer', '管理开发人员')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-009', 'audit:view', '查看审计日志', 'audit', '查看系统审计日志')`,
-  `INSERT INTO permissions (id, code, name, module, description) VALUES ('perm-010', 'system:config', '系统配置', 'system', '修改系统配置')`,
+  ...PERMISSIONS.map(buildPermissionInsertSql),
   // role_permissions admin
   `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-001', 'role-admin', 'perm-001')`,
   `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-002', 'role-admin', 'perm-002')`,
@@ -107,12 +99,134 @@ const SEED_DATA = [
   `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-008', 'role-admin', 'perm-008')`,
   `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-009', 'role-admin', 'perm-009')`,
   `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-010', 'role-admin', 'perm-010')`,
+  `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-019', 'role-admin', 'perm-011')`,
+  `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-020', 'role-admin', 'perm-012')`,
   // role_permissions user
   `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-011', 'role-user', 'perm-001')`,
   `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-012', 'role-user', 'perm-002')`,
   `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-013', 'role-user', 'perm-003')`,
-  `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-014', 'role-user', 'perm-006')`
+  `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-014', 'role-user', 'perm-006')`,
+  // role_permissions developer
+  `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-015', 'role-developer', 'perm-001')`,
+  `INSERT INTO role_permissions (id, roleId, permissionId) VALUES ('rp-016', 'role-developer', 'perm-007')`
 ];
+
+async function upsertPermission(connection, permission) {
+  const exists = await connection.execute(
+    'SELECT COUNT(*) AS CNT FROM permissions WHERE id = :id',
+    { id: permission.id }
+  );
+  const count = exists.rows[0][0];
+
+  if (count > 0) {
+    await connection.execute(
+      `UPDATE permissions
+       SET code = :code,
+           name = :name,
+           module = :module,
+           description = :description
+       WHERE id = :id`,
+      permission
+    );
+    return;
+  }
+
+  try {
+    await connection.execute(buildPermissionInsertSql(permission));
+  } catch (error) {
+    if (!error.message.includes('ORA-00001')) {
+      throw error;
+    }
+  }
+}
+
+async function syncPermissions(connection) {
+  for (const permission of PERMISSIONS) {
+    await upsertPermission(connection, permission);
+  }
+
+  const permissionIds = PERMISSIONS.map(permission => permission.id);
+  const bindNames = permissionIds.map((_, index) => `:id${index}`);
+  const binds = Object.fromEntries(permissionIds.map((id, index) => [`id${index}`, id]));
+
+  await connection.execute(
+    `DELETE FROM role_permissions WHERE permissionId NOT IN (${bindNames.join(', ')})`,
+    binds
+  );
+  await connection.execute(
+    `DELETE FROM permissions WHERE id NOT IN (${bindNames.join(', ')})`,
+    binds
+  );
+}
+
+async function ensureAdminPermissions(connection) {
+  for (const permission of PERMISSIONS) {
+    const existing = await connection.execute(
+      `SELECT COUNT(*) FROM role_permissions
+       WHERE roleId = 'role-admin' AND permissionId = :permissionId`,
+      { permissionId: permission.id }
+    );
+    if (existing.rows[0][0] > 0) {
+      continue;
+    }
+    await connection.execute(
+      `INSERT INTO role_permissions (id, roleId, permissionId)
+       VALUES (:id, 'role-admin', :permissionId)`,
+      { id: `rp-admin-${permission.id}`, permissionId: permission.id }
+    );
+  }
+}
+
+async function ensureDeveloperUserMapping(connection) {
+  try {
+    await connection.execute('SELECT userId FROM developers WHERE 1 = 0');
+  } catch (error) {
+    if (!error.message.includes('ORA-00904')) throw error;
+    await connection.execute('ALTER TABLE developers ADD (userId VARCHAR2(36))');
+  }
+
+  try {
+    await connection.execute('CREATE UNIQUE INDEX idx_developers_userId ON developers(userId)');
+  } catch (error) {
+    if (!error.message.includes('ORA-00955')) throw error;
+  }
+
+  await connection.execute(`
+    UPDATE developers d
+    SET userId = (
+      SELECT u.id FROM users u
+      WHERE u.role = 'developer'
+        AND (
+          (d.email IS NOT NULL AND u.email = d.email)
+          OR (d.name IS NOT NULL AND u.name = d.name)
+        )
+        AND ROWNUM = 1
+    )
+    WHERE d.userId IS NULL
+  `);
+
+  await connection.execute(`
+    MERGE INTO developers d
+    USING (
+      SELECT u.id AS userId, u.name, u.email
+      FROM users u
+      WHERE u.role = 'developer'
+    ) src
+    ON (d.userId = src.userId)
+    WHEN NOT MATCHED THEN INSERT
+      (id, userId, name, email, department, skills, maxLoad, currentLoad, status, createdAt, updatedAt)
+      VALUES
+      (SYS_GUID(), src.userId, src.name, src.email, NULL, NULL, 5, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `);
+}
+
+function roleDefaultPermissionIds(roleName) {
+  const codes = ROLE_DEFAULT_PERMISSION_CODES[roleName] || [];
+  return codes
+    .map(code => PERMISSIONS.find(permission => permission.code === code))
+    .filter(Boolean)
+    .map(permission => permission.id);
+}
 
 async function initialize() {
   let connection;
@@ -156,6 +270,11 @@ async function initialize() {
         }
       }
     }
+
+    // 同步权限目录，确保旧库里的权限码也会被升级到当前规范
+    await syncPermissions(connection);
+    await ensureAdminPermissions(connection);
+    await ensureDeveloperUserMapping(connection);
 
     await connection.commit();
     console.log('[DB Migration] 完成\n');

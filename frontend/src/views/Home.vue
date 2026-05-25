@@ -29,7 +29,7 @@
             <option value="">全部状态</option>
             <option v-for="s in statusList" :key="s" :value="s">{{ s }}</option>
           </select>
-          <button @click="goToSubmitRequirement" class="tech-btn tech-btn-primary tech-btn-sm">+ 提交需求</button>
+          <button v-if="canCreateRequirement" @click="goToSubmitRequirement" class="tech-btn tech-btn-primary tech-btn-sm">+ 提交需求</button>
         </div>
       </div>
 
@@ -121,6 +121,7 @@ import { requirementApi } from '../api'
 import RequirementForm from '../components/RequirementForm.vue'
 import Pagination from '../components/Pagination.vue'
 import ChartsPanel from '../components/ChartsPanel.vue'
+import { hasPermission } from '../utils/access'
 
 const router = useRouter()
 const currentUser = inject('currentUser', ref({ name: '未登录', role: 'user' }))
@@ -136,6 +137,7 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const statusStats = ref({})
 const globalAvgScore = ref('0')
+const canCreateRequirement = computed(() => hasPermission(currentUser.value, 'requirement:create'))
 
 const priorityStats = computed(() => {
   const stats = { '高': 0, '中': 0, '低': 0 }

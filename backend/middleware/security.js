@@ -48,8 +48,8 @@ const limiter = rateLimit({
 
 // 更严格的 API 限流（登录等敏感操作）
 const strictLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: config.security.strictRateLimit.windowMs,
+  max: config.security.strictRateLimit.maxRequests,
   message: {
     success: false,
     message: '请求过于频繁，请稍后再试'

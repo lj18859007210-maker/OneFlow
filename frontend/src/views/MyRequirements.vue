@@ -8,7 +8,7 @@
             <option value="">全部状态</option>
             <option v-for="s in statusList" :key="s" :value="s">{{ s }}</option>
           </select>
-          <button @click="showModal = true" class="tech-btn tech-btn-primary tech-btn-sm">+ 提交新需求</button>
+          <button v-if="canCreateRequirement" @click="showModal = true" class="tech-btn tech-btn-primary tech-btn-sm">+ 提交新需求</button>
         </div>
       </div>
 
@@ -60,12 +60,12 @@
             <td>{{ formatDate(req.createdAt) }}</td>
             <td>
               <template v-if="req.isDraft">
-                <span class="tech-link" @click="editDraft(req.id)">编辑</span>
-                <span class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
+                <span v-if="canUpdateRequirement" class="tech-link" @click="editDraft(req.id)">编辑</span>
+                <span v-if="canDeleteRequirement" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
               </template>
               <template v-else>
                 <span class="tech-link" @click="viewDetail(req.id)">查看</span>
-                <span class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
+                <span v-if="canDeleteRequirement" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
               </template>
             </td>
           </tr>
@@ -142,6 +142,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { requirementApi } from '../api'
 import RequirementForm from '../components/RequirementForm.vue'
 import Pagination from '../components/Pagination.vue'
+import { showToast as showAppToast } from '../utils/toastService.js'
+import { hasPermission } from '../utils/access'
 
 const router = useRouter()
 const route = useRoute()
@@ -162,6 +164,9 @@ const statusList = ['待审批', '待评审', '待开发', '开发中', '测试�
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
+const canCreateRequirement = computed(() => hasPermission(currentUser?.value, 'requirement:create'))
+const canUpdateRequirement = computed(() => hasPermission(currentUser?.value, 'requirement:update'))
+const canDeleteRequirement = computed(() => hasPermission(currentUser?.value, 'requirement:delete'))
 
 const allItems = computed(() => {
   const draftItems = drafts.value.map(d => ({ ...d, isDraft: true }))
@@ -240,7 +245,7 @@ const confirmDelete = async () => {
     closeDeleteConfirm()
   } catch (error) {
     console.error('删除失败:', error)
-    alert('删除失败: ' + (error.response?.data?.message || error.message))
+    showAppToast('删除失败: ' + (error.response?.data?.message || error.message), { type: 'error', title: '删除失败' })
     closeDeleteConfirm()
   }
 }
@@ -340,7 +345,11 @@ watch(pageSize, () => {
 onMounted(async () => {
   await loadRequirements(1)
   if (route.query.openDialog === 'true') {
-    showModal.value = true
+    if (canCreateRequirement.value) {
+      showModal.value = true
+    } else {
+      showAppToast('当前账号没有提交需求权限', { type: 'error', title: '无权限' })
+    }
   }
 })
 </script>

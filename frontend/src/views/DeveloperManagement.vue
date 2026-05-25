@@ -7,9 +7,9 @@
           <option value="">全部部门</option>
           <option v-for="dept in departments" :key="dept" :value="dept">{{ dept }}</option>
         </select>
-        <button class="btn-primary" @click="openDialog()">
-          + 添加开发人员
-        </button>
+          <button v-if="canCreateDeveloper" class="btn-primary" @click="openDialog()">
+            + 添加开发人员
+          </button>
       </div>
     </div>
 
@@ -64,8 +64,8 @@
               </span>
             </td>
             <td>
-              <button class="btn-action" @click="openDialog(dev)">编辑</button>
-              <button class="btn-action btn-danger" @click="handleDelete(dev.id)">删除</button>
+              <button v-if="canUpdateDeveloper" class="btn-action" @click="openDialog(dev)">编辑</button>
+              <button v-if="canDeleteDeveloper" class="btn-action btn-danger" @click="handleDelete(dev.id)">删除</button>
             </td>
           </tr>
         </tbody>
@@ -121,8 +121,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import { developerApi } from '../api'
+import { showToast } from '../utils/toastService'
+import { hasPermission } from '../utils/access'
 
 const developers = ref([])
 const loadStats = ref([])
@@ -132,6 +134,11 @@ const showDialog = ref(false)
 const editingId = ref(null)
 const submitting = ref(false)
 const skillsInput = ref('')
+const currentUser = inject('currentUser', ref({ name: '未登录', role: 'user', permissions: [] }))
+
+const canCreateDeveloper = computed(() => hasPermission(currentUser.value, 'developer:create'))
+const canUpdateDeveloper = computed(() => hasPermission(currentUser.value, 'developer:update'))
+const canDeleteDeveloper = computed(() => hasPermission(currentUser.value, 'developer:delete'))
 
 const form = ref({
   name: '',
@@ -197,7 +204,7 @@ const handleSubmit = async () => {
     await loadData()
   } catch (error) {
     console.error('保存失败:', error)
-    alert('保存失败: ' + (error.response?.data?.message || error.message))
+    showToast('保存失败: ' + (error.response?.data?.message || error.message), { type: 'error', title: '保存失败' })
   } finally {
     submitting.value = false
   }
@@ -211,7 +218,7 @@ const handleDelete = async (id) => {
     await loadData()
   } catch (error) {
     console.error('删除失败:', error)
-    alert('删除失败: ' + (error.response?.data?.message || error.message))
+    showToast('删除失败: ' + (error.response?.data?.message || error.message), { type: 'error', title: '删除失败' })
   }
 }
 

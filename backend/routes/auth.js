@@ -6,6 +6,8 @@ const { getPublicKey, decryptPassword } = require('../crypto/rsa');
 const config = require('../config');
 const auditLogModel = require('../models/auditLog');
 const { strictLimiter } = require('../middleware/security');
+const authMiddleware = require('../middleware/auth');
+const { buildCurrentUser } = require('../utils/sessionUser');
 
 router.get('/public-key', (req, res) => {
   res.json({ code: 0, data: getPublicKey() });
@@ -49,9 +51,17 @@ router.post('/login', strictLimiter, async (req, res) => {
       }).catch(() => {});
       return res.json({ updatetime, code: 500, data: '账号或密码错误' });
     }
-    
+
+    const sessionUser = await buildCurrentUser({
+      id: user.ID,
+      username: user.USERNAME,
+      name: user.NAME,
+      email: user.EMAIL,
+      role: user.ROLE
+    });
+
     const token = jwt.sign(
-      { id: user.ID, username: user.USERNAME, name: user.NAME, role: user.ROLE },
+      sessionUser,
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn }
     );
@@ -72,17 +82,26 @@ router.post('/login', strictLimiter, async (req, res) => {
       code: 0, 
       data: { 
         user: {
-          id: user.ID,
-          username: user.USERNAME,
-          name: user.NAME,
-          email: user.EMAIL,
-          role: user.ROLE
+          ...sessionUser
         },
         token
       } 
     });
   } catch (error) {
     res.json({ updatetime, code: 500, data: error.message });
+  }
+});
+
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    const sessionUser = await buildCurrentUser(req.user);
+    if (!sessionUser) {
+      return res.status(404).json({ success: false, message: '用户不存在' });
+    }
+
+    res.json({ success: true, data: sessionUser });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
