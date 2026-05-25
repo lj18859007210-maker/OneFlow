@@ -1,0 +1,92 @@
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 30000
+})
+
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('currentUser')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
+export const authApi = {
+  getPublicKey: () => api.get('/auth/public-key'),
+  login: (username, encryptedPassword) => api.post('/auth/login', { username, encryptedPassword })
+}
+
+export const requirementApi = {
+  getAll: (page, pageSize) => api.get('/requirements', { params: { page, pageSize } }),
+  getApprovalList: (page, pageSize) => api.get('/requirements/approval-list', { params: { page, pageSize } }),
+  getBySubmitter: (submitter, page, pageSize) => api.get('/requirements/my', { params: { submitter, page, pageSize } }),
+  getDrafts: (submitter) => api.get('/requirements/drafts', { params: { submitter } }),
+  getLatestDraft: (submitter) => api.get('/requirements/drafts/latest', { params: { submitter } }),
+  getGanttData: (filters) => api.get('/requirements/gantt', { params: filters }),
+  getById: (id) => api.get(`/requirements/${id}`),
+  create: (data) => api.post('/requirements', data),
+  update: (id, data) => api.put(`/requirements/${id}`, data),
+  remove: (id) => api.delete(`/requirements/${id}`),
+  updateStatus: (id, status) => api.put(`/requirements/${id}/status`, { status }),
+  approve: (id, approved, comment, actualDate) => api.put(`/requirements/${id}/approve`, { approved, comment, actualDate }),
+  score: (id, score) => api.put(`/requirements/${id}/score`, { score })
+}
+
+export const emailApi = {
+  send: (data) => api.post('/email/send', data)
+}
+
+export const developerApi = {
+  getAll: (filters) => api.get('/developers', { params: filters }),
+  getById: (id) => api.get(`/developers/${id}`),
+  create: (data) => api.post('/developers', data),
+  update: (id, data) => api.put(`/developers/${id}`, data),
+  remove: (id) => api.delete(`/developers/${id}`),
+  getLoadStats: () => api.get('/developers/load-stats'),
+  getDepartments: () => api.get('/developers/departments')
+}
+
+export const commentApi = {
+  create: (data) => api.post('/comments', data),
+  getList: (requirementId) => api.get(`/comments/${requirementId}`)
+}
+
+export const aiApi = {
+  chat: (question) => api.post('/ai/chat', { question }, { timeout: 600000 })
+}
+
+export const auditLogApi = {
+  getList: (filters) => api.get('/audit-logs', { params: filters }),
+  getActions: () => api.get('/audit-logs/actions')
+}
+
+export const notificationApi = {
+  getList: (filters) => api.get('/notifications', { params: filters }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllAsRead: () => api.put('/notifications/read-all'),
+  remove: (id) => api.delete(`/notifications/${id}`)
+}
+
+export const permissionApi = {
+  getAll: () => api.get('/permissions'),
+  getModules: () => api.get('/permissions/modules'),
+  getByRole: (roleId) => api.get(`/permissions/role/${roleId}`),
+  assignPermissions: (roleId, permissionIds) => api.put(`/permissions/role/${roleId}`, { permissionIds })
+}
+
+export default api
