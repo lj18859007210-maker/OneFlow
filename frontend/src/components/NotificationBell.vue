@@ -88,6 +88,8 @@ const total = ref(0)
 
 let refreshTimer = null
 
+const hasAuthToken = () => !!localStorage.getItem('token')
+
 const toggleDropdown = () => {
   showDropdown.value = !showDropdown.value
   if (showDropdown.value) {
@@ -124,6 +126,11 @@ const loadNotifications = async (append = false) => {
 }
 
 const loadUnreadCount = async () => {
+  if (!hasAuthToken()) {
+    unreadCount.value = 0
+    return
+  }
+
   try {
     const res = await notificationApi.getUnreadCount()
     unreadCount.value = res.data.count
@@ -194,7 +201,9 @@ const handleClickOutside = (e) => {
 }
 
 onMounted(() => {
-  loadUnreadCount()
+  if (hasAuthToken()) {
+    loadUnreadCount()
+  }
   document.addEventListener('click', handleClickOutside)
   
   // 每 30 秒刷新未读数量

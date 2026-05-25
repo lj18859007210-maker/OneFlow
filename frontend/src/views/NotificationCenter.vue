@@ -97,7 +97,16 @@ const unreadCount = ref(0)
 const filterType = ref('')
 const filterRead = ref('')
 
+const hasAuthToken = () => !!localStorage.getItem('token')
+
 const loadNotifications = async () => {
+  if (!hasAuthToken()) {
+    notifications.value = []
+    total.value = 0
+    loading.value = false
+    return
+  }
+
   try {
     loading.value = true
     const filters = {
@@ -123,6 +132,11 @@ const loadNotifications = async () => {
 }
 
 const loadUnreadCount = async () => {
+  if (!hasAuthToken()) {
+    unreadCount.value = 0
+    return
+  }
+
   try {
     const res = await notificationApi.getUnreadCount()
     unreadCount.value = res.data.count
@@ -205,8 +219,12 @@ watch([filterType, filterRead], () => {
 })
 
 onMounted(() => {
-  loadNotifications()
-  loadUnreadCount()
+  if (hasAuthToken()) {
+    loadNotifications()
+    loadUnreadCount()
+  } else {
+    loading.value = false
+  }
 })
 </script>
 

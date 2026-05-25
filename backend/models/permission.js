@@ -1,4 +1,4 @@
-const { v4: uuidv4 } = require('uuid');
+﻿const { v4: uuidv4 } = require('uuid');
 const oracledb = require('oracledb');
 const db = require('../db/oracle');
 
@@ -21,7 +21,7 @@ async function getAll() {
     }));
   } catch (e) {
     if (e.message && e.message.includes('ORA-00942')) {
-      console.warn('permissions 表尚未创建，返回空列�?);
+      console.warn('permissions table does not exist yet, returning an empty list.');
       return [];
     }
     throw e;
@@ -74,13 +74,15 @@ async function assignPermissions(roleId, permissionIds) {
   let connection;
   try {
     connection = await db.getConnection();
-    
-    // 先删除现有权�?    await connection.execute(
+
+    // Remove existing permissions first.
+    await connection.execute(
       `DELETE FROM role_permissions WHERE roleId = :roleId`,
       { roleId }
     );
-    
-    // 插入新权�?    if (permissionIds && permissionIds.length > 0) {
+
+    // Insert the new permissions.
+    if (permissionIds && permissionIds.length > 0) {
       for (const permId of permissionIds) {
         await connection.execute(
           `INSERT INTO role_permissions (id, roleId, permissionId) VALUES (:id, :roleId, :permissionId)`,
@@ -88,7 +90,7 @@ async function assignPermissions(roleId, permissionIds) {
         );
       }
     }
-    
+
     await connection.commit();
     return true;
   } finally {
@@ -116,4 +118,3 @@ module.exports = {
   assignPermissions,
   getModules
 };
-

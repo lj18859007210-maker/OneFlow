@@ -260,11 +260,33 @@ const isLoginPage = computed(() => route.path === "/login");
 
 const currentUser = ref({ name: "未登录", email: "", role: "user" });
 
+function getDefaultUser() {
+  return { name: "未登录", email: "", role: "user" };
+}
+
+function parseCurrentUser(stored) {
+  if (!stored) return getDefaultUser();
+
+  try {
+    const parsed = JSON.parse(stored);
+    if (parsed && typeof parsed === "object") {
+      return {
+        ...getDefaultUser(),
+        ...parsed,
+      };
+    }
+  } catch (error) {
+    console.warn("Invalid currentUser in localStorage, resetting.", error);
+  }
+
+  localStorage.removeItem("currentUser");
+  localStorage.removeItem("token");
+  return getDefaultUser();
+}
+
 function syncCurrentUser() {
   const stored = localStorage.getItem("currentUser");
-  currentUser.value = stored
-    ? JSON.parse(stored)
-    : { name: "未登录", email: "", role: "user" };
+  currentUser.value = parseCurrentUser(stored);
 }
 syncCurrentUser();
 
@@ -280,6 +302,7 @@ provide("currentUser", currentUser);
 
 function handleLogout() {
   localStorage.removeItem("currentUser");
+  localStorage.removeItem("token");
   router.push("/login");
 }
 
