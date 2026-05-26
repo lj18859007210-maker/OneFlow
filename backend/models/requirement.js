@@ -1,6 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 const oracledb = require('oracledb');
 const db = require('../db/oracle');
+const workflowModel = require('./workflow');
+const { FLOW_KEY_REQUIREMENT } = require('../utils/workflowDefaults');
 
 const STATUS = {
   PENDING_APPROVAL: '待审批',
@@ -20,17 +22,9 @@ const STATUS_ORDER = [
   STATUS.RELEASED
 ];
 
-const VALID_TRANSITIONS = {
-  [STATUS.PENDING_APPROVAL]: [],
-  [STATUS.PENDING_REVIEW]: [STATUS.PENDING_DEV],
-  [STATUS.PENDING_DEV]: [STATUS.IN_DEV],
-  [STATUS.IN_DEV]: [STATUS.IN_TEST],
-  [STATUS.IN_TEST]: [STATUS.RELEASED],
-  [STATUS.RELEASED]: []
-};
-
-function getNextStatuses(currentStatus) {
-  return VALID_TRANSITIONS[currentStatus] || [];
+async function getNextStatuses(currentStatus) {
+  const flow = await workflowModel.getFlow(FLOW_KEY_REQUIREMENT);
+  return workflowModel.listNextStatuses(flow, currentStatus, 'none');
 }
 
 async function readLobContent(lob) {
@@ -349,15 +343,13 @@ async function remove(id) {
   }
 }
 
-async function updateStatus(id, status) {
+async function updateStatus(id, status, actorRole) {
   const current = await getById(id);
   if (!current) return null;
 
-  const nextStatuses = getNextStatuses(current.status);
-  if (!nextStatuses.includes(status)) {
-    throw new Error(`非法状态流转: 当前状态为"${current.status}"，仅允许流转到${nextStatuses.length ? nextStatuses.map(s => `"${s}"`).join('、') : '最终状态'}`);
-  }
-
+  const flow = await workflowModel.getFlow(FLOW_KEY_REQUIREMENT);
+  const transition = workflowModel.findTransition(flow, current.status, status, 'none');
+  workflowModel.assertTransitionAllowed(transition, actorRole, false);
   let connection;
   try {
     connection = await db.getConnection();
@@ -366,19 +358,28 @@ async function updateStatus(id, status) {
       { status, id }
     );
     await connection.commit();
-    return await getById(id);
+    const requirement = await getById(id);
+    return { requirement, transition };
   } finally {
     if (connection) await connection.close();
   }
 }
 
-async function approve(id, approved, comment, actualDate) {
+async function approve(id, approved, comment, actualDate, actorRole) {
   const current = await getById(id);
   if (!current) return null;
   if (current.approvalStatus !== 'pending') {
     throw new Error('该需求已审批过，不能重复审批');
   }
-  const newStatus = approved ? STATUS.PENDING_REVIEW : STATUS.PENDING_APPROVAL;
+  const flow = await workflowModel.getFlow(FLOW_KEY_REQUIREMENT);
+  const approvalOutcome = approved ? 'approved' : 'rejected';
+  const transition = flow.transitions.find(item =>
+    item.enabled &&
+    item.fromStatus === current.status &&
+    (item.approvalOutcome || 'none') === approvalOutcome
+  );
+  workflowModel.assertTransitionAllowed(transition, actorRole, true);
+  const newStatus = transition.toStatus;
   let connection;
   try {
     connection = await db.getConnection();
@@ -399,7 +400,8 @@ async function approve(id, approved, comment, actualDate) {
       }
     );
     await connection.commit();
-    return await getById(id);
+    const requirement = await getById(id);
+    return { requirement, transition };
   } finally {
     if (connection) await connection.close();
   }
@@ -681,6 +683,5 @@ module.exports = {
   getAIContext,
   STATUS,
   STATUS_ORDER,
-  VALID_TRANSITIONS,
   getNextStatuses
 };

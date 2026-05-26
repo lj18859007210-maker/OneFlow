@@ -1,5 +1,6 @@
 const db = require('./oracle');
 const { PERMISSIONS, ROLE_DEFAULT_PERMISSION_CODES, buildPermissionInsertSql } = require('../utils/permissionCatalog');
+const { FLOW_KEY_REQUIREMENT, DEFAULT_STATUSES, DEFAULT_TRANSITIONS } = require('../utils/workflowDefaults');
 
 const TABLES = {
   notifications: `
@@ -59,6 +60,32 @@ const TABLES = {
       roleId VARCHAR2(36) NOT NULL,
       permissionId VARCHAR2(36) NOT NULL,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+  workflow_statuses: `
+    CREATE TABLE workflow_statuses (
+      id VARCHAR2(36) PRIMARY KEY,
+      flowKey NVARCHAR2(64) NOT NULL,
+      statusCode NVARCHAR2(64) NOT NULL,
+      statusName NVARCHAR2(64) NOT NULL,
+      sortOrder NUMBER DEFAULT 0,
+      isTerminal NUMBER DEFAULT 0,
+      enabled NUMBER DEFAULT 1,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+  workflow_transitions: `
+    CREATE TABLE workflow_transitions (
+      id VARCHAR2(36) PRIMARY KEY,
+      flowKey NVARCHAR2(64) NOT NULL,
+      fromStatus NVARCHAR2(64) NOT NULL,
+      toStatus NVARCHAR2(64) NOT NULL,
+      allowedRoles NCLOB,
+      requireApproval NUMBER DEFAULT 0,
+      notifyEnabled NUMBER DEFAULT 1,
+      enabled NUMBER DEFAULT 1,
+      approvalOutcome NVARCHAR2(20) DEFAULT 'none',
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
 };
 
@@ -76,7 +103,11 @@ const INDEXES = [
   'CREATE INDEX idx_developers_status ON developers(status)',
   'CREATE INDEX idx_permissions_module ON permissions(module)',
   'CREATE INDEX idx_role_permissions_roleId ON role_permissions(roleId)',
-  'CREATE INDEX idx_role_permissions_permissionId ON role_permissions(permissionId)'
+  'CREATE INDEX idx_role_permissions_permissionId ON role_permissions(permissionId)',
+  'CREATE INDEX idx_workflow_statuses_flow_key ON workflow_statuses(flowKey)',
+  'CREATE UNIQUE INDEX idx_workflow_statuses_flow_code ON workflow_statuses(flowKey, statusCode)',
+  'CREATE INDEX idx_workflow_transitions_flow_key ON workflow_transitions(flowKey)',
+  'CREATE INDEX idx_workflow_transitions_from_status ON workflow_transitions(flowKey, fromStatus)'
 ];
 
 const SEED_DATA = [
@@ -174,6 +205,56 @@ async function ensureAdminPermissions(connection) {
        VALUES (:id, 'role-admin', :permissionId)`,
       { id: `rp-admin-${permission.id}`, permissionId: permission.id }
     );
+  }
+}
+
+async function ensureWorkflowSeed(connection) {
+  const statusCountResult = await connection.execute(
+    `SELECT COUNT(*) FROM workflow_statuses WHERE flowKey = :flowKey`,
+    { flowKey: FLOW_KEY_REQUIREMENT }
+  );
+  const statusCount = Number(statusCountResult.rows[0][0]);
+
+  if (statusCount === 0) {
+    for (const status of DEFAULT_STATUSES) {
+      await connection.execute(
+        `INSERT INTO workflow_statuses (id, flowKey, statusCode, statusName, sortOrder, isTerminal, enabled, createdAt, updatedAt)
+         VALUES (SYS_GUID(), :flowKey, :statusCode, :statusName, :sortOrder, :isTerminal, :enabled, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        {
+          flowKey: FLOW_KEY_REQUIREMENT,
+          statusCode: status.statusCode,
+          statusName: status.statusName,
+          sortOrder: status.sortOrder,
+          isTerminal: status.isTerminal,
+          enabled: status.enabled
+        }
+      );
+    }
+  }
+
+  const transitionCountResult = await connection.execute(
+    `SELECT COUNT(*) FROM workflow_transitions WHERE flowKey = :flowKey`,
+    { flowKey: FLOW_KEY_REQUIREMENT }
+  );
+  const transitionCount = Number(transitionCountResult.rows[0][0]);
+
+  if (transitionCount === 0) {
+    for (const transition of DEFAULT_TRANSITIONS) {
+      await connection.execute(
+        `INSERT INTO workflow_transitions (id, flowKey, fromStatus, toStatus, allowedRoles, requireApproval, notifyEnabled, enabled, approvalOutcome, createdAt, updatedAt)
+         VALUES (SYS_GUID(), :flowKey, :fromStatus, :toStatus, :allowedRoles, :requireApproval, :notifyEnabled, :enabled, :approvalOutcome, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        {
+          flowKey: FLOW_KEY_REQUIREMENT,
+          fromStatus: transition.fromStatus,
+          toStatus: transition.toStatus,
+          allowedRoles: JSON.stringify(transition.allowedRoles),
+          requireApproval: transition.requireApproval,
+          notifyEnabled: transition.notifyEnabled,
+          enabled: transition.enabled,
+          approvalOutcome: transition.approvalOutcome
+        }
+      );
+    }
   }
 }
 
@@ -275,6 +356,7 @@ async function initialize() {
     await syncPermissions(connection);
     await ensureAdminPermissions(connection);
     await ensureDeveloperUserMapping(connection);
+    await ensureWorkflowSeed(connection);
 
     await connection.commit();
     console.log('[DB Migration] 完成\n');

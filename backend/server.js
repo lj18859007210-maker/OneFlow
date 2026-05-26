@@ -19,6 +19,7 @@ const auditLogRoutes = require('./routes/auditLogs');
 const notificationRoutes = require('./routes/notifications');
 const permissionRoutes = require('./routes/permissions');
 const userRoutes = require('./routes/users');
+const workflowRoutes = require('./routes/workflows');
 
 const app = express();
 const PORT = config.port;
@@ -54,6 +55,7 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/workflows', workflowRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: '需求管理平台运行中' });

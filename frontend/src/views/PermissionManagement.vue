@@ -134,7 +134,8 @@ const getModuleLabel = (module) => {
     notification: '通知中心',
     audit: '审计日志',
     permission: '权限管理',
-    user: '用户管理'
+    user: '用户管理',
+    workflow: '流程配置'
   }
   return map[module] || module
 }

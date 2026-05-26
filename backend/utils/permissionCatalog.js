@@ -13,7 +13,8 @@ const PERMISSIONS = [
   { id: 'perm-012', code: 'permission:manage', name: '权限管理', module: 'permission', description: '查看和分配角色权限' },
   { id: 'perm-013', code: 'project:timeline:view', name: '查看项目进度', module: 'project', description: '查看项目进度甘特图' },
   { id: 'perm-014', code: 'notification:view', name: '查看通知', module: 'notification', description: '查看、已读和删除个人通知' },
-  { id: 'perm-015', code: 'user:role:manage', name: '用户角色管理', module: 'user', description: '查看用户列表并调整用户角色' }
+  { id: 'perm-015', code: 'user:role:manage', name: '用户角色管理', module: 'user', description: '查看用户列表并调整用户角色' },
+  { id: 'perm-016', code: 'workflow:manage', name: '流程配置管理', module: 'workflow', description: '管理需求流程状态与流转配置' }
 ];
 
 const ROLE_DEFAULT_PERMISSION_CODES = {

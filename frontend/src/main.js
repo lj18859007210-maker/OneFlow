@@ -12,6 +12,7 @@ import NotificationCenter from './views/NotificationCenter.vue'
 import DeveloperManagement from './views/DeveloperManagement.vue'
 import PermissionManagement from './views/PermissionManagement.vue'
 import UserRoleManagement from './views/UserRoleManagement.vue'
+import WorkflowManagement from './views/WorkflowManagement.vue'
 import { hasPermission } from './utils/access'
 import { refreshCurrentUserIfStale, getStoredCurrentUser } from './utils/session'
 
@@ -26,7 +27,8 @@ const routes = [
   { path: '/developers', component: DeveloperManagement, meta: { requiresAuth: true, permission: 'developer:view' } },
   { path: '/audit-logs', component: AuditLogs, meta: { requiresAuth: true, permission: 'audit:view' } },
   { path: '/user-roles', component: UserRoleManagement, meta: { requiresAuth: true, permission: 'user:role:manage' } },
-  { path: '/permissions', component: PermissionManagement, meta: { requiresAuth: true, permission: 'permission:manage' } }
+  { path: '/permissions', component: PermissionManagement, meta: { requiresAuth: true, permission: 'permission:manage' } },
+  { path: '/workflow', component: WorkflowManagement, meta: { requiresAuth: true, permission: 'workflow:manage' } }
 ]
 
 const router = createRouter({

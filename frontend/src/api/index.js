@@ -95,4 +95,13 @@ export const userApi = {
   updateRole: (id, role) => api.put(`/users/${id}/role`, { role })
 }
 
+export const workflowApi = {
+  getStatuses: () => api.get('/workflows/requirement/statuses'),
+  updateStatuses: (statuses) => api.put('/workflows/requirement/statuses', { statuses }),
+  getTransitions: () => api.get('/workflows/requirement/transitions'),
+  createTransition: (data) => api.post('/workflows/requirement/transitions', data),
+  updateTransition: (id, data) => api.put(`/workflows/requirement/transitions/${id}`, data),
+  reload: () => api.post('/workflows/requirement/reload')
+}
+
 export default api
