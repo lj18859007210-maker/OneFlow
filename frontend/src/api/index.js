@@ -32,7 +32,7 @@ export const authApi = {
 }
 
 export const requirementApi = {
-  getAll: (page, pageSize) => api.get('/requirements', { params: { page, pageSize } }),
+  getAll: (page, pageSize, filters = {}) => api.get('/requirements', { params: { page, pageSize, ...filters } }),
   getApprovalList: (page, pageSize) => api.get('/requirements/approval-list', { params: { page, pageSize } }),
   getBySubmitter: (submitter, page, pageSize) => api.get('/requirements/my', { params: { submitter, page, pageSize } }),
   getDrafts: (submitter) => api.get('/requirements/drafts', { params: { submitter } }),
@@ -105,3 +105,4 @@ export const workflowApi = {
 }
 
 export default api
+

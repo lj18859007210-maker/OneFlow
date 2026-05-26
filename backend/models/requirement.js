@@ -78,56 +78,164 @@ async function parseRows(rows) {
   return Promise.all(rows.map(parseRow));
 }
 
-async function getAll(page = 1, pageSize = 20) {
+function buildRequirementListFilters(filters = {}) {
+  const clauses = ['WHERE isDraft = 0'];
+  const params = {};
+
+  if (filters.status) {
+    clauses.push('AND status = :status');
+    params.status = filters.status;
+  }
+  if (filters.platform) {
+    clauses.push('AND platform = :platform');
+    params.platform = filters.platform;
+  }
+  if (filters.developer) {
+    clauses.push('AND developer = :developer');
+    params.developer = filters.developer;
+  }
+  if (filters.priority) {
+    clauses.push('AND priority = :priority');
+    params.priority = filters.priority;
+  }
+  if (filters.dateStart) {
+    clauses.push('AND createdAt >= :dateStart');
+    params.dateStart = filters.dateStart;
+  }
+  if (filters.dateEndExclusive) {
+    clauses.push('AND createdAt < :dateEndExclusive');
+    params.dateEndExclusive = filters.dateEndExclusive;
+  }
+  if (filters.minScore !== null && filters.minScore !== undefined) {
+    clauses.push('AND score >= :minScore');
+    params.minScore = filters.minScore;
+  }
+  if (filters.maxScore !== null && filters.maxScore !== undefined) {
+    clauses.push('AND score <= :maxScore');
+    params.maxScore = filters.maxScore;
+  }
+  if (filters.isOverdue === 'true') {
+    clauses.push('AND expectedDate IS NOT NULL');
+    clauses.push('AND expectedDate < TRUNC(SYSDATE)');
+    clauses.push('AND status != :releasedStatus');
+    params.releasedStatus = STATUS.RELEASED;
+  }
+  if (filters.isOverdue === 'false') {
+    clauses.push('AND (expectedDate IS NULL OR expectedDate >= TRUNC(SYSDATE) OR status = :releasedStatus)');
+    params.releasedStatus = STATUS.RELEASED;
+  }
+
+  return {
+    whereClause: clauses.join(' '),
+    params
+  };
+}
+
+function buildSummaryQueryParts(filters = {}) {
+  return buildRequirementListFilters(filters);
+}
+
+async function getFilterOptions(connection) {
+  const platformResult = await connection.execute(
+          `SELECT DISTINCT platform
+       FROM requirements
+       WHERE isDraft = 0 AND platform IS NOT NULL AND TRIM(platform) IS NOT NULL
+       ORDER BY platform ASC`,
+    {},
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
+  );
+
+  return {
+    platforms: (platformResult.rows || []).map(row => row.PLATFORM).filter(Boolean)
+  };
+}
+
+async function getAll(page = 1, pageSize = 20, filters = {}) {
   let connection;
   try {
     connection = await db.getConnection();
+    const { whereClause, params } = buildRequirementListFilters(filters);
     const offset = (page - 1) * pageSize;
     const result = await connection.execute(
-      `SELECT * FROM (
-        SELECT r.*, ROW_NUMBER() OVER (ORDER BY CREATEDAT DESC) as rn
-        FROM requirements r
-        WHERE isDraft = 0
-      ) WHERE rn > :offset AND rn <= :limit`,
-      { offset, limit: offset + pageSize },
+              `SELECT * FROM (
+          SELECT r.*, ROW_NUMBER() OVER (ORDER BY CREATEDAT DESC) as rn
+          FROM requirements r
+          ${whereClause}
+        ) WHERE rn > :offset AND rn <= :limit`,
+      { ...params, offset, limit: offset + pageSize },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     const data = await parseRows(result.rows);
-    
+
     const totalResult = await connection.execute(
-      `SELECT COUNT(*) FROM requirements WHERE isDraft = 0`
+              `SELECT COUNT(*) FROM requirements ${whereClause}`,
+      params
     );
     const total = totalResult.rows[0][0];
 
     const statusStatsResult = await connection.execute(
-      `SELECT status as req_status, COUNT(*) as cnt FROM requirements WHERE isDraft = 0 GROUP BY status`,
-      {},
+              `SELECT status as req_status, COUNT(*) as cnt
+         FROM requirements
+         ${whereClause}
+         GROUP BY status`,
+      params,
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     const statusStats = {};
-    console.log('=== 数据库状态统计 ===');
-    console.log('rows:', JSON.stringify(statusStatsResult.rows));
     statusStatsResult.rows.forEach(row => {
       const keys = Object.keys(row);
-      console.log('row keys:', keys, 'row:', row);
       const statusKey = keys.find(k => k.toUpperCase() === 'REQ_STATUS') || keys.find(k => k.toUpperCase() === 'STATUS');
       const countKey = keys.find(k => k.toUpperCase() === 'CNT') || keys.find(k => k.toUpperCase() === 'COUNT');
       const status = statusKey ? String(row[statusKey]).trim() : null;
       const count = countKey ? Number(row[countKey]) : 0;
-      console.log('解析 - statusKey:', statusKey, 'status:', status, 'count:', count);
       if (status) {
         statusStats[status] = count;
       }
     });
-    console.log('最终 statusStats:', JSON.stringify(statusStats));
-    console.log('========================');
+
+    const priorityStatsResult = await connection.execute(
+      `SELECT priority, COUNT(*) AS cnt
+       FROM requirements
+       ${whereClause}
+       GROUP BY priority`,
+      params,
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    const priorityStats = {};
+    (priorityStatsResult.rows || []).forEach(row => {
+      if (row.PRIORITY) {
+        priorityStats[String(row.PRIORITY).trim()] = Number(row.CNT) || 0;
+      }
+    });
+
+    const scoreStatsResult = await connection.execute(
+      `SELECT
+         SUM(CASE WHEN score > 0 AND score <= 60 THEN 1 ELSE 0 END) AS bucket_0_60,
+         SUM(CASE WHEN score >= 61 AND score <= 80 THEN 1 ELSE 0 END) AS bucket_61_80,
+         SUM(CASE WHEN score >= 81 AND score <= 100 THEN 1 ELSE 0 END) AS bucket_81_100
+       FROM requirements
+       ${whereClause}`,
+      params,
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    const scoreRow = scoreStatsResult.rows?.[0] || {};
+    const scoreStats = {
+      '0-60': Number(scoreRow.BUCKET_0_60) || 0,
+      '61-80': Number(scoreRow.BUCKET_61_80) || 0,
+      '81-100': Number(scoreRow.BUCKET_81_100) || 0
+    };
 
     const avgScoreResult = await connection.execute(
-      `SELECT AVG(score) as avgScore FROM requirements WHERE isDraft = 0 AND score > 0`
+      `SELECT AVG(score) as avgScore
+       FROM requirements
+       ${whereClause}
+       AND score > 0`,
+      params
     );
     const avgScore = Number(avgScoreResult.rows[0][0]) || 0;
-    
-    return { data, total, page, pageSize, statusStats, avgScore };
+    const filterOptions = await getFilterOptions(connection);
+
+    return { data, total, page, pageSize, statusStats, priorityStats, scoreStats, avgScore, filterOptions };
   } finally {
     if (connection) await connection.close();
   }
@@ -683,5 +791,7 @@ module.exports = {
   getAIContext,
   STATUS,
   STATUS_ORDER,
-  getNextStatuses
+  getNextStatuses,
+  buildRequirementListFilters,
+  buildSummaryQueryParts
 };
