@@ -104,5 +104,18 @@ export const workflowApi = {
   reload: () => api.post('/workflows/requirement/reload')
 }
 
+export const attachmentApi = {
+  getByRequirement: (requirementId) => api.get(`/attachments/requirements/${requirementId}`),
+  uploadFormal: (requirementId, formData) => api.post(`/attachments/requirements/${requirementId}/upload`, formData),
+  uploadCommentFiles: (formData) => api.post('/attachments/comments/upload', formData),
+  addVersion: (attachmentId, formData) => api.post(`/attachments/${attachmentId}/versions`, formData),
+  promoteCommentAttachment: (commentAttachmentId, data) => api.post(`/attachments/comments/${commentAttachmentId}/promote`, data),
+  remove: (attachmentId) => api.delete(`/attachments/${attachmentId}`),
+  fetchFileBlob: (kind, id, mode = 'download') => api.get(`/attachments/files/${kind}/${id}`, {
+    params: { mode },
+    responseType: 'blob'
+  })
+}
+
 export default api
 

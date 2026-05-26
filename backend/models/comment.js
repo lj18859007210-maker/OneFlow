@@ -1,20 +1,12 @@
 const { v4: uuidv4 } = require('uuid');
 const oracledb = require('oracledb');
 const db = require('../db/oracle');
-
-async function readLobContent(lob) {
-  if (!lob) return null;
-  if (typeof lob === 'string') return lob;
-  return new Promise((resolve, reject) => {
-    let data = '';
-    lob.on('data', chunk => { data += chunk; });
-    lob.on('end', () => resolve(data));
-    lob.on('error', reject);
-  });
-}
+const attachmentModel = require('./attachment');
+const { splitLegacyCommentContent, mergeCommentRecord } = require('../utils/commentAttachments');
 
 async function parseRow(row) {
-  const content = await readLobContent(row.CONTENT);
+  const rawContent = await db.readLob(row.CONTENT);
+  const { content, legacyAttachments } = splitLegacyCommentContent(rawContent);
   return {
     id: row.ID,
     requirementId: row.REQUIREMENTID,
@@ -23,6 +15,7 @@ async function parseRow(row) {
     userRole: row.USERROLE,
     type: row.TYPE,
     content,
+    legacyAttachments,
     createdAt: row.CREATEDAT
   };
 }
@@ -32,7 +25,7 @@ async function create(data) {
   try {
     connection = await db.getConnection();
     const id = uuidv4();
-    
+
     await connection.execute(
       `INSERT INTO requirement_comments (
         id, requirementId, userId, userName, userRole, type, content, createdAt
@@ -49,8 +42,16 @@ async function create(data) {
         content: data.content
       }
     );
+
+    await attachmentModel.attachPendingCommentAttachments(connection, {
+      commentId: id,
+      requirementId: data.requirementId,
+      attachmentIds: data.attachmentIds || [],
+      createdBy: data.userId
+    });
+
     await connection.commit();
-    
+
     return await getById(id);
   } finally {
     if (connection) await connection.close();
@@ -63,11 +64,13 @@ async function getById(id) {
     connection = await db.getConnection();
     const result = await connection.execute(
       `SELECT * FROM requirement_comments WHERE id = :id`,
-      [id],
+      { id },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     if (result.rows.length === 0) return null;
-    return await parseRow(result.rows[0]);
+    const comment = await parseRow(result.rows[0]);
+    const attachments = await attachmentModel.listCommentAttachmentsByCommentId(comment.id, connection);
+    return mergeCommentRecord(comment, attachments, comment.legacyAttachments);
   } finally {
     if (connection) await connection.close();
   }
@@ -78,15 +81,18 @@ async function getByRequirementId(requirementId) {
   try {
     connection = await db.getConnection();
     const result = await connection.execute(
-      `SELECT * FROM requirement_comments 
-       WHERE requirementId = :requirementId 
+      `SELECT * FROM requirement_comments
+       WHERE requirementId = :requirementId
        ORDER BY createdAt ASC`,
-      [requirementId],
+      { requirementId },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
+
     const comments = [];
-    for (const row of result.rows) {
-      comments.push(await parseRow(row));
+    for (const row of result.rows || []) {
+      const comment = await parseRow(row);
+      const attachments = await attachmentModel.listCommentAttachmentsByCommentId(comment.id, connection);
+      comments.push(mergeCommentRecord(comment, attachments, comment.legacyAttachments));
     }
     return comments;
   } finally {

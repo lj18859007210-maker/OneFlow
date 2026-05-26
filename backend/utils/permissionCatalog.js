@@ -14,7 +14,14 @@ const PERMISSIONS = [
   { id: 'perm-013', code: 'project:timeline:view', name: '查看项目进度', module: 'project', description: '查看项目进度甘特图' },
   { id: 'perm-014', code: 'notification:view', name: '查看通知', module: 'notification', description: '查看、已读和删除个人通知' },
   { id: 'perm-015', code: 'user:role:manage', name: '用户角色管理', module: 'user', description: '查看用户列表并调整用户角色' },
-  { id: 'perm-016', code: 'workflow:manage', name: '流程配置管理', module: 'workflow', description: '管理需求流程状态与流转配置' }
+  { id: 'perm-016', code: 'workflow:manage', name: '流程配置管理', module: 'workflow', description: '管理需求流程状态与流转配置' },
+  { id: 'perm-017', code: 'attachment:view', name: '查看附件', module: 'attachment', description: '查看正式附件中心和评论附件' },
+  { id: 'perm-018', code: 'attachment:preview', name: '预览附件', module: 'attachment', description: '在线预览图片和 PDF 附件' },
+  { id: 'perm-019', code: 'attachment:upload', name: '上传附件', module: 'attachment', description: '上传正式附件或评论附件' },
+  { id: 'perm-020', code: 'attachment:download', name: '下载附件', module: 'attachment', description: '下载正式附件和评论附件' },
+  { id: 'perm-021', code: 'attachment:delete', name: '删除附件', module: 'attachment', description: '删除正式附件或附件版本' },
+  { id: 'perm-022', code: 'attachment:version:manage', name: '管理附件版本', module: 'attachment', description: '上传新版本并管理正式附件版本' },
+  { id: 'perm-023', code: 'attachment:promote', name: '归档评论附件', module: 'attachment', description: '将评论附件加入正式附件中心' }
 ];
 
 const ROLE_DEFAULT_PERMISSION_CODES = {
@@ -22,7 +29,12 @@ const ROLE_DEFAULT_PERMISSION_CODES = {
   user: [
     'requirement:view',
     'requirement:create',
-    'notification:view'
+    'notification:view',
+    'attachment:view',
+    'attachment:preview',
+    'attachment:upload',
+    'attachment:download',
+    'attachment:promote'
   ],
   developer: [
     'requirement:view',
@@ -30,7 +42,12 @@ const ROLE_DEFAULT_PERMISSION_CODES = {
     'requirement:score',
     'project:timeline:view',
     'developer:view',
-    'notification:view'
+    'notification:view',
+    'attachment:view',
+    'attachment:preview',
+    'attachment:upload',
+    'attachment:download',
+    'attachment:version:manage'
   ]
 };
 

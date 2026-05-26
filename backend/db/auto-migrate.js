@@ -86,6 +86,46 @@ const TABLES = {
       approvalOutcome NVARCHAR2(20) DEFAULT 'none',
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+  requirement_attachments: `
+    CREATE TABLE requirement_attachments (
+      id VARCHAR2(36) PRIMARY KEY,
+      requirementId VARCHAR2(36) NOT NULL,
+      category NVARCHAR2(50) NOT NULL,
+      originalName NVARCHAR2(255) NOT NULL,
+      sourceType NVARCHAR2(32) DEFAULT 'formal',
+      sourceCommentId VARCHAR2(36),
+      linkedCommentAttachmentId VARCHAR2(36),
+      currentVersionId VARCHAR2(36),
+      status NVARCHAR2(20) DEFAULT 'active',
+      createdBy VARCHAR2(36),
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+  requirement_attachment_versions: `
+    CREATE TABLE requirement_attachment_versions (
+      id VARCHAR2(36) PRIMARY KEY,
+      attachmentId VARCHAR2(36) NOT NULL,
+      versionNo NUMBER NOT NULL,
+      storagePath NVARCHAR2(500) NOT NULL,
+      mimeType NVARCHAR2(200),
+      fileSize NUMBER DEFAULT 0,
+      remark NCLOB,
+      createdBy VARCHAR2(36),
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+  comment_attachments: `
+    CREATE TABLE comment_attachments (
+      id VARCHAR2(36) PRIMARY KEY,
+      requirementId VARCHAR2(36),
+      commentId VARCHAR2(36),
+      originalName NVARCHAR2(255) NOT NULL,
+      storagePath NVARCHAR2(500) NOT NULL,
+      mimeType NVARCHAR2(200),
+      fileSize NUMBER DEFAULT 0,
+      createdBy VARCHAR2(36),
+      status NVARCHAR2(20) DEFAULT 'pending',
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
 };
 
@@ -107,7 +147,13 @@ const INDEXES = [
   'CREATE INDEX idx_workflow_statuses_flow_key ON workflow_statuses(flowKey)',
   'CREATE UNIQUE INDEX idx_workflow_statuses_flow_code ON workflow_statuses(flowKey, statusCode)',
   'CREATE INDEX idx_workflow_transitions_flow_key ON workflow_transitions(flowKey)',
-  'CREATE INDEX idx_workflow_transitions_from_status ON workflow_transitions(flowKey, fromStatus)'
+  'CREATE INDEX idx_workflow_transitions_from_status ON workflow_transitions(flowKey, fromStatus)',
+  'CREATE INDEX idx_requirement_attachments_requirement_id ON requirement_attachments(requirementId)',
+  'CREATE INDEX idx_requirement_attachments_status ON requirement_attachments(status)',
+  'CREATE INDEX idx_requirement_attachment_versions_attachment_id ON requirement_attachment_versions(attachmentId)',
+  'CREATE UNIQUE INDEX idx_requirement_attachment_versions_no ON requirement_attachment_versions(attachmentId, versionNo)',
+  'CREATE INDEX idx_comment_attachments_comment_id ON comment_attachments(commentId)',
+  'CREATE INDEX idx_comment_attachments_requirement_id ON comment_attachments(requirementId)'
 ];
 
 const SEED_DATA = [
@@ -204,6 +250,28 @@ async function ensureAdminPermissions(connection) {
       `INSERT INTO role_permissions (id, roleId, permissionId)
        VALUES (:id, 'role-admin', :permissionId)`,
       { id: `rp-admin-${permission.id}`, permissionId: permission.id }
+    );
+  }
+}
+
+async function ensureRoleDefaultPermissions(connection, roleName) {
+  const permissionIds = roleDefaultPermissionIds(roleName);
+  const roleId = `role-${roleName}`;
+
+  for (const permissionId of permissionIds) {
+    const existing = await connection.execute(
+      `SELECT COUNT(*) FROM role_permissions
+       WHERE roleId = :roleId AND permissionId = :permissionId`,
+      { roleId, permissionId }
+    );
+    if (existing.rows[0][0] > 0) {
+      continue;
+    }
+
+    await connection.execute(
+      `INSERT INTO role_permissions (id, roleId, permissionId)
+       VALUES (:id, :roleId, :permissionId)`,
+      { id: `rp-${roleName}-${permissionId}`, roleId, permissionId }
     );
   }
 }
@@ -355,6 +423,8 @@ async function initialize() {
     // 同步权限目录，确保旧库里的权限码也会被升级到当前规范
     await syncPermissions(connection);
     await ensureAdminPermissions(connection);
+    await ensureRoleDefaultPermissions(connection, 'user');
+    await ensureRoleDefaultPermissions(connection, 'developer');
     await ensureDeveloperUserMapping(connection);
     await ensureWorkflowSeed(connection);
 

@@ -5,11 +5,13 @@ const oracledb = require('oracledb');
 
 async function create(req, res) {
   try {
-    const { requirementId, type, content } = req.body;
+    const { requirementId, type, content, attachmentIds } = req.body;
     const { id: userId, username: userName, role: userRole } = req.user;
+    const normalizedAttachmentIds = Array.isArray(attachmentIds) ? attachmentIds.filter(Boolean) : [];
+    const normalizedContent = String(content || '').trim();
 
-    if (!requirementId || !type || !content) {
-      return res.status(400).json({ success: false, message: '缺少必要参数' });
+    if (!requirementId || !type || (!normalizedContent && normalizedAttachmentIds.length === 0)) {
+      return res.status(400).json({ success: false, message: '缂哄皯蹇呰鍙傛暟' });
     }
 
     const comment = await commentModel.create({
@@ -18,10 +20,10 @@ async function create(req, res) {
       userName,
       userRole,
       type,
-      content
+      content: normalizedContent,
+      attachmentIds: normalizedAttachmentIds
     });
 
-    // 获取需求信息以发送通知
     let connection;
     try {
       connection = await db.getConnection();
@@ -30,7 +32,7 @@ async function create(req, res) {
         { id: requirementId },
         { outFormat: oracledb.OUT_FORMAT_OBJECT }
       );
-      
+
       if (reqResult.rows.length > 0) {
         const requirement = {
           id: reqResult.rows[0].ID,
@@ -38,8 +40,7 @@ async function create(req, res) {
           submitter: reqResult.rows[0].SUBMITTER,
           developer: reqResult.rows[0].DEVELOPER
         };
-        
-        // 通知提交人
+
         if (requirement.submitter && requirement.submitter !== userName) {
           const submitterResult = await connection.execute(
             `SELECT id, name FROM users WHERE name = :submitter`,
@@ -54,8 +55,7 @@ async function create(req, res) {
             );
           }
         }
-        
-        // 通知开发人员（如果不是同一个人）
+
         if (requirement.developer && requirement.developer !== userName && requirement.developer !== requirement.submitter) {
           const devResult = await connection.execute(
             `SELECT id, name FROM users WHERE name = :devName`,
@@ -72,12 +72,12 @@ async function create(req, res) {
         }
       }
     } catch (e) {
-      console.error('发送评论通知失败:', e.message);
+      console.error('鍙戦€佽瘎璁洪€氱煡澶辫触:', e.message);
     } finally {
       if (connection) await connection.close();
     }
 
-    res.status(201).json({ success: true, data: comment, message: '评论创建成功' });
+    res.status(201).json({ success: true, data: comment, message: '璇勮鍒涘缓鎴愬姛' });
   } catch (error) {
     console.error('create comment error:', error);
     res.status(500).json({ success: false, message: String(error.message || error) });
@@ -88,7 +88,7 @@ async function getList(req, res) {
   try {
     const { requirementId } = req.params;
     if (!requirementId) {
-      return res.status(400).json({ success: false, message: '缺少需求ID参数' });
+      return res.status(400).json({ success: false, message: '缂哄皯闇€姹侷D鍙傛暟' });
     }
 
     const comments = await commentModel.getByRequirementId(requirementId);
