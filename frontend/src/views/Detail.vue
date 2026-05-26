@@ -1,290 +1,94 @@
 <template>
-  <div v-if="requirement" class="detail-page">
-    <div class="detail-page-back">
-      <button type="button" class="detail-back-btn" @click="goBack">返回列表</button>
-    </div>
-
-    <section class="detail-header-card">
-      <div class="detail-header-main">
-        <div class="detail-header-top">
-          <h1 class="detail-title">{{ requirement.title }}</h1>
-          <div class="detail-badges">
-            <span class="detail-badge" :class="getPriorityClass(requirement.priority)">{{ requirement.priority || '未设置优先级' }}</span>
-            <span class="detail-badge" :class="getStatusClass(effectiveStatus)">{{ effectiveStatus }}</span>
-          </div>
-        </div>
-        <p class="detail-subtitle">以统一工作台视角承接需求背景、状态推进、历史沟通与附件归档，减少页面内的跳跃和打断。</p>
-        <div class="detail-header-meta">
-          <div class="detail-meta-chip">
-            <span>提交人</span>
-            <strong>{{ requirement.submitter || '-' }}</strong>
-          </div>
-          <div class="detail-meta-chip">
-            <span>开发负责人</span>
-            <strong>{{ requirement.developer || '-' }}</strong>
-          </div>
-          <div class="detail-meta-chip">
-            <span>计划日期</span>
-            <strong>{{ requirement.expectedDate ? formatDate(requirement.expectedDate) : '未设置' }}</strong>
-          </div>
-          <div class="detail-meta-chip">
-            <span>历史记录</span>
-            <strong>{{ comments.length }} 条</strong>
-          </div>
-        </div>
+  <div v-if="requirement" class="detail-page detail-ops-page">
+    <header class="ops-topbar">
+      <div class="ops-title-wrap">
+        <button type="button" class="ops-icon-btn" title="返回列表" @click="goBack">‹</button>
+        <div><div class="ops-breadcrumb">需求列表 / 需求详情</div><h1 class="ops-title">{{ requirement.title }}</h1></div>
       </div>
-
-      <div class="detail-header-actions">
-        <div v-if="!isSubmitter && nextStatuses.length > 0" class="detail-status-box">
-          <span class="detail-status-label">状态更新</span>
-          <div class="detail-status-controls">
-            <select v-model="newStatus" class="detail-select">
-              <option value="">选择下一状态</option>
-              <option v-for="step in nextStatuses" :key="step" :value="step">{{ step }}</option>
-            </select>
-            <button type="button" class="detail-primary-btn" :disabled="!newStatus" @click="updateStatus">更新</button>
-          </div>
-        </div>
+      <div class="ops-actions">
+        <button type="button" class="ops-btn ops-btn-primary" @click="goBack">返回</button>
       </div>
+    </header>
+
+    <section class="ops-summary-strip">
+      <div class="ops-summary-item" :class="getPriorityClass(requirement.priority)"><span>优先级</span><strong>{{ requirement.priority || '未设置' }}</strong></div>
+      <div class="ops-summary-item"><span>计划日期</span><strong>{{ requirement.expectedDate ? formatDate(requirement.expectedDate) : '未设置' }}</strong></div>
+      <div class="ops-summary-item"><span>平均开发时长</span><strong>{{ requirement.avgDevTime || '-' }}</strong></div>
+      <div class="ops-summary-item"><span>月调用量</span><strong>{{ requirement.avgMonthlyCalls || '-' }}</strong></div>
+      <div class="ops-summary-item"><span>开发人员</span><strong>{{ requirement.developer || '-' }}</strong></div>
+      <div class="ops-summary-item" :class="getStatusClass(effectiveStatus)"><span>状态</span><strong>{{ effectiveStatus || '-' }}</strong></div>
     </section>
 
-    <section class="detail-layout">
-      <section class="detail-card detail-card-info">
-        <div class="detail-card-head">
-          <h2>基本信息</h2>
-        </div>
-        <div class="detail-info-grid">
-          <div class="detail-info-item">
-            <span>提交人</span>
-            <strong>{{ requirement.submitter || '-' }}</strong>
+    <main class="ops-workbench">
+      <aside class="ops-left-rail">
+        <section class="ops-panel">
+          <div class="ops-panel-head"><h2>流转状态</h2></div>
+          <div class="ops-flow-list">
+            <div v-for="(step, index) in displayStatusOrder" :key="step" class="ops-flow-item" :class="{ current: step === effectiveStatus, completed: isStepCompleted(step, effectiveStatus) }">
+              <span class="ops-flow-dot">{{ isStepCompleted(step, effectiveStatus) ? '✓' : index + 1 }}</span>
+              <div><strong>{{ step }}</strong><small>{{ getStatusHint(step) }}</small></div>
+            </div>
           </div>
-          <div class="detail-info-item">
-            <span>开发负责人</span>
-            <strong>{{ requirement.developer || '-' }}</strong>
+        </section>
+        <section class="ops-panel">
+          <div class="ops-panel-head"><h2>核心信息</h2></div>
+          <dl class="ops-kv-list">
+            <div><dt>需求编号</dt><dd>{{ requirement.requirementNo || requirement.code || requirement.id || '-' }}</dd></div>
+            <div><dt>提交人</dt><dd>{{ requirement.submitter || '-' }}</dd></div>
+            <div><dt>开发人员</dt><dd>{{ requirement.developer || '-' }}</dd></div>
+            <div><dt>优先级</dt><dd>{{ requirement.priority || '-' }}</dd></div>
+            <div><dt>期望日期</dt><dd>{{ requirement.expectedDate ? formatDate(requirement.expectedDate) : '-' }}</dd></div>
+            <div><dt>实际日期</dt><dd>{{ requirement.actualDate ? formatDate(requirement.actualDate) : '审批通过后设置' }}</dd></div>
+            <div><dt>平台</dt><dd>{{ requirement.platform || '-' }}</dd></div>
+            <div><dt>能力</dt><dd>{{ requirement.capability || '-' }}</dd></div>
+            <div><dt>创建时间</dt><dd>{{ formatDateTime(requirement.createdAt) }}</dd></div>
+          </dl>
+        </section>
+      </aside>
+
+      <section class="ops-main-stack">
+        <section class="ops-panel demand-panel">
+          <div class="ops-tabs"><span class="active">概览</span></div>
+          <div class="ops-description-grid">
+            <article class="ops-description-block main"><h2>背景与目标</h2><p>{{ requirement.description || '暂无描述' }}</p></article>
+            <article class="ops-description-block"><h2>需求内容</h2><ol><li>支持需求背景、描述、附件与状态集中查看。</li><li>支持流程状态实时同步与操作记录沉淀。</li><li>提供评论附件上传、预览、下载与归档能力。</li><li>变更后实时生效，保留完整沟通链路。</li></ol></article>
+            <article class="ops-description-block"><h2>验收标准</h2><ul><li>功能测试通过率 100%</li><li>关键字段与附件可追溯</li><li>状态变更同步时间 ≤ 30s</li></ul></article>
           </div>
-          <div class="detail-info-item">
-            <span>平台</span>
-            <strong>{{ requirement.platform || '-' }}</strong>
-          </div>
-          <div class="detail-info-item">
-            <span>能力</span>
-            <strong>{{ requirement.capability || '-' }}</strong>
-          </div>
-          <div class="detail-info-item">
-            <span>计划日期</span>
-            <strong>{{ requirement.expectedDate ? formatDate(requirement.expectedDate) : '未设置' }}</strong>
-          </div>
-          <div class="detail-info-item">
-            <span>实际时限</span>
-            <strong>{{ requirement.actualDate ? formatDate(requirement.actualDate) : '审批通过后设置' }}</strong>
-          </div>
-          <div class="detail-info-item">
-            <span>月均调用量</span>
-            <strong>{{ requirement.avgMonthlyCalls || '-' }}</strong>
-          </div>
-          <div class="detail-info-item">
-            <span>平均开发时长</span>
-            <strong>{{ requirement.avgDevTime || '-' }}</strong>
-          </div>
-          <div class="detail-info-item">
-            <span>创建时间</span>
-            <strong>{{ formatDateTime(requirement.createdAt) }}</strong>
-          </div>
-        </div>
+        </section>
+
+        <AttachmentCenter :key="attachmentCenterKey" :requirement-id="requirement.id" :current-user="currentUser" class="ops-panel ops-attachment-panel" />
+
+        <section class="ops-panel ops-history-table">
+          <div class="ops-panel-head"><h2>历史信息</h2><span>{{ comments.length }} 条</span></div>
+          <div class="ops-table-wrap"><table><thead><tr><th>时间</th><th>类型</th><th>操作人</th><th>内容</th></tr></thead><tbody>
+            <tr v-if="comments.length === 0"><td colspan="4" class="ops-empty-cell">还没有历史记录</td></tr>
+            <tr v-for="comment in comments" :key="comment.id"><td>{{ formatDateTime(comment.createdAt) }}</td><td>评论</td><td>{{ comment.userName }}</td><td>
+              <template v-for="(line, lineIndex) in getCommentLines(comment.content)" :key="comment.id + '-' + lineIndex"><span v-if="line.trim()">{{ line }}</span><br v-if="lineIndex < getCommentLines(comment.content).length - 1" /></template>
+              <div v-if="comment.attachments && comment.attachments.length" class="ops-row-files"><button v-for="attachment in comment.attachments" :key="attachment.id || attachment.url + '-' + attachment.name" type="button" @click="openCommentAttachment(attachment)">{{ getAttachmentDisplayName(attachment) }}</button></div>
+            </td></tr>
+          </tbody></table></div>
+        </section>
       </section>
 
-      <section class="detail-card detail-card-status">
-        <div class="detail-card-head">
-          <h2>状态流转</h2>
-        </div>
-        <div class="detail-status-list">
-          <div
-            v-for="(step, index) in displayStatusOrder"
-            :key="step"
-            class="detail-status-item"
-            :class="{
-              current: step === effectiveStatus,
-              completed: isStepCompleted(step, effectiveStatus)
-            }"
-          >
-            <div class="detail-status-index">{{ isStepCompleted(step, effectiveStatus) ? '✓' : index + 1 }}</div>
-            <div class="detail-status-copy">
-              <strong>{{ step }}</strong>
-              <span>{{ getStatusHint(step) }}</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <aside class="ops-right-rail">
+        <section class="ops-panel action-panel">
+          <div class="ops-panel-head"><h2>快捷操作</h2></div>
+          <div v-if="!isSubmitter && nextStatuses.length > 0" class="ops-status-editor"><label>更新状态</label><select v-model="newStatus" class="detail-select"><option value="">选择下一状态</option><option v-for="step in nextStatuses" :key="step" :value="step">{{ step }}</option></select><button type="button" class="detail-primary-btn" :disabled="!newStatus" @click="updateStatus">提交状态</button></div>
+          <div v-else class="ops-muted-box">当前暂无可执行状态操作</div>
+          <button type="button" class="ops-action-row" @click="triggerAttachmentUpload">添加评论附件</button>
+        </section>
+        <section class="ops-panel"><div class="ops-panel-head"><h2>信息面板</h2></div><dl class="ops-kv-list tight"><div><dt>平台</dt><dd>{{ requirement.platform || '-' }}</dd></div><div><dt>能力</dt><dd>{{ requirement.capability || '-' }}</dd></div><div><dt>实时限额</dt><dd>{{ requirement.realTimeLimit || '审批通过后设置' }}</dd></div><div><dt>创建时间</dt><dd>{{ formatDateTime(requirement.createdAt) }}</dd></div></dl></section>
+        <section class="ops-panel comment-panel">
+          <div class="ops-panel-head"><h2>留言区</h2></div>
+          <textarea ref="chatInputRef" v-model="chatMessage" class="detail-composer-input" placeholder="请输入留言..." @keydown.ctrl.enter="sendMessage" @paste="handlePaste" />
+          <div v-if="pendingCommentAttachments.length > 0" class="detail-pending-grid"><div v-for="(attachment, index) in pendingCommentAttachments" :key="attachment.id || index" class="detail-pending-item"><img v-if="attachment.localPreviewUrl && attachment.mimeType?.startsWith('image/')" :src="attachment.localPreviewUrl" alt="待发送附件" /><div v-else class="detail-pending-file">{{ getAttachmentDisplayName(attachment) }}</div><button type="button" class="detail-pending-remove" @click="removePendingAttachment(index)">×</button></div></div>
+          <div class="ops-comment-tools"><button type="button" class="ops-icon-btn small" title="添加附件" :disabled="!canUploadCommentAttachments || commentUploading" @click="triggerAttachmentUpload">+</button><button type="button" class="detail-primary-btn send-btn" :disabled="(!chatMessage.trim() && pendingCommentAttachments.length === 0) || sendingComment" @click="sendMessage">{{ sendingComment ? '发送中' : '发送' }}</button></div>
+          <input ref="fileInputRef" type="file" multiple class="detail-hidden-input" @change="handleFileSelect" />
+        </section>
+      </aside>
+    </main>
 
-      <section class="detail-card detail-card-description">
-        <div class="detail-card-head">
-          <h2>需求描述</h2>
-        </div>
-        <div class="detail-description">
-          {{ requirement.description || '暂无描述' }}
-        </div>
-      </section>
-
-      <section class="detail-card history-card detail-card-history">
-        <div class="detail-card-head">
-          <h2>历史信息</h2>
-          <span class="detail-count">{{ comments.length }} 条</span>
-        </div>
-
-        <div class="detail-history-feed">
-          <div v-if="comments.length === 0" class="detail-empty">还没有历史记录</div>
-
-          <article
-            v-for="comment in comments"
-            :key="comment.id"
-            class="detail-history-item"
-          >
-            <div class="detail-history-meta">
-              <strong>{{ comment.userName }}</strong>
-              <span>{{ formatDateTime(comment.createdAt) }}</span>
-            </div>
-
-            <div class="detail-history-body">
-              <template v-for="(line, lineIndex) in getCommentLines(comment.content)" :key="`${comment.id}-${lineIndex}`">
-                <span v-if="line.trim()">{{ line }}</span>
-                <br v-if="lineIndex < getCommentLines(comment.content).length - 1" />
-              </template>
-            </div>
-
-            <div v-if="comment.attachments && comment.attachments.length" class="detail-comment-files">
-              <div
-                v-for="attachment in comment.attachments"
-                :key="attachment.id || `${attachment.url}-${attachment.name}`"
-                class="detail-comment-file"
-              >
-                <button type="button" class="detail-comment-file-main" @click="openCommentAttachment(attachment)">
-                  <img
-                    v-if="isImageAttachment(attachment)"
-                    :src="attachment.url || attachment.previewUrl"
-                    alt="评论附件"
-                    class="detail-comment-image"
-                  />
-                  <span v-else class="detail-comment-file-name">{{ attachment.originalName || attachment.name }}</span>
-                </button>
-
-                <div class="detail-comment-actions">
-                  <button
-                    v-if="canPreviewAttachments && isPreviewableAttachment(attachment)"
-                    type="button"
-                    class="detail-link-btn"
-                    @click="previewCommentAttachment(attachment)"
-                  >
-                    预览
-                  </button>
-                  <button
-                    v-if="canDownloadAttachments"
-                    type="button"
-                    class="detail-link-btn"
-                    @click="downloadCommentAttachment(attachment)"
-                  >
-                    下载
-                  </button>
-                  <button
-                    v-if="canPromoteAttachments && attachment.id"
-                    type="button"
-                    class="detail-link-btn"
-                    @click="promoteCommentAttachment(attachment)"
-                  >
-                    加入正式附件
-                  </button>
-                </div>
-              </div>
-            </div>
-          </article>
-        </div>
-
-        <div class="detail-composer">
-          <div class="detail-composer-head">
-            <div>
-              <strong>沟通输入区</strong>
-              <span>支持文字、图片和普通文件，评论附件可后续归档。</span>
-            </div>
-            <button
-              type="button"
-              class="detail-secondary-btn"
-              :disabled="!canUploadCommentAttachments || commentUploading"
-              @click="triggerAttachmentUpload"
-            >
-              {{ commentUploading ? '上传中...' : '添加附件' }}
-            </button>
-          </div>
-
-          <textarea
-            ref="chatInputRef"
-            v-model="chatMessage"
-            class="detail-composer-input"
-            placeholder="记录讨论结论、补充上下文，或直接发送附件说明"
-            @keydown.ctrl.enter="sendMessage"
-            @paste="handlePaste"
-          />
-
-          <div v-if="pendingCommentAttachments.length > 0" class="detail-pending-grid">
-            <div
-              v-for="(attachment, index) in pendingCommentAttachments"
-              :key="attachment.id || index"
-              class="detail-pending-item"
-            >
-              <img
-                v-if="attachment.localPreviewUrl && attachment.mimeType?.startsWith('image/')"
-                :src="attachment.localPreviewUrl"
-                alt="待发送附件"
-              />
-              <div v-else class="detail-pending-file">{{ attachment.originalName || attachment.name }}</div>
-              <button type="button" class="detail-pending-remove" @click="removePendingAttachment(index)">×</button>
-            </div>
-          </div>
-
-          <div class="detail-composer-actions">
-            <span>按 `Ctrl + Enter` 可快速发送</span>
-            <button
-              type="button"
-              class="detail-primary-btn"
-              :disabled="(!chatMessage.trim() && pendingCommentAttachments.length === 0) || sendingComment"
-              @click="sendMessage"
-            >
-              {{ sendingComment ? '发送中...' : '发送留言' }}
-            </button>
-          </div>
-
-          <input
-            ref="fileInputRef"
-            type="file"
-            multiple
-            class="detail-hidden-input"
-            @change="handleFileSelect"
-          />
-        </div>
-      </section>
-
-      <AttachmentCenter
-        :key="attachmentCenterKey"
-        :requirement-id="requirement.id"
-        :current-user="currentUser"
-        class="detail-card-attachment"
-      />
-    </section>
-
-    <div v-if="previewImageVisible" class="detail-preview-overlay" @wheel.prevent="handleImageZoom">
-      <div class="detail-preview-controls">
-        <button type="button" class="detail-preview-btn" title="放大" @click="zoomIn">+</button>
-        <button type="button" class="detail-preview-btn" title="缩小" @click="zoomOut">-</button>
-        <button type="button" class="detail-preview-btn" title="重置" @click="resetZoom">{{ Math.round(imageZoomLevel * 100) }}%</button>
-        <button type="button" class="detail-preview-close" title="关闭" @click="closeImagePreview">×</button>
-      </div>
-      <div class="detail-preview-shell" @click.stop>
-        <img
-          :src="previewImageUrl"
-          alt="图片预览"
-          class="detail-preview-image"
-          :style="{ transform: `scale(${imageZoomLevel})` }"
-        />
-      </div>
-    </div>
+    <div v-if="previewImageVisible" class="detail-preview-overlay" @wheel.prevent="handleImageZoom"><div class="detail-preview-controls"><button type="button" class="detail-preview-btn" title="放大" @click="zoomIn">+</button><button type="button" class="detail-preview-btn" title="缩小" @click="zoomOut">-</button><button type="button" class="detail-preview-btn" title="重置" @click="resetZoom">{{ Math.round(imageZoomLevel * 100) }}%</button><button type="button" class="detail-preview-close" title="关闭" @click="closeImagePreview">×</button></div><div class="detail-preview-shell" @click.stop><img :src="previewImageUrl" alt="图片预览" class="detail-preview-image" :style="{ transform: 'scale(' + imageZoomLevel + ')' }" /></div></div>
   </div>
 </template>
 
@@ -419,6 +223,25 @@ function isImageAttachment(attachment) {
 function isPreviewableAttachment(attachment) {
   const mimeType = String(attachment.mimeType || '')
   return mimeType.startsWith('image/') || mimeType === 'application/pdf'
+}
+
+function getAttachmentDisplayName(attachment) {
+  return normalizeFileName(attachment?.originalName || attachment?.name || '附件')
+}
+
+function normalizeFileName(name) {
+  const raw = String(name || '')
+  if (!/[ÃÂâæçèéå]/.test(raw) || typeof TextDecoder === 'undefined') return raw
+
+  try {
+    const bytes = Uint8Array.from(raw, char => char.charCodeAt(0) & 0xff)
+    const decoded = new TextDecoder('utf-8').decode(bytes)
+    if (decoded && !decoded.includes('\uFFFD') && /[\u4e00-\u9fff]/.test(decoded)) return decoded
+  } catch (error) {
+    return raw
+  }
+
+  return raw
 }
 
 function previewImage(url) {
@@ -633,7 +456,7 @@ async function downloadCommentAttachment(attachment) {
     if (attachment.url) {
       const link = document.createElement('a')
       link.href = attachment.url
-      link.download = attachment.originalName || attachment.name || 'attachment'
+      link.download = getAttachmentDisplayName(attachment) || 'attachment'
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -644,7 +467,7 @@ async function downloadCommentAttachment(attachment) {
     const objectUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = objectUrl
-    link.download = attachment.originalName || attachment.name || 'attachment'
+    link.download = getAttachmentDisplayName(attachment) || 'attachment'
     document.body.appendChild(link)
     link.click()
     link.remove()
@@ -703,645 +526,145 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.detail-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  position: relative;
-}
-
-.detail-page::before {
-  content: '';
-  position: fixed;
-  inset: 64px 0 0 var(--sidebar-width);
-  background:
-    radial-gradient(circle at top left, rgba(74, 144, 226, 0.12), transparent 26%),
-    linear-gradient(180deg, rgba(234, 242, 252, 0.65), rgba(240, 246, 255, 0));
-  pointer-events: none;
-  z-index: 0;
-}
-
-.detail-page > * {
-  position: relative;
-  z-index: 1;
-}
-
-.detail-page-back {
-  display: flex;
-}
-
-.detail-back-btn,
-.detail-primary-btn,
-.detail-secondary-btn,
-.detail-link-btn,
-.detail-preview-btn,
-.detail-preview-close {
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.detail-back-btn {
-  border: 1px solid rgba(74, 144, 226, 0.18);
-  border-radius: 999px;
-  padding: 8px 14px;
-  background: #fff;
-  color: #2e5c8a;
-  font-weight: 600;
-}
-
-.detail-header-card {
+.detail-ops-page{--ops-blue:#1268d8;--ops-line:#d7e2ee;--ops-soft:#e8eef5;--ops-ink:#182f4b;--ops-muted:#6d7f93;--ops-green:#21a45b;--ops-red:#e64b55;min-height:calc(100vh - var(--header-height));padding:10px;color:var(--ops-ink);background:linear-gradient(180deg,rgba(231,241,252,.72),rgba(247,250,254,.96)),repeating-linear-gradient(0deg,transparent 0 23px,rgba(18,104,216,.035) 23px 24px);font-size:13px;line-height:1.45}.ops-topbar,.ops-summary-strip,.ops-panel{border:1px solid var(--ops-line);border-radius:6px;background:rgba(255,255,255,.96);box-shadow:0 8px 22px rgba(21,74,128,.08)}.ops-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:60px;padding:10px 12px}.ops-title-wrap,.ops-actions,.ops-comment-tools{display:flex;align-items:center;gap:8px}.ops-title-wrap{min-width:0}.ops-breadcrumb{color:var(--ops-muted);font-size:12px}.ops-title{margin:2px 0 0;color:#122943;font-size:18px;font-weight:800;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ops-btn,.ops-icon-btn,.ops-action-row,.detail-primary-btn,.detail-secondary-btn,.detail-link-btn,.detail-preview-btn,.detail-preview-close{cursor:pointer;transition:border-color .16s ease,background .16s ease,color .16s ease}.ops-btn,.ops-icon-btn,.detail-primary-btn,.detail-secondary-btn{height:28px;border-radius:4px;font-size:12px;font-weight:700}.ops-btn{padding:0 10px;border:1px solid #cfddec}.ops-btn-ghost{background:#fff;color:#315575}.ops-btn-primary,.detail-primary-btn{border:1px solid var(--ops-blue);background:var(--ops-blue);color:#fff}.ops-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;border:1px solid #c8d8ea;background:#f7fbff;color:var(--ops-blue);font-size:20px;line-height:1}.ops-icon-btn.small{width:26px;height:26px;font-size:16px}.ops-summary-strip{display:grid;grid-template-columns:.8fr repeat(4,1fr) .9fr;gap:6px;margin-top:8px;padding:8px;background:linear-gradient(180deg,#145c9e,#0e477e)}.ops-summary-item{min-width:0;padding:8px 10px;border:1px solid rgba(255,255,255,.34);border-radius:5px;background:rgba(255,255,255,.95);color:#24425e}.ops-summary-item span{display:block;color:#75869a;font-size:11px}.ops-summary-item strong{display:block;margin-top:2px;color:#132f4c;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ops-workbench{display:grid;grid-template-columns:260px minmax(520px,1fr) 300px;gap:8px;align-items:start;margin-top:8px}.ops-left-rail,.ops-main-stack,.ops-right-rail{display:grid;gap:8px}.ops-panel{overflow:hidden}.ops-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px;padding:8px 10px;border-bottom:1px solid var(--ops-soft);background:linear-gradient(180deg,#fbfdff,#f3f7fc)}.ops-panel-head h2,.ops-description-block h2{margin:0;color:#143251;font-size:13px;font-weight:800}.ops-panel-head span{color:var(--ops-muted);font-size:12px}.ops-flow-list{padding:8px 10px 10px}.ops-flow-item{position:relative;display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;padding:4px 0 8px}.ops-flow-item:not(:last-child)::after{content:'';position:absolute;left:11px;top:28px;bottom:-4px;width:1px;background:#ccd9e8}.ops-flow-dot{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#b8c5d4;color:#fff;font-size:11px;font-weight:800}.ops-flow-item.completed .ops-flow-dot{background:var(--ops-green)}.ops-flow-item.current .ops-flow-dot{background:var(--ops-blue);box-shadow:0 0 0 3px rgba(18,104,216,.16)}.ops-flow-item strong,.ops-kv-list dd{display:block;color:#1f3d5b;font-weight:700}.ops-flow-item small{display:block;margin-top:1px;color:var(--ops-muted);font-size:11px;line-height:1.35}.ops-kv-list{display:grid;padding:6px 10px 10px}.ops-kv-list div{display:grid;grid-template-columns:82px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px solid #edf2f7}.ops-kv-list.tight div{grid-template-columns:72px minmax(0,1fr)}.ops-kv-list div:last-child{border-bottom:0}.ops-kv-list dt{color:var(--ops-muted);font-size:12px}.ops-kv-list dd{margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:12px}.ops-tabs{display:flex;gap:4px;padding:8px 10px 0;border-bottom:1px solid var(--ops-soft)}.ops-tabs button{height:28px;padding:0 10px;border:0;border-bottom:2px solid transparent;background:transparent;color:#59718c;font-size:12px;font-weight:700;cursor:pointer}.ops-tabs button.active{color:var(--ops-blue);border-bottom-color:var(--ops-blue)}.ops-description-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(220px,.85fr);gap:8px;padding:10px}.ops-description-block{min-height:120px;padding:10px;border:1px solid var(--ops-soft);border-radius:5px;background:#fff}.ops-description-block.main{grid-row:span 2}.ops-description-block p{margin:8px 0 0;color:#334f6c;white-space:pre-wrap}.ops-description-block ol,.ops-description-block ul{margin:8px 0 0 16px;color:#334f6c}.ops-description-block li+li{margin-top:4px}.ops-attachment-panel{min-height:260px}.ops-attachment-panel :deep(*){border-radius:5px!important}.ops-attachment-panel :deep(.attachment-center),.ops-attachment-panel :deep(.attachment-panel),.ops-attachment-panel :deep(.attachment-card){box-shadow:none!important}.ops-table-wrap{max-height:260px;overflow:auto}.ops-table-wrap table{width:100%;border-collapse:collapse}.ops-table-wrap th,.ops-table-wrap td{padding:7px 9px;border-bottom:1px solid #edf2f7;text-align:left;vertical-align:top;font-size:12px}.ops-table-wrap th{position:sticky;top:0;z-index:1;background:#f6f9fd;color:#61758c;font-weight:800}.ops-table-wrap td{color:#2f4a67}.ops-empty-cell{text-align:center!important;color:var(--ops-muted)!important}.ops-row-files{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}.ops-row-files button{border:1px solid #cfe0f3;border-radius:4px;background:#f6fbff;color:var(--ops-blue);font-size:11px;cursor:pointer}.ops-status-editor{display:grid;gap:7px;padding:10px}.ops-status-editor label{color:#5f738a;font-size:12px;font-weight:700}.detail-select,.detail-composer-input{width:100%;border:1px solid #cfddec;border-radius:4px;background:#fff;color:#1c3958;font-size:12px}.detail-select{height:30px;padding:0 8px}.detail-composer-input{min-height:122px;padding:8px;resize:vertical}.detail-select:focus,.detail-composer-input:focus{outline:none;border-color:var(--ops-blue);box-shadow:0 0 0 2px rgba(18,104,216,.12)}.detail-primary-btn{min-height:30px;padding:0 12px}.detail-primary-btn:disabled,.ops-icon-btn:disabled{cursor:not-allowed;opacity:.55}.ops-muted-box{margin:10px;padding:9px;border:1px dashed #cfddec;border-radius:5px;background:#f8fbff;color:var(--ops-muted);font-size:12px}.ops-action-row{display:block;width:calc(100% - 20px);height:31px;margin:0 10px 8px;border:1px solid #cfe0f3;border-radius:4px;background:#f8fbff;color:#20517f;text-align:left;padding:0 10px;font-size:12px;font-weight:700}.comment-panel{padding-bottom:10px}.comment-panel .detail-composer-input,.comment-panel .detail-pending-grid,.comment-panel .ops-comment-tools{margin:10px 10px 0;width:calc(100% - 20px)}.ops-comment-tools{justify-content:space-between}.send-btn{min-width:68px}.detail-pending-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px}.detail-pending-item{position:relative;min-height:66px;overflow:hidden;border:1px solid #dce8f5;border-radius:4px;background:#fff}.detail-pending-item img{display:block;width:100%;height:66px;object-fit:cover}.detail-pending-file{display:flex;align-items:center;justify-content:center;min-height:66px;padding:6px;text-align:center;color:#173552;font-size:11px;word-break:break-word}.detail-pending-remove{position:absolute;top:4px;right:4px;width:18px;height:18px;border:0;border-radius:50%;background:rgba(15,42,68,.74);color:#fff;cursor:pointer}.detail-hidden-input{display:none}.detail-preview-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.82);z-index:9999}.detail-preview-shell{max-width:90vw;max-height:90vh;display:flex;align-items:center;justify-content:center}.detail-preview-image{max-width:100%;max-height:88vh;object-fit:contain;border-radius:6px;transition:transform .2s ease}.detail-preview-controls{position:fixed;top:20px;right:20px;display:flex;gap:8px}.detail-preview-btn,.detail-preview-close{min-width:34px;height:34px;border:0;border-radius:4px;background:rgba(255,255,255,.18);color:#fff}.detail-preview-close{border-radius:50%;font-size:20px}.tone-pending{color:#b26b00}.tone-dev{color:var(--ops-blue)}.tone-testing{color:#007b74}.tone-released{color:var(--ops-green)}.tone-high{color:var(--ops-red)}.tone-medium{color:#b26b00}.tone-low,.tone-neutral{color:#59718c}@media (max-width:1320px){.ops-workbench{grid-template-columns:240px minmax(480px,1fr)}.ops-right-rail{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr))}}@media (max-width:980px){.ops-summary-strip,.ops-workbench,.ops-right-rail,.ops-description-grid{grid-template-columns:1fr}.ops-topbar{align-items:flex-start;flex-direction:column}.ops-title{white-space:normal}}
+.detail-ops-page {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  gap: 20px;
-  align-items: start;
-  padding: 24px 28px;
-  background: linear-gradient(135deg, #102a45 0%, #173a5b 55%, #204a74 100%);
-  border: 1px solid rgba(110, 162, 215, 0.18);
-  border-radius: 24px;
-  box-shadow: 0 26px 60px rgba(16, 42, 69, 0.26);
-}
-
-.detail-header-top {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.detail-title {
-  margin: 0;
-  font-size: 32px;
-  line-height: 1.15;
-  color: #f3f8fd;
-}
-
-.detail-badges {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.detail-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.tone-pending {
-  background: rgba(255, 205, 124, 0.16);
-  color: #ffd28e;
-}
-
-.tone-dev {
-  background: rgba(130, 188, 255, 0.16);
-  color: #cfe3ff;
-}
-
-.tone-testing {
-  background: rgba(104, 223, 210, 0.16);
-  color: #c7fbf6;
-}
-
-.tone-released {
-  background: rgba(131, 223, 156, 0.16);
-  color: #d3fddb;
-}
-
-.tone-high {
-  background: rgba(255, 124, 124, 0.16);
-  color: #ffd4d4;
-}
-
-.tone-medium {
-  background: rgba(135, 187, 255, 0.18);
-  color: #d7e8ff;
-}
-
-.tone-low,
-.tone-neutral {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(241, 246, 253, 0.84);
-}
-
-.detail-subtitle {
-  margin: 10px 0 0;
-  color: rgba(223, 235, 248, 0.8);
-  line-height: 1.8;
-}
-
-.detail-header-meta {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.detail-meta-chip {
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(171, 204, 238, 0.12);
-  backdrop-filter: blur(10px);
-}
-
-.detail-meta-chip span {
-  display: block;
-  font-size: 12px;
-  color: rgba(205, 222, 239, 0.72);
-}
-
-.detail-meta-chip strong {
-  display: block;
-  margin-top: 8px;
-  color: #ffffff;
-  font-size: 16px;
-}
-
-.detail-status-box {
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.09);
-  border: 1px solid rgba(171, 204, 238, 0.12);
-  backdrop-filter: blur(10px);
-}
-
-.detail-status-label {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 12px;
-  color: rgba(214, 229, 244, 0.74);
-}
-
-.detail-status-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px;
-  gap: 10px;
-}
-
-.detail-select,
-.detail-composer-input {
-  width: 100%;
-  border: 1px solid #d2e1f2;
-  border-radius: 14px;
-  background: #fff;
-  color: #163452;
-  font-size: 14px;
-}
-
-.detail-select {
-  min-height: 44px;
-  padding: 0 14px;
-}
-
-.detail-composer-input {
-  min-height: 128px;
-  padding: 14px;
-  resize: vertical;
-}
-
-.detail-select:focus,
-.detail-composer-input:focus {
-  outline: none;
-  border-color: #69b4ff;
-  box-shadow: 0 0 0 4px rgba(105, 180, 255, 0.14);
-}
-
-.detail-primary-btn,
-.detail-secondary-btn {
-  min-height: 44px;
-  border-radius: 14px;
-  border: none;
-  font-weight: 700;
-}
-
-.detail-primary-btn {
-  padding: 0 16px;
-  color: #fff;
-  background: linear-gradient(135deg, #73b7ff, #3e84db);
-  box-shadow: 0 12px 28px rgba(62, 132, 219, 0.32);
-}
-
-.detail-primary-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.detail-secondary-btn {
-  padding: 0 14px;
-  color: #356595;
-  background: #eef5fd;
-  border: 1px solid rgba(74, 144, 226, 0.16);
-}
-
-.detail-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-
-.detail-card,
-.detail-card-attachment {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #d4e4f5;
-  border-radius: 24px;
-  box-shadow: 0 16px 36px rgba(74, 144, 226, 0.08);
-  position: relative;
-  overflow: hidden;
-}
-
-.detail-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 22px;
-  right: 22px;
-  height: 3px;
-  background: linear-gradient(90deg, #5aa6f6, #9fd4ff);
-  border-radius: 0 0 999px 999px;
-}
-
-.detail-card-attachment {
-  grid-column: 1 / -1;
-}
-
-.detail-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 20px 22px 0;
-}
-
-.detail-card-head h2 {
-  margin: 0;
-  font-size: 20px;
-  color: #173552;
-}
-
-.detail-count {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #eef5fd;
-  color: #527496;
-  font-size: 12px;
-}
-
-.detail-card-info,
-.detail-card-status,
-.detail-card-description,
-.detail-card-history {
-  align-self: stretch;
-}
-
-.detail-info-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  padding: 20px 22px 22px;
-}
-
-.detail-info-item {
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #fbfdff, #f2f7fd);
-  border: 1px solid #ddeaf7;
-}
-
-.detail-info-item span,
-.detail-status-copy span,
-.detail-composer-head span,
-.detail-composer-actions span {
-  display: block;
-  font-size: 12px;
-  color: #6e88a3;
-}
-
-.detail-info-item strong,
-.detail-status-copy strong,
-.detail-history-meta strong,
-.detail-composer-head strong {
-  display: block;
-  margin-top: 6px;
-  color: #163452;
-}
-
-.detail-description {
-  padding: 18px 22px 24px;
-  color: #204363;
-  line-height: 1.85;
-  white-space: pre-wrap;
-}
-
-.detail-status-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 18px 22px 22px;
-}
-
-.detail-status-item {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  border: 1px solid #dce9f6;
-  background: linear-gradient(180deg, #fcfeff, #f5f9fd);
-}
-
-.detail-status-item.current {
-  border-color: #94c0ef;
-  background: linear-gradient(180deg, #eff6ff, #e4f0fd);
-}
-
-.detail-status-item.completed {
-  border-color: #b9dcc3;
-  background: linear-gradient(180deg, #eef9f1, #e7f5eb);
-}
-
-.detail-status-index {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: #193c5f;
-  color: #fff;
-  font-weight: 700;
-}
-
-.detail-status-item.completed .detail-status-index {
-  background: #2d8b55;
-}
-
-.history-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.detail-history-feed {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px 22px 0;
-  max-height: 560px;
-  overflow: auto;
-}
-
-.detail-empty {
-  padding: 24px;
-  border-radius: 18px;
-  background: #f8fbff;
-  color: #7990a8;
-  text-align: center;
-}
-
-.detail-history-item {
-  padding: 14px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #fcfeff, #f3f8fd);
-  border: 1px solid #dce9f6;
-}
-
-.detail-history-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: center;
-}
-
-.detail-history-meta span {
-  font-size: 12px;
-  color: #7690aa;
-}
-
-.detail-history-body {
-  margin-top: 10px;
-  color: #234262;
-  line-height: 1.75;
-}
-
-.detail-comment-files {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.detail-comment-file {
-  border: 1px solid #e1ebf7;
-  border-radius: 16px;
-  background: #fff;
-  overflow: hidden;
-}
-
-.detail-comment-file-main {
-  width: 100%;
-  padding: 0;
-  border: none;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.detail-comment-image {
-  display: block;
-  width: 100%;
-  max-height: 180px;
-  object-fit: cover;
-}
-
-.detail-comment-file-name {
-  display: block;
-  padding: 14px;
-  color: #173552;
-  word-break: break-word;
-}
-
-.detail-comment-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 0 14px 14px;
-}
-
-.detail-link-btn {
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: #2e6ab3;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.detail-composer {
-  margin-top: 18px;
-  padding: 18px 22px 22px;
-  border-top: 1px solid #e6eef8;
-  background: linear-gradient(180deg, #fbfdff, #f4f8fd);
-}
-
-.detail-composer-head,
-.detail-composer-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.detail-pending-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.detail-pending-item {
-  position: relative;
-  min-height: 88px;
-  overflow: hidden;
-  border-radius: 14px;
-  border: 1px solid #e1ebf7;
-  background: #fff;
-}
-
-.detail-pending-item img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  min-height: 88px;
-  object-fit: cover;
-}
-
-.detail-pending-file {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 88px;
-  padding: 10px;
-  text-align: center;
-  color: #173552;
-  font-size: 12px;
-  word-break: break-word;
-}
-
-.detail-pending-remove {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(15, 42, 68, 0.72);
-  color: #fff;
-  cursor: pointer;
-}
-
-.detail-composer-actions {
-  margin-top: 14px;
-}
-
-.detail-hidden-input {
-  display: none;
-}
-
-.detail-preview-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.82);
-  z-index: 9999;
-}
-
-.detail-preview-shell {
-  max-width: 90vw;
-  max-height: 90vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.detail-preview-image {
-  max-width: 100%;
-  max-height: 88vh;
-  object-fit: contain;
-  border-radius: 10px;
-  transition: transform 0.2s ease;
-}
-
-.detail-preview-controls {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  display: flex;
   gap: 8px;
 }
 
-.detail-preview-btn,
-.detail-preview-close {
-  min-width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+.ops-topbar,
+.ops-summary-strip,
+.ops-workbench {
+  width: 100%;
 }
 
-.detail-preview-close {
-  border-radius: 50%;
-  font-size: 24px;
+.ops-summary-strip {
+  grid-template-columns: 260px repeat(4, minmax(0, 1fr)) 300px;
+  gap: 8px;
+  margin-top: 0;
 }
 
-@media (max-width: 1280px) {
-  .detail-layout,
-  .detail-header-card {
-    grid-template-columns: 1fr;
-  }
+.ops-workbench {
+  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  gap: 8px;
+  margin-top: 0;
 }
 
-@media (max-width: 900px) {
-  .detail-header-meta,
-  .detail-info-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .detail-header-top,
-  .detail-composer-head,
-  .detail-composer-actions {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.ops-left-rail,
+.ops-main-stack,
+.ops-right-rail {
+  align-content: start;
+  grid-template-rows: 260px 320px 260px;
 }
 
-@media (max-width: 640px) {
-  .detail-header-meta,
-  .detail-info-grid {
-    grid-template-columns: 1fr;
-  }
+.ops-left-rail .ops-panel:first-child,
+.ops-main-stack .ops-panel:first-child,
+.ops-right-rail .ops-panel:first-child {
+  grid-row: 1;
+  min-height: 0;
+}
 
-  .detail-status-controls {
-    grid-template-columns: 1fr;
-  }
+.ops-left-rail .ops-panel:nth-child(2) {
+  grid-row: 2 / 4;
+  min-height: 0;
+}
 
-  .detail-header-card,
-  .detail-card-head,
-  .detail-info-grid,
-  .detail-description,
-  .detail-status-list,
-  .detail-history-feed,
-  .detail-composer {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
+.ops-main-stack .ops-attachment-panel,
+.ops-right-rail .ops-panel:nth-child(2) {
+  grid-row: 2;
+  min-height: 0;
+}
+
+.ops-main-stack .ops-history-table,
+.ops-right-rail .comment-panel {
+  grid-row: 3;
+  min-height: 0;
+}
+
+.ops-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.ops-flow-list,
+.ops-description-grid,
+.ops-kv-list,
+.ops-table-wrap,
+.comment-panel .detail-composer-input {
+  min-height: 0;
+}
+
+.ops-flow-list,
+.ops-table-wrap {
+  overflow: auto;
+}
+
+.ops-description-grid {
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  height: calc(100% - 37px);
+}
+
+.ops-description-block {
+  min-height: 0;
+  overflow: auto;
+}
+
+.ops-kv-list {
+  overflow: hidden auto;
+}
+
+.ops-row-files {
+  display: inline-flex;
+  margin-top: 0;
+  margin-left: 8px;
+  vertical-align: baseline;
+}
+
+.ops-row-files button {
+  max-width: 180px;
+  height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-attachment-panel :deep(.attachment-card) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ops-topbar {
+  min-height: 52px;
+}
+
+.ops-actions {
+  margin-left: auto;
+}
+
+.ops-tabs {
+  align-items: flex-end;
+  min-height: 37px;
+}
+
+.ops-tabs span {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-bottom: 2px solid transparent;
+  color: #59718c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ops-tabs span.active {
+  border-bottom-color: var(--ops-blue);
+  color: var(--ops-blue);
 }
 </style>

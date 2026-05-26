@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const oracledb = require('oracledb');
 const db = require('../db/oracle');
 const { ATTACHMENT_CATEGORIES, createAttachmentSummary } = require('../utils/attachmentPolicy');
-const { buildAttachmentFileRoute } = require('../utils/attachmentStorage');
+const { buildAttachmentFileRoute, normalizeOriginalName } = require('../utils/attachmentStorage');
 
 function ensureValidCategory(category) {
   if (!ATTACHMENT_CATEGORIES.includes(category)) {
@@ -46,7 +46,7 @@ async function parseCommentAttachmentRow(row) {
     id: row.ID,
     requirementId: row.REQUIREMENTID || null,
     commentId: row.COMMENTID || null,
-    originalName: row.ORIGINALNAME,
+    originalName: normalizeOriginalName(row.ORIGINALNAME),
     storagePath: row.STORAGEPATH,
     mimeType: row.MIMETYPE,
     fileSize: Number(row.FILESIZE || 0),
@@ -143,7 +143,7 @@ async function getRequirementAttachmentById(id, existingConnection = null) {
       id: row.ID,
       requirementId: row.REQUIREMENTID,
       category: row.CATEGORY,
-      originalName: row.ORIGINALNAME,
+      originalName: normalizeOriginalName(row.ORIGINALNAME),
       sourceType: row.SOURCETYPE,
       sourceCommentId: row.SOURCECOMMENTID,
       linkedCommentAttachmentId: row.LINKEDCOMMENTATTACHMENTID,
@@ -159,7 +159,7 @@ async function getRequirementAttachmentById(id, existingConnection = null) {
         id: row.ID,
         category: row.CATEGORY,
         sourceType: row.SOURCETYPE,
-        originalName: row.ORIGINALNAME,
+        originalName: normalizeOriginalName(row.ORIGINALNAME),
         currentVersion
       })
     };

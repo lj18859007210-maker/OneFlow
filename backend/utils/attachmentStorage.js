@@ -25,7 +25,7 @@ function createStorage(scope) {
   ensureAttachmentDirectories();
   return multer.diskStorage({
     destination: (req, file, cb) => cb(null, getScopeDirectory(scope)),
-    filename: (req, file, cb) => cb(null, uuidv4() + path.extname(file.originalname || ''))
+    filename: (req, file, cb) => cb(null, uuidv4() + path.extname(normalizeOriginalName(file.originalname || '')))
   });
 }
 
@@ -46,11 +46,27 @@ function resolveStoragePath(relativePath) {
 
 function toStoredFileInfo(scope, file) {
   return {
-    originalName: file.originalname,
+    originalName: normalizeOriginalName(file.originalname),
     mimeType: file.mimetype,
     fileSize: file.size,
     storagePath: buildRelativeStoragePath(scope, file.filename)
   };
+}
+
+function normalizeOriginalName(name) {
+  const raw = String(name || '');
+  if (!/[ÃÂâæçèéå]/.test(raw)) return raw;
+
+  try {
+    const decoded = Buffer.from(raw, 'latin1').toString('utf8');
+    if (decoded && !decoded.includes('\uFFFD') && /[\u4e00-\u9fff]/.test(decoded)) {
+      return decoded;
+    }
+  } catch (error) {
+    return raw;
+  }
+
+  return raw;
 }
 
 function buildAttachmentFileRoute(kind, id, mode = 'download') {
@@ -62,5 +78,6 @@ module.exports = {
   createUploader,
   resolveStoragePath,
   toStoredFileInfo,
+  normalizeOriginalName,
   buildAttachmentFileRoute
 };
