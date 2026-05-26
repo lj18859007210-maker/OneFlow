@@ -12,6 +12,23 @@
       </div>
     </header>
 
+    <section v-if="enabledStatuses.length" class="surface preview-surface">
+      <div class="section-header preview-header">
+        <div>
+          <h2>当前流程预览</h2>
+          <p>这里显示的是当前已启用并已保存的状态顺序。你新增“结束”并保存后，会直接出现在这里。</p>
+        </div>
+      </div>
+
+      <div class="flow-preview">
+        <div class="flow-line"></div>
+        <div class="flow-step" v-for="(status, index) in enabledStatuses" :key="status.value">
+          <div class="flow-dot">{{ index + 1 }}</div>
+          <div class="flow-name">{{ status.label }}</div>
+        </div>
+      </div>
+    </section>
+
     <section class="surface">
       <div class="section-header">
         <div>
@@ -61,6 +78,15 @@
               <span>启用</span>
             </label>
           </div>
+
+          <div class="status-card-foot">
+            <span v-if="item.enabled && item.statusCode">
+              {{ getStatusUsageText(item.statusCode) }}
+            </span>
+            <span v-else>
+              当前未启用，下面的流转里不会出现它
+            </span>
+          </div>
         </article>
       </div>
     </section>
@@ -73,6 +99,15 @@
         </div>
         <div class="section-actions">
           <button class="primary-btn" @click="addTransition" :disabled="enabledStatuses.length < 2">新增流转</button>
+        </div>
+      </div>
+
+      <div v-if="enabledStatuses.length" class="status-overview">
+        <div class="status-overview-title">这些状态已经生效，新增流转时会出现在下拉框里：</div>
+        <div class="status-overview-list">
+          <span v-for="status in enabledStatuses" :key="status.value" class="status-overview-chip">
+            {{ status.label }}
+          </span>
         </div>
       </div>
 
@@ -239,6 +274,17 @@ function normalizeTransition(item) {
 function getStatusLabel(code) {
   const matched = statuses.value.find(item => item.statusCode === code)
   return matched ? (matched.statusName || matched.statusCode) : code
+}
+
+function getStatusUsageText(code) {
+  const count = transitions.value.filter(item =>
+    item.enabled !== false && (item.fromStatus === code || item.toStatus === code)
+  ).length
+
+  if (count === 0) {
+    return '已保存后会出现在下方流转配置的状态下拉框中，目前还没有接入任何流转'
+  }
+  return `当前已被 ${count} 条流转使用`
 }
 
 async function loadAll() {
@@ -470,6 +516,62 @@ onMounted(loadAll)
   box-shadow: 0 14px 34px rgba(74, 144, 226, 0.08);
 }
 
+.preview-surface {
+  padding-bottom: 30px;
+}
+
+.preview-header {
+  margin-bottom: 26px;
+}
+
+.flow-preview {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.flow-line {
+  position: absolute;
+  top: 18px;
+  left: 36px;
+  right: 36px;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(74, 144, 226, 0.18), rgba(74, 144, 226, 0.42));
+  border-radius: 999px;
+}
+
+.flow-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.flow-dot {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 2px solid rgba(74, 144, 226, 0.32);
+  color: var(--tech-blue-dark);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(74, 144, 226, 0.14);
+}
+
+.flow-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tech-text);
+  text-align: center;
+  line-height: 1.4;
+}
+
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -562,6 +664,40 @@ onMounted(loadAll)
   color: var(--tech-text-secondary);
 }
 
+.status-overview {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(74, 144, 226, 0.14);
+  border-radius: 16px;
+  background: rgba(74, 144, 226, 0.06);
+}
+
+.status-overview-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tech-text-secondary);
+}
+
+.status-overview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.status-overview-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--tech-border);
+  color: var(--tech-blue-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -589,6 +725,13 @@ onMounted(loadAll)
   font-size: 13px;
   font-weight: 700;
   color: var(--tech-blue);
+}
+
+.status-card-foot {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--tech-text-secondary);
+  line-height: 1.6;
 }
 
 .field {

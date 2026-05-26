@@ -4,7 +4,7 @@
     <div class="tech-progress-wrap">
       <div class="tech-progress">
         <div
-          v-for="(step, index) in STATUS_ORDER"
+          v-for="(step, index) in displayStatusOrder"
           :key="step"
           class="tech-progress-step"
           :class="{
@@ -13,7 +13,7 @@
           }"
         >
           <div class="tech-progress-dot">{{ isStepCompleted(step, effectiveStatus) ? '✓' : index + 1 }}</div>
-          <span class="tech-progress-label">{{ getStepLabel(step, effectiveStatus) }}</span>
+          <span class="tech-progress-label">{{ step }}</span>
         </div>
       </div>
       <div style="display:flex;gap:12px;margin-top:20px;align-items:center" v-if="!isSubmitter && nextStatuses.length > 0">
@@ -199,7 +199,7 @@
 <script setup>
 import { ref, onMounted, inject, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { requirementApi, emailApi, commentApi } from '../api'
+import { requirementApi, emailApi, commentApi, workflowApi } from '../api'
 
 const route = useRoute()
 const router = useRouter()
@@ -215,6 +215,8 @@ const fileInputRef = ref(null)
 const previewImageVisible = ref(false)
 const previewImageUrl = ref('')
 const imageZoomLevel = ref(1)
+const workflowStatuses = ref([])
+const workflowTransitions = ref([])
 
 const isSubmitter = computed(() => {
   if (!requirement.value || !currentUser.value) return false
@@ -230,40 +232,27 @@ const effectiveStatus = computed(() => {
   return requirement.value.status
 })
 
-const STATUS_ORDER = ['待审批', '待评审', '待开发', '开发中', '测试中', '已发布']
-
-const VALID_TRANSITIONS = {
-  '待评审': ['待开发'],
-  '待开发': ['开发中'],
-  '开发中': ['测试中'],
-  '测试中': ['已发布'],
-  '已发布': []
-}
+const displayStatusOrder = computed(() => {
+  const ordered = workflowStatuses.value.map(item => item.statusCode)
+  if (!effectiveStatus.value) return ordered
+  if (ordered.includes(effectiveStatus.value)) return ordered
+  return [...ordered, effectiveStatus.value]
+})
 
 const nextStatuses = computed(() => {
   if (!requirement.value) return []
   if (requirement.value.approvalStatus !== 'approved') return []
-  return VALID_TRANSITIONS[requirement.value.status] || []
+  return workflowTransitions.value
+    .filter(item =>
+      item.enabled !== false &&
+      item.fromStatus === requirement.value.status &&
+      (item.approvalOutcome || 'none') === 'none'
+    )
+    .map(item => item.toStatus)
 })
 
 const isStepCompleted = (step, currentStatus) => {
-  return STATUS_ORDER.indexOf(step) < STATUS_ORDER.indexOf(currentStatus)
-}
-
-const COMPLETED_LABELS = {
-  '待审批': '已审批',
-  '待评审': '已评审',
-  '待开发': '已开发',
-  '开发中': '开发完毕',
-  '测试中': '测试完毕',
-  '已发布': '已发布'
-}
-
-const getStepLabel = (step, currentStatus) => {
-  if (isStepCompleted(step, currentStatus)) {
-    return COMPLETED_LABELS[step] || step
-  }
-  return step
+  return displayStatusOrder.value.indexOf(step) < displayStatusOrder.value.indexOf(currentStatus)
 }
 
 const getStatusClass = (status) => {
@@ -353,6 +342,19 @@ const handleImageZoom = (event) => {
 
 const goBack = () => {
   router.back()
+}
+
+const loadWorkflow = async () => {
+  const [statusRes, transitionRes] = await Promise.all([
+    workflowApi.getStatuses(),
+    workflowApi.getTransitions()
+  ])
+
+  workflowStatuses.value = (statusRes.data.data || [])
+    .filter(item => item.enabled)
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+
+  workflowTransitions.value = (transitionRes.data.data || []).filter(item => item.enabled)
 }
 
 const updateStatus = async () => {
@@ -479,6 +481,7 @@ const showToast = (message) => {
 
 onMounted(async () => {
   try {
+    await loadWorkflow()
     const res = await requirementApi.getById(route.params.id)
     requirement.value = res.data.data
     await loadComments()
