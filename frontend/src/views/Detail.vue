@@ -73,7 +73,11 @@
       <aside class="ops-right-rail">
         <section class="ops-panel action-panel">
           <div class="ops-panel-head"><h2>快捷操作</h2></div>
-          <div v-if="!isSubmitter && nextStatuses.length > 0" class="ops-status-editor"><label>更新状态</label><select v-model="newStatus" class="detail-select"><option value="">选择下一状态</option><option v-for="step in nextStatuses" :key="step" :value="step">{{ step }}</option></select><button type="button" class="detail-primary-btn" :disabled="!newStatus" @click="updateStatus">提交状态</button></div>
+          <div v-if="requirement?.approvalStatus === 'pending' && canApprove" class="ops-status-editor">
+            <label>当前流程需要审批</label>
+            <button type="button" class="detail-primary-btn" @click="goToApproval">前往审批</button>
+          </div>
+          <div v-else-if="!isSubmitter && nextStatuses.length > 0" class="ops-status-editor"><label>更新状态</label><select v-model="newStatus" class="detail-select"><option value="">选择下一状态</option><option v-for="step in nextStatuses" :key="step" :value="step">{{ step }}</option></select><button type="button" class="detail-primary-btn" :disabled="!newStatus" @click="updateStatus">提交状态</button></div>
           <div v-else class="ops-muted-box">当前暂无可执行状态操作</div>
           <button type="button" class="ops-action-row" @click="triggerAttachmentUpload">添加评论附件</button>
         </section>
@@ -281,6 +285,10 @@ function cleanupPendingObjectUrls() {
 
 function goBack() {
   router.back()
+}
+
+function goToApproval() {
+  router.push({ path: '/approval', query: { id: requirement.value?.id || '' } })
 }
 
 async function loadWorkflow() {

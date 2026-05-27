@@ -170,7 +170,11 @@
 
           <div class="transition-options">
             <label class="switch-field">
-              <input v-model="item.requireApproval" type="checkbox" />
+              <input
+                :checked="item.requireApproval"
+                type="checkbox"
+                @change="setTransitionApprovalMode(item, $event.target.checked)"
+              />
               <span>这一步需要审批</span>
             </label>
             <label class="switch-field">
@@ -185,7 +189,7 @@
 
           <label v-if="item.requireApproval" class="field">
             <span class="field-label">审批结果</span>
-            <select v-model="item.approvalOutcome" class="field-input">
+            <select v-model="item.approvalOutcome" class="field-input" @change="persistTransitionChanges(item)">
               <option v-for="option in approvalOutcomeOptions" :key="option.value" :value="option.value">
                 {{ option.label }}
               </option>
@@ -355,9 +359,23 @@ function removeTransition(item) {
 function toggleRole(item, role, checked) {
   if (checked) {
     if (!item.allowedRoles.includes(role)) item.allowedRoles.push(role)
+    persistTransitionChanges(item)
     return
   }
   item.allowedRoles = item.allowedRoles.filter(value => value !== role)
+  persistTransitionChanges(item)
+}
+
+function setTransitionApprovalMode(item, checked) {
+  item.requireApproval = checked
+  item.approvalOutcome = checked ? (item.approvalOutcome && item.approvalOutcome !== 'none' ? item.approvalOutcome : 'approved') : 'none'
+  persistTransitionChanges(item)
+}
+
+async function persistTransitionChanges(item) {
+  if (!item?.id) return
+  if (!item.fromStatus || !item.toStatus || !item.allowedRoles.length) return
+  await saveTransition(item, { silent: true, successMessage: '已按最新点击自动保存' })
 }
 
 function validateStatuses() {
@@ -430,16 +448,21 @@ async function saveStatuses() {
   }
 }
 
-async function saveTransition(item) {
+async function saveTransition(item, options = {}) {
+  const { silent = false, successMessage = '流转保存成功' } = options
   const statusError = validateStatuses()
   if (statusError) {
-    showToast(statusError, { type: 'warning', title: '请先处理状态配置' })
+    if (!silent) {
+      showToast(statusError, { type: 'warning', title: '请先处理状态配置' })
+    }
     return
   }
 
   const transitionError = validateTransitions()
   if (transitionError) {
-    showToast(transitionError, { type: 'warning', title: '流转校验失败' })
+    if (!silent) {
+      showToast(transitionError, { type: 'warning', title: '流转校验失败' })
+    }
     return
   }
 
@@ -462,10 +485,12 @@ async function saveTransition(item) {
     }
 
     await workflowApi.reload()
-    showToast('流转保存成功', { type: 'success' })
+    showToast(successMessage, { type: 'success' })
     await loadAll()
   } catch (error) {
-    showToast(error.response?.data?.message || error.message, { type: 'error', title: '保存失败' })
+    if (!silent) {
+      showToast(error.response?.data?.message || error.message, { type: 'error', title: '保存失败' })
+    }
   } finally {
     saving.value = false
   }

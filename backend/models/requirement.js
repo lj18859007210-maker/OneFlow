@@ -22,6 +22,49 @@ const STATUS_ORDER = [
   STATUS.RELEASED
 ];
 
+function getConsistentRequirementState({ status, approvalStatus }) {
+  if (approvalStatus === 'approved' && status === STATUS.PENDING_APPROVAL) {
+    return {
+      status: STATUS.PENDING_REVIEW,
+      approvalStatus,
+      repaired: true
+    };
+  }
+
+  if (approvalStatus !== 'approved' && status !== STATUS.PENDING_APPROVAL) {
+    return {
+      status: STATUS.PENDING_APPROVAL,
+      approvalStatus,
+      repaired: true
+    };
+  }
+
+  return {
+    status,
+    approvalStatus,
+    repaired: false
+  };
+}
+
+function resolveApprovalListScope(user = {}) {
+  const role = typeof user.role === 'string' ? user.role.trim() : '';
+  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+
+  if (role === 'admin' || role === 'role-admin') {
+    return { type: 'all' };
+  }
+
+  if (role === 'developer' || role === 'role-developer') {
+    return { type: 'assigned' };
+  }
+
+  if (permissions.includes('requirement:approve')) {
+    return { type: 'all' };
+  }
+
+  return { type: 'none' };
+}
+
 async function getNextStatuses(currentStatus) {
   const flow = await workflowModel.getFlow(FLOW_KEY_REQUIREMENT);
   return workflowModel.listNextStatuses(flow, currentStatus, 'none');
@@ -47,6 +90,11 @@ async function parseRow(row) {
     readLobContent(row.APPROVALCOMMENT)
   ]);
   
+  const consistentState = getConsistentRequirementState({
+    status: row.STATUS,
+    approvalStatus: row.APPROVALSTATUS
+  });
+
   return {
     id: row.ID,
     title: row.TITLE,
@@ -63,11 +111,11 @@ async function parseRow(row) {
     ccEmails: ccJson ? JSON.parse(ccJson) : [],
     priority: row.PRIORITY,
     score: row.SCORE,
-    status: row.STATUS,
+    status: consistentState.status,
     isDraft: row.ISDRAFT,
     steps: stepsJson ? JSON.parse(stepsJson) : [],
     noteImages: noteJson ? JSON.parse(noteJson) : [],
-    approvalStatus: row.APPROVALSTATUS,
+    approvalStatus: consistentState.approvalStatus,
     approvalComment: approvalJson,
     createdAt: row.CREATEDAT,
     updatedAt: row.UPDATEDAT
@@ -76,6 +124,52 @@ async function parseRow(row) {
 
 async function parseRows(rows) {
   return Promise.all(rows.map(parseRow));
+}
+
+async function reconcileRequirementState(connection, row) {
+  const consistentState = getConsistentRequirementState({
+    status: row.STATUS,
+    approvalStatus: row.APPROVALSTATUS
+  });
+
+  if (!consistentState.repaired) {
+    return row;
+  }
+
+  await connection.execute(
+    `UPDATE requirements
+     SET status = :status,
+         UPDATEDAT = CURRENT_TIMESTAMP
+     WHERE id = :id`,
+    {
+      id: row.ID,
+      status: consistentState.status
+    }
+  );
+
+  return {
+    ...row,
+    STATUS: consistentState.status
+  };
+}
+
+async function reconcileRequirementStates(connection, rows) {
+  let repaired = false;
+  const normalizedRows = [];
+
+  for (const row of rows || []) {
+    const normalizedRow = await reconcileRequirementState(connection, row);
+    if (normalizedRow !== row) {
+      repaired = true;
+    }
+    normalizedRows.push(normalizedRow);
+  }
+
+  if (repaired) {
+    await connection.commit();
+  }
+
+  return normalizedRows;
 }
 
 function buildRequirementListFilters(filters = {}) {
@@ -165,7 +259,7 @@ async function getAll(page = 1, pageSize = 20, filters = {}) {
       { ...params, offset, limit: offset + pageSize },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
-    const data = await parseRows(result.rows);
+    const data = await parseRows(await reconcileRequirementStates(connection, result.rows));
 
     const totalResult = await connection.execute(
               `SELECT COUNT(*) FROM requirements ${whereClause}`,
@@ -255,7 +349,7 @@ async function getBySubmitter(submitter, page = 1, pageSize = 20) {
       { submitter, offset, limit: offset + pageSize },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
-    const data = await parseRows(result.rows);
+    const data = await parseRows(await reconcileRequirementStates(connection, result.rows));
 
     const totalResult = await connection.execute(
       `SELECT COUNT(*) FROM requirements WHERE isDraft = 0 AND submitter = :submitter`,
@@ -310,7 +404,8 @@ async function getById(id) {
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     if (result.rows.length === 0) return null;
-    return await parseRow(result.rows[0]);
+    const [row] = await reconcileRequirementStates(connection, result.rows);
+    return await parseRow(row);
   } finally {
     if (connection) await connection.close();
   }
@@ -454,6 +549,9 @@ async function remove(id) {
 async function updateStatus(id, status, actorRole) {
   const current = await getById(id);
   if (!current) return null;
+  if (current.approvalStatus !== 'approved') {
+    throw new Error('该需求尚未审批通过，不能更新状态');
+  }
 
   const flow = await workflowModel.getFlow(FLOW_KEY_REQUIREMENT);
   const transition = workflowModel.findTransition(flow, current.status, status, 'none');
@@ -530,12 +628,17 @@ async function score(id, score) {
   }
 }
 
-async function getApprovalList(userId, userRole, page = 1, pageSize = 50) {
+async function getApprovalList(userId, userRole, permissions = [], page = 1, pageSize = 50) {
   let connection;
   try {
     connection = await db.getConnection();
 
-    if (userRole === 'admin') {
+    const scope = resolveApprovalListScope({ role: userRole, permissions });
+    if (scope.type === 'none') {
+      return { data: [], total: 0, page, pageSize };
+    }
+
+    if (scope.type === 'all') {
       return await getAll(page, pageSize);
     }
 
@@ -789,6 +892,8 @@ module.exports = {
   score,
   getGanttData,
   getAIContext,
+  resolveApprovalListScope,
+  getConsistentRequirementState,
   STATUS,
   STATUS_ORDER,
   getNextStatuses,

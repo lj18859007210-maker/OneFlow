@@ -120,10 +120,12 @@
 
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
+import { useRoute } from 'vue-router'
 import { requirementApi, emailApi } from '../api'
 import { hasPermission } from '../utils/access'
 
 const requirements = ref([])
+const route = useRoute()
 const currentUser = inject('currentUser', ref({ name: '未登录', role: 'user', permissions: [] }))
 const activeTab = ref('pending')
 const comments = ref({})
@@ -145,8 +147,18 @@ const tabs = [
 const canApprove = computed(() => hasPermission(currentUser.value, 'requirement:approve'))
 
 const filteredRequirements = computed(() => {
-  if (activeTab.value === 'all') return requirements.value
-  return requirements.value.filter(r => r.approvalStatus === activeTab.value)
+  const selectedId = String(route.query.id || '')
+  const scoped = activeTab.value === 'all'
+    ? requirements.value
+    : requirements.value.filter(r => r.approvalStatus === activeTab.value)
+
+  if (!selectedId) return scoped
+
+  return [...scoped].sort((a, b) => {
+    if (String(a.id) === selectedId) return -1
+    if (String(b.id) === selectedId) return 1
+    return 0
+  })
 })
 
 const getApprovalClass = (status) => {

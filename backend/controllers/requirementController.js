@@ -92,8 +92,8 @@ async function getApprovalList(req, res) {
   try {
     const page = parseInt(req.query.page, 10) || 1;
     const pageSize = parseInt(req.query.pageSize, 10) || 50;
-    const { id, role } = req.user;
-    const result = await requirementModel.getApprovalList(id, role, page, pageSize);
+    const { id, role, permissions = [] } = req.user;
+    const result = await requirementModel.getApprovalList(id, role, permissions, page, pageSize);
     res.json({ success: true, data: result.data, total: result.total, page: result.page, pageSize: result.pageSize });
   } catch (error) {
     console.error('getApprovalList error:', error);

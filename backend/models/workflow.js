@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const oracledb = require('oracledb');
 const db = require('../db/oracle');
+const { normalizeRoleName } = require('../utils/roleAccess');
 const {
   FLOW_KEY_REQUIREMENT,
   DEFAULT_STATUSES,
@@ -8,20 +9,59 @@ const {
 } = require('../utils/workflowDefaults');
 
 const cache = new Map();
+const VALID_ROLES = new Set(['admin', 'developer', 'user']);
+
+async function readLobContent(lob) {
+  if (!lob) return null;
+  if (typeof lob === 'string') return lob;
+  return new Promise((resolve, reject) => {
+    let data = '';
+    lob.setEncoding('utf8');
+    lob.on('data', chunk => { data += chunk; });
+    lob.on('end', () => resolve(data));
+    lob.on('error', reject);
+  });
+}
+
+function normalizeRoleValue(value) {
+  if (value && typeof value === 'object') {
+    if (typeof value.value === 'string') return normalizeRoleValue(value.value);
+    if (typeof value.role === 'string') return normalizeRoleValue(value.role);
+    if (typeof value.code === 'string') return normalizeRoleValue(value.code);
+    return null;
+  }
+
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '[object Object]') return null;
+
+  const normalizedRoleName = normalizeRoleName(trimmed) || trimmed;
+  return VALID_ROLES.has(normalizedRoleName) ? normalizedRoleName : null;
+}
 
 function normalizeRoles(value) {
   if (!value) return [];
-  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+
+  const normalizeList = (list) => {
+    const normalized = list
+      .map(normalizeRoleValue)
+      .filter(Boolean);
+    return [...new Set(normalized)];
+  };
+
+  if (Array.isArray(value)) return normalizeList(value);
   try {
     const parsed = JSON.parse(value);
     if (Array.isArray(parsed)) {
-      return parsed.map(v => String(v).trim()).filter(Boolean);
+      return normalizeList(parsed);
     }
   } catch (_error) {}
-  return String(value)
+  return normalizeList(
+    String(value)
     .split(',')
     .map(v => v.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+  );
 }
 
 function rowToStatus(row) {
@@ -36,13 +76,14 @@ function rowToStatus(row) {
   };
 }
 
-function rowToTransition(row) {
+async function rowToTransition(row) {
+  const allowedRoles = await readLobContent(row.ALLOWEDROLES);
   return {
     id: row.ID,
     flowKey: row.FLOWKEY,
     fromStatus: row.FROMSTATUS,
     toStatus: row.TOSTATUS,
-    allowedRoles: normalizeRoles(row.ALLOWEDROLES),
+    allowedRoles: normalizeRoles(allowedRoles),
     requireApproval: Number(row.REQUIREAPPROVAL) === 1,
     notifyEnabled: Number(row.NOTIFYENABLED) === 1,
     enabled: Number(row.ENABLED) === 1,
@@ -70,7 +111,7 @@ async function queryFlow(flowKey, connection) {
 
   return {
     statuses: statusResult.rows.map(rowToStatus),
-    transitions: transitionResult.rows.map(rowToTransition)
+    transitions: await Promise.all(transitionResult.rows.map(rowToTransition))
   };
 }
 
@@ -286,5 +327,6 @@ module.exports = {
   assertTransitionAllowed,
   replaceStatuses,
   createTransition,
-  updateTransition
+  updateTransition,
+  normalizeRoles
 };

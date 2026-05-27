@@ -344,10 +344,16 @@ async function ensureDeveloperUserMapping(connection) {
     UPDATE developers d
     SET userId = (
       SELECT u.id FROM users u
-      WHERE u.role = 'developer'
+      WHERE (u.role = 'developer' OR u.role = 'role-developer')
         AND (
           (d.email IS NOT NULL AND u.email = d.email)
           OR (d.name IS NOT NULL AND u.name = d.name)
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM developers d2
+          WHERE d2.userId = u.id
+            AND d2.id <> d.id
         )
         AND ROWNUM = 1
     )
@@ -359,9 +365,18 @@ async function ensureDeveloperUserMapping(connection) {
     USING (
       SELECT u.id AS userId, u.name, u.email
       FROM users u
-      WHERE u.role = 'developer'
+      WHERE (u.role = 'developer' OR u.role = 'role-developer')
     ) src
-    ON (d.userId = src.userId)
+    ON (
+      d.userId = src.userId
+      OR (
+        d.userId IS NULL
+        AND (
+          (d.email IS NOT NULL AND d.email = src.email)
+          OR (d.name IS NOT NULL AND d.name = src.name)
+        )
+      )
+    )
     WHEN NOT MATCHED THEN INSERT
       (id, userId, name, email, department, skills, maxLoad, currentLoad, status, createdAt, updatedAt)
       VALUES
