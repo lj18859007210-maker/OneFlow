@@ -190,7 +190,7 @@
           <label v-if="item.requireApproval" class="field">
             <span class="field-label">审批结果</span>
             <select v-model="item.approvalOutcome" class="field-input" @change="persistTransitionChanges(item)">
-              <option v-for="option in approvalOutcomeOptions" :key="option.value" :value="option.value">
+              <option v-for="option in getApprovalOutcomeOptions(item)" :key="option.value" :value="option.value">
                 {{ option.label }}
               </option>
             </select>
@@ -264,15 +264,26 @@ function normalizeStatus(item) {
 }
 
 function normalizeTransition(item) {
+  const requireApproval = !!item.requireApproval
+  const approvalOutcome = requireApproval
+    ? (['approved', 'rejected'].includes(item.approvalOutcome) ? item.approvalOutcome : 'approved')
+    : 'none'
+
   return {
     ...item,
     localKey: item.localKey || createLocalKey('transition'),
     allowedRoles: Array.isArray(item.allowedRoles) ? [...item.allowedRoles] : [],
-    requireApproval: !!item.requireApproval,
+    requireApproval,
     notifyEnabled: item.notifyEnabled !== false,
     enabled: item.enabled !== false,
-    approvalOutcome: item.requireApproval ? (item.approvalOutcome || 'approved') : 'none'
+    approvalOutcome
   }
+}
+
+function getApprovalOutcomeOptions(item) {
+  return item.requireApproval
+    ? approvalOutcomeOptions.filter(option => option.value !== 'none')
+    : approvalOutcomeOptions.filter(option => option.value === 'none')
 }
 
 function getStatusLabel(code) {
@@ -406,6 +417,13 @@ function validateTransitions() {
     }
     if (!item.allowedRoles.length) return '每条流转至少要选择一个执行人'
 
+    if (item.requireApproval && !['approved', 'rejected'].includes(item.approvalOutcome)) {
+      return '需要审批的流转必须选择“审批通过后才生效”或“审批拒绝后才生效”'
+    }
+    if (!item.requireApproval && (item.approvalOutcome || 'none') !== 'none') {
+      return '不需要审批的流转不能设置审批结果'
+    }
+
     const approvalOutcome = item.requireApproval ? (item.approvalOutcome || 'approved') : 'none'
     const key = `${item.fromStatus}|${item.toStatus}|${approvalOutcome}`
     if (seen.has(key)) return `存在重复流转：${getStatusLabel(item.fromStatus)} → ${getStatusLabel(item.toStatus)}`
@@ -450,6 +468,12 @@ async function saveStatuses() {
 
 async function saveTransition(item, options = {}) {
   const { silent = false, successMessage = '流转保存成功' } = options
+  if (item.requireApproval && !['approved', 'rejected'].includes(item.approvalOutcome)) {
+    item.approvalOutcome = 'approved'
+  }
+  if (!item.requireApproval) {
+    item.approvalOutcome = 'none'
+  }
   const statusError = validateStatuses()
   if (statusError) {
     if (!silent) {

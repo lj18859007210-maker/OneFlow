@@ -1,6 +1,16 @@
 const workflowModel = require('../models/workflow');
 const { FLOW_KEY_REQUIREMENT } = require('../utils/workflowDefaults');
 
+function isBadTransitionRequest(error) {
+  if (!error?.message) return false;
+  return (
+    error.message.includes('流转配置缺少状态定义') ||
+    error.message.includes('流转配置至少需要一个执行角色') ||
+    error.message.includes('需要审批的流转只能使用 approved 或 rejected 作为审批结果') ||
+    error.message.includes('无需审批的流转审批结果必须为 none')
+  );
+}
+
 async function getStatuses(req, res) {
   try {
     const flow = await workflowModel.getFlow(FLOW_KEY_REQUIREMENT, { forceRefresh: true });
@@ -37,6 +47,9 @@ async function createTransition(req, res) {
     const transition = await workflowModel.createTransition(FLOW_KEY_REQUIREMENT, req.body || {});
     res.status(201).json({ success: true, data: transition, message: '流转配置创建成功' });
   } catch (error) {
+    if (isBadTransitionRequest(error)) {
+      return res.status(400).json({ success: false, message: String(error.message || error) });
+    }
     res.status(500).json({ success: false, message: String(error.message || error) });
   }
 }
@@ -49,6 +62,9 @@ async function updateTransition(req, res) {
     }
     res.json({ success: true, data: transition, message: '流转配置更新成功' });
   } catch (error) {
+    if (isBadTransitionRequest(error)) {
+      return res.status(400).json({ success: false, message: String(error.message || error) });
+    }
     res.status(500).json({ success: false, message: String(error.message || error) });
   }
 }

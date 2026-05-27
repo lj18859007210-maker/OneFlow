@@ -11,6 +11,58 @@ const {
 const cache = new Map();
 const VALID_ROLES = new Set(['admin', 'developer', 'user']);
 
+function normalizeApprovalOutcomeValue(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function normalizeTransitionPayload(payload = {}, current = {}) {
+  const requireApproval = payload.requireApproval === undefined
+    ? !!current.requireApproval
+    : !!payload.requireApproval;
+  const rawApprovalOutcome = payload.approvalOutcome !== undefined
+    ? payload.approvalOutcome
+    : current.approvalOutcome;
+  const approvalOutcome = requireApproval
+    ? (normalizeApprovalOutcomeValue(rawApprovalOutcome) || 'approved')
+    : 'none';
+
+  return {
+    fromStatus: payload.fromStatus || current.fromStatus,
+    toStatus: payload.toStatus || current.toStatus,
+    allowedRoles: normalizeRoles(
+      payload.allowedRoles !== undefined ? payload.allowedRoles : current.allowedRoles
+    ),
+    requireApproval,
+    notifyEnabled: payload.notifyEnabled === undefined
+      ? current.notifyEnabled !== false
+      : !!payload.notifyEnabled,
+    enabled: payload.enabled === undefined
+      ? current.enabled !== false
+      : !!payload.enabled,
+    approvalOutcome
+  };
+}
+
+function validateTransitionPayload(payload) {
+  if (!payload.fromStatus || !payload.toStatus) {
+    throw new Error('流转配置缺少状态定义');
+  }
+  if (!payload.allowedRoles.length) {
+    throw new Error('流转配置至少需要一个执行角色');
+  }
+  if (payload.requireApproval) {
+    if (!['approved', 'rejected'].includes(payload.approvalOutcome)) {
+      throw new Error('需要审批的流转只能使用 approved 或 rejected 作为审批结果');
+    }
+    return;
+  }
+  if (payload.approvalOutcome !== 'none') {
+    throw new Error('无需审批的流转审批结果必须为 none');
+  }
+}
+
 async function readLobContent(lob) {
   if (!lob) return null;
   if (typeof lob === 'string') return lob;
@@ -252,19 +304,21 @@ async function createTransition(flowKey, payload) {
   try {
     connection = await db.getConnection();
     const id = uuidv4();
+    const normalizedPayload = normalizeTransitionPayload(payload);
+    validateTransitionPayload(normalizedPayload);
     await connection.execute(
       `INSERT INTO workflow_transitions (id, flowKey, fromStatus, toStatus, allowedRoles, requireApproval, notifyEnabled, enabled, approvalOutcome, createdAt, updatedAt)
        VALUES (:id, :flowKey, :fromStatus, :toStatus, :allowedRoles, :requireApproval, :notifyEnabled, :enabled, :approvalOutcome, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       {
         id,
         flowKey,
-        fromStatus: payload.fromStatus,
-        toStatus: payload.toStatus,
-        allowedRoles: JSON.stringify(normalizeRoles(payload.allowedRoles)),
-        requireApproval: payload.requireApproval ? 1 : 0,
-        notifyEnabled: payload.notifyEnabled === false ? 0 : 1,
-        enabled: payload.enabled === false ? 0 : 1,
-        approvalOutcome: payload.approvalOutcome || 'none'
+        fromStatus: normalizedPayload.fromStatus,
+        toStatus: normalizedPayload.toStatus,
+        allowedRoles: JSON.stringify(normalizedPayload.allowedRoles),
+        requireApproval: normalizedPayload.requireApproval ? 1 : 0,
+        notifyEnabled: normalizedPayload.notifyEnabled ? 1 : 0,
+        enabled: normalizedPayload.enabled ? 1 : 0,
+        approvalOutcome: normalizedPayload.approvalOutcome
       }
     );
     await connection.commit();
@@ -287,7 +341,9 @@ async function updateTransition(id, payload) {
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     if (!currentResult.rows.length) return null;
-    const current = rowToTransition(currentResult.rows[0]);
+    const current = await rowToTransition(currentResult.rows[0]);
+    const normalizedPayload = normalizeTransitionPayload(payload, current);
+    validateTransitionPayload(normalizedPayload);
 
     await connection.execute(
       `UPDATE workflow_transitions SET
@@ -302,13 +358,13 @@ async function updateTransition(id, payload) {
        WHERE id = :id`,
       {
         id,
-        fromStatus: payload.fromStatus || current.fromStatus,
-        toStatus: payload.toStatus || current.toStatus,
-        allowedRoles: JSON.stringify(normalizeRoles(payload.allowedRoles !== undefined ? payload.allowedRoles : current.allowedRoles)),
-        requireApproval: payload.requireApproval === undefined ? (current.requireApproval ? 1 : 0) : (payload.requireApproval ? 1 : 0),
-        notifyEnabled: payload.notifyEnabled === undefined ? (current.notifyEnabled ? 1 : 0) : (payload.notifyEnabled ? 1 : 0),
-        enabled: payload.enabled === undefined ? (current.enabled ? 1 : 0) : (payload.enabled ? 1 : 0),
-        approvalOutcome: payload.approvalOutcome || current.approvalOutcome || 'none'
+        fromStatus: normalizedPayload.fromStatus,
+        toStatus: normalizedPayload.toStatus,
+        allowedRoles: JSON.stringify(normalizedPayload.allowedRoles),
+        requireApproval: normalizedPayload.requireApproval ? 1 : 0,
+        notifyEnabled: normalizedPayload.notifyEnabled ? 1 : 0,
+        enabled: normalizedPayload.enabled ? 1 : 0,
+        approvalOutcome: normalizedPayload.approvalOutcome
       }
     );
     await connection.commit();
@@ -328,5 +384,7 @@ module.exports = {
   replaceStatuses,
   createTransition,
   updateTransition,
-  normalizeRoles
+  normalizeRoles,
+  normalizeTransitionPayload,
+  validateTransitionPayload
 };

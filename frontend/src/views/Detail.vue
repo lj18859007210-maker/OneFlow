@@ -152,6 +152,7 @@ const nextStatuses = computed(() => {
   return workflowTransitions.value
     .filter(item =>
       item.enabled !== false &&
+      item.requireApproval !== true &&
       item.fromStatus === requirement.value.status &&
       (item.approvalOutcome || 'none') === 'none'
     )
