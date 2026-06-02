@@ -1,4 +1,5 @@
 const logger = require('../utils/logger');
+const crypto = require('crypto');
 
 // 内存缓存存储
 const cache = new Map();
@@ -11,7 +12,12 @@ function cacheMiddleware(durationSeconds = 60) {
       return next();
     }
 
-    const key = req.originalUrl || req.url;
+    const authHeader = req.headers?.authorization || '';
+    const authKey = authHeader
+      ? crypto.createHash('sha256').update(authHeader).digest('hex').slice(0, 16)
+      : 'anonymous';
+    const userKey = req.user?.id || req.user?.username || req.user?.role || authKey;
+    const key = `${userKey}:${req.originalUrl || req.url}`;
     const cached = cache.get(key);
 
     if (cached && Date.now() - cached.timestamp < durationSeconds * 1000) {

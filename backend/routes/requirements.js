@@ -14,6 +14,7 @@ router.get('/my', requirePermission('requirement:view'), requirementController.g
 router.get('/drafts', requirePermission('requirement:view'), requirementController.getDrafts);
 router.get('/drafts/latest', requirePermission('requirement:view'), requirementController.getLatestDraft);
 router.get('/gantt', requirePermission('project:timeline:view'), requirementController.getGanttData);
+router.get('/dashboard', requirePermission('requirement:view'), requirementController.getDashboard);
 router.get('/:id', requirePermission('requirement:view'), requirementController.getById);
 
 // 写操作后清除缓存

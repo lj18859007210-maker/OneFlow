@@ -37,6 +37,7 @@ export const requirementApi = {
   getBySubmitter: (submitter, page, pageSize) => api.get('/requirements/my', { params: { submitter, page, pageSize } }),
   getDrafts: (submitter) => api.get('/requirements/drafts', { params: { submitter } }),
   getLatestDraft: (submitter) => api.get('/requirements/drafts/latest', { params: { submitter } }),
+  getDashboard: () => api.get('/requirements/dashboard'),
   getGanttData: (filters) => api.get('/requirements/gantt', { params: filters }),
   getById: (id) => api.get(`/requirements/${id}`),
   create: (data) => api.post('/requirements', data),

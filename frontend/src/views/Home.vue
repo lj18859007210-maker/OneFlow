@@ -24,6 +24,7 @@
       :priority-stats="priorityStats"
       :score-stats="scoreStats"
       :avg-score="globalAvgScore"
+      :dashboard="dashboardMetrics"
     />
 
     <div class="tech-table-wrap">
@@ -162,6 +163,7 @@ import { developerApi, requirementApi } from '../api'
 import Pagination from '../components/Pagination.vue'
 import ChartsPanel from '../components/ChartsPanel.vue'
 import { hasPermission } from '../utils/access'
+import { createEmptyDashboard } from '../utils/dashboardAnalytics'
 
 const router = useRouter()
 const currentUser = inject('currentUser', ref({ name: '未登录', role: 'user' }))
@@ -173,6 +175,7 @@ const pageSize = ref(10)
 const statusStats = ref({})
 const priorityStats = ref({})
 const scoreStats = ref({})
+const dashboardMetrics = ref(createEmptyDashboard())
 const globalAvgScore = ref('0.0')
 const platformOptions = ref([])
 const developerOptions = ref([])
@@ -234,11 +237,15 @@ async function loadRequirements(page = currentPage.value) {
     loading.value = true
     currentPage.value = page
     const filters = buildRequestFilters(appliedFilters.value)
-    const response = await requirementApi.getAll(page, pageSize.value, filters)
+    const [response, dashboardResponse] = await Promise.all([
+      requirementApi.getAll(page, pageSize.value, filters),
+      requirementApi.getDashboard()
+    ])
     const payload = response.data
     requirements.value = payload.data || []
     total.value = payload.total || 0
     updateSummaryFromResponse(payload)
+    dashboardMetrics.value = dashboardResponse.data?.data || createEmptyDashboard()
   } catch (error) {
     const message = error.response?.data?.message || '获取需求列表失败'
     window.alert(message)

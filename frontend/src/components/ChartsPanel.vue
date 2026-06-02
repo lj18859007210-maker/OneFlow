@@ -1,27 +1,30 @@
 <template>
-  <div class="charts-panel" :class="{ 'charts-panel-active': expanded }">
-    <div class="charts-panel-header" @click="toggleExpand">
-      <div class="charts-panel-header-inner">
+  <section class="charts-panel" :class="{ 'charts-panel-active': expanded }">
+    <button class="charts-panel-header" type="button" @click="toggleExpand">
+      <div class="charts-panel-header-main">
         <div class="charts-panel-title">
-          <div class="charts-panel-icon-wrap">
+          <span class="charts-panel-icon-wrap">
             <svg class="charts-panel-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 20V10"/>
               <path d="M12 20V4"/>
               <path d="M6 20v-6"/>
             </svg>
-          </div>
+          </span>
           <span class="charts-panel-title-text">数据图表分析</span>
           <span class="charts-panel-badge">LIVE</span>
         </div>
-        <div class="charts-panel-summary" v-if="!expanded">
-          <div class="charts-mini-stat" v-for="(item, idx) in miniStats" :key="idx">
-            <span class="charts-mini-dot" :style="{ background: item.color }"></span>
-            <span class="charts-mini-label">{{ item.label }}</span>
-            <span class="charts-mini-value">{{ item.value }}</span>
-          </div>
+        <div class="charts-panel-subtitle">趋势、风险、评分、平台与人员负载综合洞察</div>
+      </div>
+
+      <div class="charts-panel-summary">
+        <div class="charts-mini-stat" v-for="item in miniStats" :key="item.label">
+          <span class="charts-mini-dot" :style="{ background: item.color }"></span>
+          <span class="charts-mini-label">{{ item.label }}</span>
+          <strong class="charts-mini-value">{{ item.value }}</strong>
         </div>
       </div>
-      <div class="charts-panel-toggle">
+
+      <span class="charts-panel-toggle" aria-hidden="true">
         <svg
           class="charts-panel-arrow"
           :class="{ 'charts-panel-arrow-expanded': expanded }"
@@ -34,64 +37,132 @@
         >
           <polyline points="6 9 12 15 18 9"/>
         </svg>
-      </div>
-    </div>
+      </span>
+    </button>
+
     <div class="charts-panel-body" :class="{ 'charts-panel-body-expanded': expanded }">
       <div class="charts-panel-content">
-        <div class="charts-chart-wrap charts-chart-wrap-pie">
-          <div class="charts-chart-label">
-            <span class="charts-label-decorator"></span>
-            需求状态分布
+        <div class="charts-kpi-grid">
+          <div class="charts-kpi-card" v-for="item in kpiCards" :key="item.label">
+            <div class="charts-kpi-label">{{ item.label }}</div>
+            <div class="charts-kpi-value">{{ item.value }}</div>
+            <div class="charts-kpi-hint">{{ item.hint }}</div>
           </div>
-          <div ref="statusChartRef" class="charts-chart"></div>
         </div>
-        <div class="charts-chart-wrap">
-          <div class="charts-chart-label">
-            <span class="charts-label-decorator"></span>
-            优先级分布
-          </div>
-          <div ref="priorityChartRef" class="charts-chart"></div>
-        </div>
-        <div class="charts-chart-wrap charts-chart-wrap-score">
-          <div class="charts-chart-label">
-            <span class="charts-label-decorator"></span>
-            评分概览
-          </div>
-          <div class="charts-score-inner">
-            <div class="charts-gauge-wrap">
-              <div ref="gaugeChartRef" class="charts-chart charts-chart-gauge"></div>
+
+        <div class="charts-grid">
+          <article class="charts-card charts-card-full">
+            <div class="charts-card-header">
+              <div>
+                <h3>需求流转趋势</h3>
+                <p>新建与已发布对比</p>
+              </div>
+              <span class="charts-card-tag">Flow</span>
             </div>
-            <div class="charts-line-wrap">
+            <div ref="throughputChartRef" class="charts-chart charts-chart-lg"></div>
+          </article>
+
+          <article class="charts-card">
+            <div class="charts-card-header">
+              <div>
+                <h3>状态分布</h3>
+                <p>当前流程结构</p>
+              </div>
+              <span class="charts-card-tag">State</span>
+            </div>
+            <div ref="statusChartRef" class="charts-chart"></div>
+          </article>
+
+          <article class="charts-card">
+            <div class="charts-card-header">
+              <div>
+                <h3>优先级风险</h3>
+                <p>高优先级积压识别</p>
+              </div>
+              <span class="charts-card-tag">Risk</span>
+            </div>
+            <div ref="priorityChartRef" class="charts-chart"></div>
+          </article>
+
+          <article class="charts-card charts-card-score">
+            <div class="charts-card-header">
+              <div>
+                <h3>评分质量</h3>
+                <p>平均评分与分段数量</p>
+              </div>
+              <span class="charts-card-tag">Score</span>
+            </div>
+            <div class="charts-score-layout">
+              <div ref="gaugeChartRef" class="charts-chart charts-chart-gauge"></div>
               <div ref="scoreLineRef" class="charts-chart charts-chart-line"></div>
             </div>
+          </article>
+
+          <article class="charts-card">
+            <div class="charts-card-header">
+              <div>
+                <h3>平台需求排行</h3>
+                <p>总量与发布量对比</p>
+              </div>
+              <span class="charts-card-tag">Platform</span>
+            </div>
+            <div ref="platformChartRef" class="charts-chart"></div>
+          </article>
+
+          <article class="charts-card charts-card-wide">
+            <div class="charts-card-header">
+              <div>
+                <h3>人员负载热力</h3>
+                <p>当前开发人员负载占比</p>
+              </div>
+              <span class="charts-card-tag">Load</span>
+            </div>
+            <div ref="heatmapChartRef" class="charts-chart"></div>
+          </article>
+        </div>
+
+        <div class="charts-insight-row">
+          <div class="charts-insight-item">
+            <span>审批平均耗时</span>
+            <strong>{{ formatHours(dashboard.approvalCycle.averageHours) }}</strong>
+          </div>
+          <div class="charts-insight-item">
+            <span>开发平均耗时</span>
+            <strong>{{ formatDays(dashboard.developmentCycle.averageDays) }}</strong>
+          </div>
+          <div class="charts-insight-item charts-insight-warning">
+            <span>逾期风险</span>
+            <strong>{{ Number(dashboard.overdue.rate || 0).toFixed(1) }}%</strong>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup>
 import { ref, watch, nextTick, onMounted, onBeforeUnmount, computed } from 'vue'
 import * as echarts from 'echarts/core'
-import { PieChart, BarChart, GaugeChart, LineChart } from 'echarts/charts'
+import { PieChart, BarChart, GaugeChart, LineChart, HeatmapChart } from 'echarts/charts'
 import {
-  TitleComponent,
   TooltipComponent,
   LegendComponent,
-  GridComponent
+  GridComponent,
+  VisualMapComponent
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { buildChartSummary, createEmptyDashboard } from '../utils/dashboardAnalytics'
 
 echarts.use([
   PieChart,
   BarChart,
   GaugeChart,
   LineChart,
-  TitleComponent,
+  HeatmapChart,
   TooltipComponent,
   LegendComponent,
   GridComponent,
+  VisualMapComponent,
   CanvasRenderer
 ])
 
@@ -99,208 +170,230 @@ const props = defineProps({
   statusStats: { type: Object, default: () => ({}) },
   priorityStats: { type: Object, default: () => ({}) },
   scoreStats: { type: Object, default: () => ({}) },
-  avgScore: { type: [String, Number], default: '0' }
+  avgScore: { type: [String, Number], default: '0' },
+  dashboard: { type: Object, default: () => createEmptyDashboard() }
 })
 
-const expanded = ref(false)
+const expanded = ref(true)
+const throughputChartRef = ref(null)
 const statusChartRef = ref(null)
 const priorityChartRef = ref(null)
 const gaugeChartRef = ref(null)
 const scoreLineRef = ref(null)
+const platformChartRef = ref(null)
+const heatmapChartRef = ref(null)
+
+let throughputChart = null
 let statusChart = null
 let priorityChart = null
 let gaugeChart = null
 let scoreLineChart = null
+let platformChart = null
+let heatmapChart = null
 
-const toggleExpand = () => {
+const statusColors = {
+  '待审批': '#f59e0b',
+  '待评审': '#facc15',
+  '待开发': '#4aa3ff',
+  '开发中': '#14b8d6',
+  '测试中': '#8b5cf6',
+  '已发布': '#22c55e'
+}
+
+const priorityColors = {
+  '高': '#ef5350',
+  '中': '#f59e0b',
+  '低': '#22c55e'
+}
+
+const summary = computed(() => buildChartSummary({
+  statusStats: props.statusStats,
+  dashboard: props.dashboard,
+  avgScore: props.avgScore
+}))
+
+const miniStats = computed(() => [
+  { label: '进行中', value: summary.value.inProgress, color: '#14b8d6' },
+  { label: '已发布', value: summary.value.released, color: '#22c55e' },
+  { label: '逾期率', value: summary.value.overdueRate, color: '#ef5350' },
+  { label: 'TOP平台', value: summary.value.topPlatform, color: '#4aa3ff' }
+])
+
+const kpiCards = computed(() => [
+  { label: '需求吞吐差', value: formatDelta(summary.value.throughputDelta), hint: '新建 - 已发布' },
+  { label: '平均评分', value: summary.value.avgScore, hint: '已评分需求均值' },
+  { label: '审批样本', value: props.dashboard.approvalCycle.sampleCount || 0, hint: '已审批需求' },
+  { label: '开发样本', value: props.dashboard.developmentCycle.sampleCount || 0, hint: '已发布需求' }
+])
+
+function toggleExpand() {
   expanded.value = !expanded.value
   if (expanded.value) {
     nextTick(() => {
       initCharts()
       updateCharts()
+      resizeCharts()
     })
   }
 }
 
-const miniStats = computed(() => {
-  const s = props.statusStats
-  const p = props.priorityStats
-  const avg = parseFloat(props.avgScore) || 0
-  return [
-    { label: '开发中', value: s['开发中'] || 0, color: '#00D4FF' },
-    { label: '已发布', value: s['已发布'] || 0, color: '#66BB6A' },
-    { label: '平均评分', value: avg > 0 ? avg.toFixed(1) : '-', color: '#FFA726' }
-  ]
-})
-
-const statusColors = {
-  '待审批': '#FFA726',
-  '待评审': '#FFCA28',
-  '待开发': '#42A5F5',
-  '开发中': '#00BCD4',
-  '测试中': '#AB47BC',
-  '已发布': '#66BB6A'
+function formatDelta(value) {
+  const number = Number(value) || 0
+  return number > 0 ? `+${number}` : String(number)
 }
 
-const priorityColors = {
-  '高': '#EF5350',
-  '中': '#FFA726',
-  '低': '#66BB6A'
+function formatHours(value) {
+  return `${Number(value || 0).toFixed(1)} h`
 }
 
-const initCharts = () => {
-  if (statusChartRef.value && !statusChart) {
-    statusChart = echarts.init(statusChartRef.value)
-  }
-  if (priorityChartRef.value && !priorityChart) {
-    priorityChart = echarts.init(priorityChartRef.value)
-  }
-  if (gaugeChartRef.value && !gaugeChart) {
-    gaugeChart = echarts.init(gaugeChartRef.value)
-  }
-  if (scoreLineRef.value && !scoreLineChart) {
-    scoreLineChart = echarts.init(scoreLineRef.value)
+function formatDays(value) {
+  return `${Number(value || 0).toFixed(1)} d`
+}
+
+function makeTooltip() {
+  return {
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderColor: '#cfe3f5',
+    borderWidth: 1,
+    textStyle: { color: '#17304e', fontSize: 13 },
+    extraCssText: 'border-radius: 10px; box-shadow: 0 10px 28px rgba(20, 98, 151, 0.14);'
   }
 }
 
-const updateCharts = () => {
-  if (statusChart) {
-    const s = props.statusStats
-    const statusData = Object.entries(statusColors).map(([name, color]) => ({
+function initCharts() {
+  if (throughputChartRef.value && !throughputChart) throughputChart = echarts.init(throughputChartRef.value)
+  if (statusChartRef.value && !statusChart) statusChart = echarts.init(statusChartRef.value)
+  if (priorityChartRef.value && !priorityChart) priorityChart = echarts.init(priorityChartRef.value)
+  if (gaugeChartRef.value && !gaugeChart) gaugeChart = echarts.init(gaugeChartRef.value)
+  if (scoreLineRef.value && !scoreLineChart) scoreLineChart = echarts.init(scoreLineRef.value)
+  if (platformChartRef.value && !platformChart) platformChart = echarts.init(platformChartRef.value)
+  if (heatmapChartRef.value && !heatmapChart) heatmapChart = echarts.init(heatmapChartRef.value)
+}
+
+function updateThroughputChart() {
+  if (!throughputChart) return
+  const data = props.dashboard.throughput || []
+  throughputChart.setOption({
+    color: ['#14b8d6', '#22c55e'],
+    tooltip: { ...makeTooltip(), trigger: 'axis' },
+    legend: { top: 2, right: 4, textStyle: { color: '#60758e' }, itemWidth: 12, itemHeight: 8 },
+    grid: { top: 46, left: 42, right: 18, bottom: 30 },
+    xAxis: {
+      type: 'category',
+      data: data.map((item) => item.label),
+      axisLine: { lineStyle: { color: '#dbe8f5' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#60758e' }
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { color: '#60758e' },
+      splitLine: { lineStyle: { color: 'rgba(174, 205, 231, 0.55)', type: 'dashed' } }
+    },
+    series: [
+      {
+        name: '新建',
+        type: 'line',
+        smooth: true,
+        symbolSize: 8,
+        lineStyle: { width: 3 },
+        areaStyle: { color: 'rgba(20, 184, 214, 0.14)' },
+        data: data.map((item) => Number(item.createdCount) || 0)
+      },
+      {
+        name: '已发布',
+        type: 'line',
+        smooth: true,
+        symbolSize: 8,
+        lineStyle: { width: 3 },
+        areaStyle: { color: 'rgba(34, 197, 94, 0.12)' },
+        data: data.map((item) => Number(item.releasedCount) || 0)
+      }
+    ]
+  })
+}
+
+function updateStatusChart() {
+  if (!statusChart) return
+  const statusData = Object.entries(statusColors)
+    .map(([name, color]) => ({
       name,
-      value: s[name] || 0,
+      value: Number(props.statusStats[name]) || 0,
       itemStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 1, 1, [
-          { offset: 0, color: color },
-          { offset: 1, color: color + 'BB' }
-        ]),
-        shadowColor: color + '44',
+        color,
+        shadowColor: `${color}44`,
         shadowBlur: 10
       }
-    })).filter(d => d.value > 0)
+    }))
+    .filter((item) => item.value > 0)
 
-    statusChart.setOption({
-      tooltip: {
-        trigger: 'item',
-        formatter: '{b}: {c} ({d}%)',
-        backgroundColor: '#fff',
-        borderColor: '#D4E4F7',
-        borderWidth: 1,
-        textStyle: { color: '#1E3A5F', fontSize: 13 },
-        extraCssText: 'border-radius: 10px; box-shadow: 0 4px 16px rgba(74,144,226,0.15);'
-      },
-      legend: {
-        orient: 'vertical',
-        right: '5%',
-        top: 'center',
-        textStyle: { color: '#5A7A9F', fontSize: 12 },
-        itemWidth: 12,
-        itemHeight: 12,
-        itemGap: 14,
-        icon: 'circle'
-      },
-      series: [{
-        type: 'pie',
-        radius: ['42%', '72%'],
-        center: ['38%', '50%'],
-        avoidLabelOverlap: false,
+  statusChart.setOption({
+    tooltip: { ...makeTooltip(), trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: {
+      orient: 'vertical',
+      right: 4,
+      top: 'middle',
+      textStyle: { color: '#60758e', fontSize: 12 },
+      itemWidth: 10,
+      itemHeight: 10,
+      icon: 'circle'
+    },
+    series: [{
+      type: 'pie',
+      radius: ['46%', '72%'],
+      center: ['37%', '53%'],
+      data: statusData,
+      label: { show: false },
+      itemStyle: { borderColor: '#fff', borderWidth: 3, borderRadius: 8 },
+      emphasis: { scaleSize: 8 }
+    }]
+  })
+}
+
+function updatePriorityChart() {
+  if (!priorityChart) return
+  const names = ['高', '中', '低']
+  const values = names.map((name) => Number(props.priorityStats[name]) || 0)
+
+  priorityChart.setOption({
+    tooltip: { ...makeTooltip(), trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { top: 18, left: 36, right: 18, bottom: 30 },
+    xAxis: {
+      type: 'category',
+      data: names,
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#dbe8f5' } },
+      axisLabel: { color: '#60758e', fontWeight: 600 }
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { color: '#60758e' },
+      splitLine: { lineStyle: { color: 'rgba(174, 205, 231, 0.55)', type: 'dashed' } }
+    },
+    series: [{
+      type: 'bar',
+      barWidth: 34,
+      data: values.map((value, index) => ({
+        value,
         itemStyle: {
-          borderRadius: 8,
-          borderColor: '#fff',
-          borderWidth: 3
-        },
-        label: { show: false },
-        emphasis: {
-          scale: true,
-          scaleSize: 8,
-          label: {
-            show: true,
-            fontSize: 14,
-            fontWeight: 'bold',
-            color: '#1E3A5F',
-            formatter: '{b}\n{c}项'
-          },
-          itemStyle: {
-            shadowBlur: 20,
-            shadowColor: 'rgba(74, 144, 226, 0.25)'
-          }
-        },
-        data: statusData,
-        animationType: 'scale',
-        animationEasing: 'elasticOut',
-        animationDuration: 1200
-      }]
-    })
-  }
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: priorityColors[names[index]] },
+            { offset: 1, color: `${priorityColors[names[index]]}33` }
+          ]),
+          borderRadius: [9, 9, 0, 0],
+          shadowColor: `${priorityColors[names[index]]}33`,
+          shadowBlur: 10
+        }
+      }))
+    }]
+  })
+}
 
-  if (priorityChart) {
-    const p = props.priorityStats
-    const priorityNames = ['高', '中', '低']
-    const priorityData = priorityNames.map(name => p[name] || 0)
-
-    priorityChart.setOption({
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: {
-          type: 'shadow',
-          shadowStyle: { color: 'rgba(74, 144, 226, 0.06)' }
-        },
-        backgroundColor: '#fff',
-        borderColor: '#D4E4F7',
-        borderWidth: 1,
-        textStyle: { color: '#1E3A5F', fontSize: 13 },
-        extraCssText: 'border-radius: 10px; box-shadow: 0 4px 16px rgba(74,144,226,0.15);'
-      },
-      grid: {
-        left: '15%',
-        right: '8%',
-        top: '10%',
-        bottom: '15%'
-      },
-      xAxis: {
-        type: 'category',
-        data: priorityNames,
-        axisLabel: { color: '#5A7A9F', fontSize: 13, fontWeight: 500 },
-        axisLine: { lineStyle: { color: '#D4E4F7' } },
-        axisTick: { show: false }
-      },
-      yAxis: {
-        type: 'value',
-        minInterval: 1,
-        axisLabel: { color: '#5A7A9F', fontSize: 11 },
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: 'rgba(212, 228, 247, 0.6)', type: 'dashed' } }
-      },
-      series: [{
-        type: 'bar',
-        data: priorityData.map((val, idx) => ({
-          value: val,
-          itemStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: priorityColors[priorityNames[idx]] },
-              { offset: 1, color: priorityColors[priorityNames[idx]] + '44' }
-            ]),
-            borderRadius: [8, 8, 0, 0],
-            shadowColor: priorityColors[priorityNames[idx]] + '33',
-            shadowBlur: 10,
-            shadowOffsetY: 4
-          }
-        })),
-        barWidth: '36%',
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 16,
-            shadowColor: 'rgba(74, 144, 226, 0.2)'
-          }
-        },
-        animationDuration: 1200,
-        animationEasing: 'elasticOut'
-      }]
-    })
-  }
-
+function updateScoreCharts() {
+  const avg = Number(props.avgScore) || 0
   if (gaugeChart) {
-    const avg = parseFloat(props.avgScore) || 0
     gaugeChart.setOption({
       series: [{
         type: 'gauge',
@@ -308,197 +401,231 @@ const updateCharts = () => {
         endAngle: -30,
         min: 0,
         max: 100,
-        splitNumber: 5,
-        radius: '95%',
-        center: ['50%', '55%'],
+        radius: '92%',
+        center: ['50%', '56%'],
         progress: {
           show: true,
-          width: 14,
+          width: 12,
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: '#EF5350' },
-              { offset: 0.6, color: '#FFA726' },
-              { offset: 0.8, color: '#42A5F5' },
-              { offset: 1, color: '#66BB6A' }
+              { offset: 0, color: '#ef5350' },
+              { offset: 0.55, color: '#f59e0b' },
+              { offset: 1, color: '#22c55e' }
             ])
           }
         },
-        pointer: {
-          length: '55%',
-          width: 5,
-          itemStyle: {
-            color: '#4A90E2'
-          }
-        },
-        axisLine: {
-          lineStyle: {
-            width: 14,
-            color: [
-              [0.6, '#EF5350'],
-              [0.8, '#FFA726'],
-              [1, '#66BB6A']
-            ]
-          }
-        },
-        axisTick: {
-          distance: -18,
-          length: 4,
-          lineStyle: { color: '#94a3b8', width: 1 }
-        },
-        splitLine: {
-          distance: -22,
-          length: 10,
-          lineStyle: { color: '#94a3b8', width: 1.5 }
-        },
-        axisLabel: {
-          distance: -12,
-          fontSize: 11,
-          color: '#5A7A9F',
-          formatter: (val) => val
-        },
-        anchor: {
-          show: true,
-          size: 12,
-          itemStyle: {
-            borderColor: '#4A90E2',
-            borderWidth: 2,
-            color: '#fff'
-          }
-        },
-        title: {
-          show: false
-        },
+        pointer: { width: 4, length: '52%', itemStyle: { color: '#14b8d6' } },
+        axisLine: { lineStyle: { width: 12, color: [[1, '#e8f0f7']] } },
+        axisTick: { show: false },
+        splitLine: { distance: -16, length: 8, lineStyle: { color: '#b7cde2', width: 1 } },
+        axisLabel: { distance: -6, color: '#60758e', fontSize: 10 },
+        anchor: { show: true, size: 10, itemStyle: { color: '#fff', borderColor: '#14b8d6', borderWidth: 2 } },
         detail: {
           valueAnimation: true,
-          fontSize: 32,
+          fontSize: 26,
           fontWeight: 800,
-          color: '#1E3A5F',
-          offsetCenter: [0, '72%'],
-          formatter: (val) => val.toFixed(1) + '分'
+          color: '#10243d',
+          offsetCenter: [0, '70%'],
+          formatter: (value) => `${value.toFixed(1)}分`
         },
-        data: [{ value: avg }],
-        animationDuration: 1500,
-        animationEasing: 'elasticOut'
+        data: [{ value: avg }]
       }]
     })
   }
 
   if (scoreLineChart) {
-    const sc = props.scoreStats
     const segments = ['0-60', '61-80', '81-100']
-    const segLabels = ['0-60', '61-80', '81-100']
-    const segColors = ['#EF5350', '#FFA726', '#66BB6A']
-    const segData = segments.map(k => sc[k] || 0)
-
+    const values = segments.map((key) => Number(props.scoreStats[key]) || 0)
     scoreLineChart.setOption({
-      tooltip: {
-        trigger: 'axis',
-        backgroundColor: '#fff',
-        borderColor: '#D4E4F7',
-        borderWidth: 1,
-        textStyle: { color: '#1E3A5F', fontSize: 13 },
-        extraCssText: 'border-radius: 10px; box-shadow: 0 4px 16px rgba(74,144,226,0.15);',
-        formatter: (params) => {
-          const p = params[0]
-          return `<div style="font-weight:600;margin-bottom:4px">${p.name}分</div><div>需求数量: <b>${p.value}</b></div>`
-        }
-      },
-      grid: {
-        left: '12%',
-        right: '8%',
-        top: '12%',
-        bottom: '18%'
-      },
+      tooltip: { ...makeTooltip(), trigger: 'axis' },
+      grid: { top: 18, left: 36, right: 14, bottom: 28 },
       xAxis: {
         type: 'category',
-        data: segLabels,
-        axisLabel: { color: '#5A7A9F', fontSize: 11 },
-        axisLine: { lineStyle: { color: '#D4E4F7' } },
-        axisTick: { show: false }
+        data: segments,
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: '#dbe8f5' } },
+        axisLabel: { color: '#60758e' }
       },
       yAxis: {
         type: 'value',
         minInterval: 1,
-        axisLabel: { color: '#5A7A9F', fontSize: 11 },
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: 'rgba(212, 228, 247, 0.6)', type: 'dashed' } }
+        axisLabel: { color: '#60758e' },
+        splitLine: { lineStyle: { color: 'rgba(174, 205, 231, 0.55)', type: 'dashed' } }
       },
       series: [{
         type: 'line',
-        data: segData.map((val, idx) => ({
-          value: val,
-          itemStyle: { color: segColors[idx], borderColor: segColors[idx], borderWidth: 2 }
-        })),
         smooth: true,
-        symbol: 'circle',
-        symbolSize: 10,
+        symbolSize: 9,
+        data: values,
         lineStyle: {
           width: 3,
           color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-            { offset: 0, color: '#EF5350' },
-            { offset: 0.5, color: '#FFA726' },
-            { offset: 1, color: '#66BB6A' }
+            { offset: 0, color: '#ef5350' },
+            { offset: 0.5, color: '#f59e0b' },
+            { offset: 1, color: '#22c55e' }
           ])
         },
-        itemStyle: {
-          color: '#fff',
-          borderColor: '#4A90E2',
-          borderWidth: 2,
-          shadowColor: 'rgba(74, 144, 226, 0.3)',
-          shadowBlur: 8
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(74, 144, 226, 0.25)' },
-            { offset: 1, color: 'rgba(74, 144, 226, 0.02)' }
-          ])
-        },
-        animationDuration: 1500,
-        animationEasing: 'cubicOut'
+        areaStyle: { color: 'rgba(20, 184, 214, 0.10)' },
+        itemStyle: { color: '#fff', borderColor: '#14b8d6', borderWidth: 2 }
       }]
     })
   }
 }
 
-watch([() => props.statusStats, () => props.priorityStats, () => props.scoreStats, () => props.avgScore], () => {
-  if (expanded.value) {
-    nextTick(() => {
-      updateCharts()
-    })
-  }
-}, { deep: true })
+function updatePlatformChart() {
+  if (!platformChart) return
+  const data = (props.dashboard.platformRanking || []).slice(0, 6).reverse()
+  platformChart.setOption({
+    tooltip: { ...makeTooltip(), trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { top: 2, right: 4, textStyle: { color: '#60758e' }, itemWidth: 12, itemHeight: 8 },
+    grid: { top: 40, left: 78, right: 18, bottom: 20 },
+    xAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { color: '#60758e' },
+      splitLine: { lineStyle: { color: 'rgba(174, 205, 231, 0.5)', type: 'dashed' } }
+    },
+    yAxis: {
+      type: 'category',
+      data: data.map((item) => item.platform),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#60758e', width: 70, overflow: 'truncate' }
+    },
+    series: [
+      {
+        name: '总量',
+        type: 'bar',
+        barWidth: 13,
+        data: data.map((item) => Number(item.total) || 0),
+        itemStyle: { color: '#14b8d6', borderRadius: [0, 8, 8, 0] }
+      },
+      {
+        name: '已发布',
+        type: 'bar',
+        barWidth: 13,
+        data: data.map((item) => Number(item.released) || 0),
+        itemStyle: { color: '#22c55e', borderRadius: [0, 8, 8, 0] }
+      }
+    ]
+  })
+}
+
+function updateHeatmapChart() {
+  if (!heatmapChart) return
+  const data = props.dashboard.developerHeatmap || []
+  heatmapChart.setOption({
+    tooltip: {
+      ...makeTooltip(),
+      formatter: (params) => {
+        const item = data[params.data?.[0]] || {}
+        return `${item.name || '-'}<br/>部门：${item.department || '-'}<br/>负载：${item.currentLoad || 0}/${item.maxLoad || 0}<br/>占比：${item.loadPercent || 0}%`
+      }
+    },
+    grid: { top: 12, left: 18, right: 18, bottom: 48 },
+    xAxis: {
+      type: 'category',
+      data: data.map((item) => item.name),
+      axisTick: { show: false },
+      axisLine: { show: false },
+      axisLabel: { color: '#60758e', interval: 0, rotate: data.length > 6 ? 30 : 0 }
+    },
+    yAxis: {
+      type: 'category',
+      data: ['负载'],
+      axisTick: { show: false },
+      axisLine: { show: false },
+      axisLabel: { color: '#60758e' }
+    },
+    visualMap: {
+      min: 0,
+      max: 100,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      calculable: false,
+      textStyle: { color: '#60758e' },
+      inRange: { color: ['#dff7ff', '#14b8d6', '#f59e0b', '#ef5350'] }
+    },
+    series: [{
+      type: 'heatmap',
+      data: data.map((item, index) => [index, 0, Number(item.loadPercent) || 0]),
+      label: { show: true, color: '#10243d', formatter: (params) => `${params.data?.[2] || 0}%` },
+      itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }
+    }]
+  })
+}
+
+function updateCharts() {
+  updateThroughputChart()
+  updateStatusChart()
+  updatePriorityChart()
+  updateScoreCharts()
+  updatePlatformChart()
+  updateHeatmapChart()
+}
+
+function resizeCharts() {
+  if (!expanded.value) return
+  ;[throughputChart, statusChart, priorityChart, gaugeChart, scoreLineChart, platformChart, heatmapChart]
+    .filter(Boolean)
+    .forEach((instance) => instance.resize())
+}
+
+function disposeCharts() {
+  ;[throughputChart, statusChart, priorityChart, gaugeChart, scoreLineChart, platformChart, heatmapChart]
+    .filter(Boolean)
+    .forEach((instance) => instance.dispose())
+  throughputChart = null
+  statusChart = null
+  priorityChart = null
+  gaugeChart = null
+  scoreLineChart = null
+  platformChart = null
+  heatmapChart = null
+}
+
+watch(
+  [() => props.statusStats, () => props.priorityStats, () => props.scoreStats, () => props.avgScore, () => props.dashboard],
+  () => {
+    if (expanded.value) {
+      nextTick(() => {
+        initCharts()
+        updateCharts()
+        resizeCharts()
+      })
+    }
+  },
+  { deep: true }
+)
 
 onMounted(() => {
-  window.addEventListener('resize', handleResize)
+  nextTick(() => {
+    initCharts()
+    updateCharts()
+    resizeCharts()
+  })
+  window.addEventListener('resize', resizeCharts)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize)
-  if (statusChart) { statusChart.dispose(); statusChart = null }
-  if (priorityChart) { priorityChart.dispose(); priorityChart = null }
-  if (gaugeChart) { gaugeChart.dispose(); gaugeChart = null }
-  if (scoreLineChart) { scoreLineChart.dispose(); scoreLineChart = null }
+  window.removeEventListener('resize', resizeCharts)
+  disposeCharts()
 })
-
-const handleResize = () => {
-  if (expanded.value) {
-    statusChart && statusChart.resize()
-    priorityChart && priorityChart.resize()
-    gaugeChart && gaugeChart.resize()
-    scoreLineChart && scoreLineChart.resize()
-  }
-}
 </script>
 
 <style scoped>
 .charts-panel {
-  background: var(--tech-card);
-  border-radius: 20px;
-  border: 1px solid var(--tech-border);
+  position: relative;
   margin-bottom: 24px;
   overflow: hidden;
-  position: relative;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(153, 198, 232, 0.8);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(247, 252, 255, 0.94)),
+    radial-gradient(circle at top right, rgba(20, 184, 214, 0.16), transparent 32%);
+  box-shadow: 0 14px 40px rgba(40, 106, 159, 0.12);
+  transition: border-color 0.28s ease, box-shadow 0.28s ease;
 }
 
 .charts-panel::before {
@@ -508,191 +635,165 @@ const handleResize = () => {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #69B4FF, #00D4FF, #4A90E2, #69B4FF);
-  background-size: 200% 100%;
-  animation: gradientSlide 4s linear infinite;
-  z-index: 1;
-  opacity: 0.7;
+  background: linear-gradient(90deg, #14b8d6, #4aa3ff, #22c55e, #14b8d6);
+  background-size: 220% 100%;
+  animation: chartPulseLine 4s linear infinite;
+  opacity: 0.85;
 }
 
-@keyframes gradientSlide {
-  0% { background-position: 0% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.charts-panel:hover {
-  box-shadow: 0 4px 24px rgba(74, 144, 226, 0.12);
+.charts-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(74, 163, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 163, 255, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent 72%);
 }
 
 .charts-panel-active {
-  border-color: var(--tech-blue-light);
-  box-shadow: 0 8px 32px rgba(74, 144, 226, 0.15);
+  border-color: rgba(20, 184, 214, 0.6);
+  box-shadow: 0 18px 54px rgba(40, 106, 159, 0.16);
 }
 
-.charts-panel-active::before {
-  opacity: 1;
+@keyframes chartPulseLine {
+  from { background-position: 0 0; }
+  to { background-position: 220% 0; }
 }
 
 .charts-panel-header {
   position: relative;
-  z-index: 2;
-  display: flex;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto 42px;
+  gap: 18px;
   align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
+  width: 100%;
+  padding: 22px 24px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
-  background: linear-gradient(135deg, rgba(74, 144, 226, 0.04) 0%, rgba(0, 212, 255, 0.02) 100%);
-  transition: all 0.25s;
-  user-select: none;
 }
 
-.charts-panel-header:hover {
-  background: linear-gradient(135deg, rgba(74, 144, 226, 0.08) 0%, rgba(0, 212, 255, 0.04) 100%);
-}
-
-.charts-panel-header-inner {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex: 1;
+.charts-panel-header-main {
   min-width: 0;
 }
 
 .charts-panel-title {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  gap: 12px;
+  min-width: 0;
 }
 
 .charts-panel-icon-wrap {
-  width: 36px;
-  height: 36px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--tech-blue-light), var(--tech-cyan));
-  border-radius: 10px;
-  box-shadow: 0 3px 12px rgba(74, 144, 226, 0.3);
-  position: relative;
-}
-
-.charts-panel-icon-wrap::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 212, 255, 0.3);
-  animation: iconRing 2.5s ease-in-out infinite;
-}
-
-@keyframes iconRing {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.03); }
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border: 1px solid rgba(20, 184, 214, 0.28);
+  border-radius: 13px;
+  background: linear-gradient(135deg, rgba(231, 250, 255, 0.95), rgba(255, 255, 255, 0.86));
+  color: #14b8d6;
+  box-shadow: 0 8px 22px rgba(20, 184, 214, 0.16);
 }
 
 .charts-panel-icon-svg {
-  width: 18px;
-  height: 18px;
-  color: #fff;
+  width: 21px;
+  height: 21px;
 }
 
 .charts-panel-title-text {
-  font-size: 16px;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--tech-text) 0%, var(--tech-blue) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: 0.5px;
-}
-
-.charts-panel-badge {
-  font-size: 9px;
+  font-size: 22px;
   font-weight: 800;
-  letter-spacing: 1.5px;
-  color: #fff;
-  background: linear-gradient(135deg, #00BCD4, #00D4FF);
-  padding: 2px 8px;
-  border-radius: 4px;
-  line-height: 1.4;
-  box-shadow: 0 0 12px rgba(0, 212, 255, 0.35);
-  animation: badgeGlow 2.5s ease-in-out infinite;
+  color: #10243d;
 }
 
-@keyframes badgeGlow {
-  0%, 100% { box-shadow: 0 0 8px rgba(0, 212, 255, 0.25); }
-  50% { box-shadow: 0 0 18px rgba(0, 212, 255, 0.5); }
+.charts-panel-badge,
+.charts-card-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 999px;
+  background: rgba(236, 253, 245, 0.9);
+  color: #099268;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.charts-panel-subtitle {
+  margin-top: 6px;
+  color: #60758e;
+  font-size: 13px;
 }
 
 .charts-panel-summary {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .charts-mini-stat {
-  display: flex;
+  display: grid;
+  grid-template-columns: 8px auto auto;
   align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
-  background: rgba(74, 144, 226, 0.06);
-  border: 1px solid rgba(74, 144, 226, 0.12);
-  border-radius: 8px;
-  transition: all 0.2s;
-}
-
-.charts-mini-stat:hover {
-  background: rgba(74, 144, 226, 0.1);
-  border-color: rgba(74, 144, 226, 0.2);
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid rgba(207, 227, 245, 0.9);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .charts-mini-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 6px currentColor;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 12px currentColor;
 }
 
 .charts-mini-label {
+  color: #60758e;
   font-size: 12px;
-  color: var(--tech-text-secondary);
-  font-weight: 500;
 }
 
 .charts-mini-value {
+  max-width: 92px;
+  overflow: hidden;
+  color: #10243d;
   font-size: 14px;
-  color: var(--tech-text);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .charts-panel-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid rgba(74, 144, 226, 0.2);
-  background: rgba(74, 144, 226, 0.06);
-  transition: all 0.25s;
-  flex-shrink: 0;
-}
-
-.charts-panel-header:hover .charts-panel-toggle {
-  background: rgba(74, 144, 226, 0.12);
-  border-color: rgba(74, 144, 226, 0.3);
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(207, 227, 245, 0.9);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #4aa3ff;
 }
 
 .charts-panel-arrow {
-  width: 18px;
-  height: 18px;
-  color: var(--tech-blue);
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 19px;
+  height: 19px;
+  transition: transform 0.28s ease;
 }
 
 .charts-panel-arrow-expanded {
@@ -700,118 +801,210 @@ const handleResize = () => {
 }
 
 .charts-panel-body {
+  position: relative;
+  z-index: 1;
   max-height: 0;
   overflow: hidden;
-  position: relative;
-  z-index: 2;
-  transition: max-height 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: max-height 0.42s ease;
 }
 
 .charts-panel-body-expanded {
-  max-height: 800px;
+  max-height: 1360px;
 }
 
 .charts-panel-content {
+  padding: 0 24px 24px;
+}
+
+.charts-kpi-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  padding: 20px 28px 28px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
-.charts-chart-wrap {
-  position: relative;
-  background: rgba(74, 144, 226, 0.03);
+.charts-kpi-card {
+  min-height: 88px;
+  padding: 15px 16px;
+  border: 1px solid rgba(207, 227, 245, 0.86);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.charts-kpi-label {
+  color: #60758e;
+  font-size: 13px;
+}
+
+.charts-kpi-value {
+  margin-top: 4px;
+  color: #10243d;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.charts-kpi-hint {
+  margin-top: 5px;
+  color: #8aa1b8;
+  font-size: 12px;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.charts-card {
+  grid-column: span 4;
+  min-height: 260px;
+  padding: 16px;
+  border: 1px solid rgba(207, 227, 245, 0.86);
   border-radius: 16px;
-  border: 1px solid rgba(74, 144, 226, 0.08);
-  padding: 20px;
-  transition: all 0.3s;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 8px 24px rgba(40, 106, 159, 0.07);
 }
 
-.charts-chart-wrap:hover {
-  border-color: rgba(74, 144, 226, 0.18);
-  box-shadow: 0 4px 20px rgba(74, 144, 226, 0.08);
+.charts-card-wide {
+  grid-column: span 8;
 }
 
-.charts-chart-wrap-score {
+.charts-card-full {
   grid-column: 1 / -1;
 }
 
-.charts-score-inner {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 20px;
-  align-items: center;
+.charts-card-score {
+  grid-column: span 4;
 }
 
-.charts-gauge-wrap {
-  min-width: 0;
-}
-
-.charts-line-wrap {
-  min-width: 0;
-}
-
-.charts-chart-gauge {
-  height: 200px !important;
-  min-height: 200px !important;
-}
-
-.charts-chart-line {
-  height: 200px !important;
-  min-height: 200px !important;
-}
-
-.charts-chart-label {
+.charts-card-header {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--tech-text);
-  margin-bottom: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  margin-bottom: 8px;
 }
 
-.charts-label-decorator {
-  display: inline-block;
-  width: 3px;
-  height: 16px;
-  background: linear-gradient(180deg, var(--tech-cyan), var(--tech-blue));
-  border-radius: 2px;
-  box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+.charts-card-header h3 {
+  margin: 0;
+  color: #10243d;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.charts-card-header p {
+  margin: 3px 0 0;
+  color: #60758e;
+  font-size: 12px;
+}
+
+.charts-card-tag {
+  height: 22px;
+  border-color: rgba(20, 184, 214, 0.25);
+  background: rgba(231, 250, 255, 0.9);
+  color: #1387c7;
 }
 
 .charts-chart {
-  height: 280px;
-  min-height: 280px;
+  width: 100%;
+  height: 188px;
 }
 
-@media (max-width: 768px) {
-  .charts-panel-content {
-    grid-template-columns: 1fr;
-    padding: 16px 16px 20px;
-    gap: 16px;
-  }
+.charts-chart-lg {
+  height: 198px;
+}
 
+.charts-card-full .charts-chart {
+  height: 214px;
+}
+
+.charts-score-layout {
+  display: grid;
+  grid-template-columns: 42% 58%;
+  min-height: 188px;
+}
+
+.charts-chart-gauge,
+.charts-chart-line {
+  height: 188px;
+}
+
+.charts-insight-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.charts-insight-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 13px 16px;
+  border: 1px solid rgba(207, 227, 245, 0.86);
+  border-radius: 14px;
+  background: rgba(247, 251, 255, 0.84);
+}
+
+.charts-insight-item span {
+  color: #60758e;
+  font-size: 13px;
+}
+
+.charts-insight-item strong {
+  color: #10243d;
+  font-size: 20px;
+}
+
+.charts-insight-warning strong {
+  color: #ef5350;
+}
+
+@media (max-width: 1180px) {
   .charts-panel-header {
-    padding: 14px 16px;
+    grid-template-columns: 1fr 42px;
   }
 
   .charts-panel-summary {
-    display: none;
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 
-  .charts-score-inner {
+  .charts-card,
+  .charts-card-wide,
+  .charts-card-score {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 760px) {
+  .charts-panel-header,
+  .charts-panel-content {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .charts-kpi-grid,
+  .charts-insight-row {
     grid-template-columns: 1fr;
   }
 
-  .charts-chart-gauge {
-    height: 180px !important;
-    min-height: 180px !important;
+  .charts-card,
+  .charts-card-wide,
+  .charts-card-score {
+    grid-column: 1 / -1;
   }
 
-  .charts-chart-line {
-    height: 180px !important;
-    min-height: 180px !important;
+  .charts-score-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .charts-panel-body-expanded {
+    max-height: 2300px;
   }
 }
 </style>

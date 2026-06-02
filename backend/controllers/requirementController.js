@@ -358,6 +358,16 @@ async function getGanttData(req, res) {
   }
 }
 
+async function getDashboard(req, res) {
+  try {
+    const dashboard = await requirementModel.getDashboardMetrics();
+    res.json({ success: true, data: dashboard });
+  } catch (error) {
+    console.error('getDashboard error:', error);
+    res.status(500).json({ success: false, message: String(error.message || error) });
+  }
+}
+
 module.exports = {
   parseRequirementListQuery,
   getAll,
@@ -372,5 +382,6 @@ module.exports = {
   updateStatus,
   approve,
   score,
-  getGanttData
+  getGanttData,
+  getDashboard
 };

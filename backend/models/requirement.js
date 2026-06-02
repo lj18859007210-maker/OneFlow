@@ -126,6 +126,228 @@ async function parseRows(rows) {
   return Promise.all(rows.map(parseRow));
 }
 
+function parseGanttRow(row) {
+  return {
+    id: row.ID,
+    title: row.TITLE,
+    submitter: row.SUBMITTER,
+    developer: row.DEVELOPER,
+    platform: row.PLATFORM,
+    capability: row.CAPABILITY,
+    expectedDate: row.EXPECTEDDATE,
+    actualDate: row.ACTUALDATE,
+    priority: row.PRIORITY,
+    score: row.SCORE,
+    status: row.STATUS,
+    approvalStatus: row.APPROVALSTATUS,
+    createdAt: row.CREATEDAT,
+    updatedAt: row.UPDATEDAT
+  };
+}
+
+function parseGanttRows(rows = []) {
+  return rows.map(parseGanttRow);
+}
+
+function toDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function roundToOne(value) {
+  return Math.round((Number(value) || 0) * 10) / 10;
+}
+
+function toMonthLabel(value) {
+  const date = toDate(value);
+  if (!date) return null;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getAuditDetails(log = {}) {
+  const details = log.details !== undefined ? log.details : log.DETAILS;
+  if (!details) return {};
+  if (typeof details === 'string') {
+    try {
+      return JSON.parse(details);
+    } catch (error) {
+      return {};
+    }
+  }
+  return details;
+}
+
+function getAuditBody(log = {}) {
+  const details = getAuditDetails(log);
+  return details.body || details || {};
+}
+
+function getAuditAction(log = {}) {
+  return log.action || log.ACTION || '';
+}
+
+function getAuditResourceId(log = {}) {
+  return log.resourceId || log.RESOURCEID || log.requirementId || log.REQUIREMENTID || null;
+}
+
+function getAuditCreatedAt(log = {}) {
+  return toDate(log.createdAt || log.CREATEDAT);
+}
+
+function averageByMonth(samples) {
+  const grouped = new Map();
+  samples.forEach((sample) => {
+    const label = toMonthLabel(sample.date);
+    if (!label) return;
+    const current = grouped.get(label) || { total: 0, count: 0 };
+    current.total += sample.value;
+    current.count += 1;
+    grouped.set(label, current);
+  });
+
+  return [...grouped.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([label, item]) => ({
+      label,
+      value: roundToOne(item.total / item.count)
+    }));
+}
+
+function buildDashboardMetrics({ requirements = [], auditLogs = [], developerLoadStats = [], today = new Date() } = {}) {
+  const todayDate = toDate(today) || new Date();
+  todayDate.setHours(0, 0, 0, 0);
+
+  const logsByRequirement = new Map();
+  auditLogs.forEach((log) => {
+    const resourceId = getAuditResourceId(log);
+    const createdAt = getAuditCreatedAt(log);
+    if (!resourceId || !createdAt) return;
+    const list = logsByRequirement.get(resourceId) || [];
+    list.push(log);
+    logsByRequirement.set(resourceId, list);
+  });
+  logsByRequirement.forEach((logs) => logs.sort((a, b) => getAuditCreatedAt(a) - getAuditCreatedAt(b)));
+
+  const throughputMap = new Map();
+  const approvalSamples = [];
+  const developmentSamples = [];
+  const platformMap = new Map();
+
+  let overdueCount = 0;
+  const total = requirements.length;
+
+  requirements.forEach((requirement) => {
+    const createdAt = toDate(requirement.createdAt);
+    const updatedAt = toDate(requirement.updatedAt);
+    const expectedDate = toDate(requirement.expectedDate);
+    const status = requirement.status;
+    const logs = logsByRequirement.get(requirement.id) || [];
+
+    const createdMonth = toMonthLabel(createdAt);
+    if (createdMonth) {
+      const item = throughputMap.get(createdMonth) || { label: createdMonth, createdCount: 0, releasedCount: 0 };
+      item.createdCount += 1;
+      throughputMap.set(createdMonth, item);
+    }
+
+    const approvalLog = logs.find((log) => {
+      const body = getAuditBody(log);
+      return getAuditAction(log) === 'approve' && body.approved === true;
+    });
+    const approvalDate = getAuditCreatedAt(approvalLog);
+    if (createdAt && approvalDate && approvalDate >= createdAt) {
+      approvalSamples.push({
+        date: approvalDate,
+        value: (approvalDate - createdAt) / (1000 * 60 * 60)
+      });
+    }
+
+    const developmentStartLog = logs.find((log) => {
+      const body = getAuditBody(log);
+      return getAuditAction(log) === 'update_status' && [STATUS.PENDING_DEV, STATUS.IN_DEV].includes(body.status);
+    });
+    const releaseLog = logs.find((log) => {
+      const body = getAuditBody(log);
+      return getAuditAction(log) === 'update_status' && body.status === STATUS.RELEASED;
+    });
+    const developmentStartDate = getAuditCreatedAt(developmentStartLog);
+    const releaseDate = getAuditCreatedAt(releaseLog) || (status === STATUS.RELEASED ? updatedAt : null);
+
+    if (developmentStartDate && releaseDate && releaseDate >= developmentStartDate) {
+      developmentSamples.push({
+        date: releaseDate,
+        value: (releaseDate - developmentStartDate) / (1000 * 60 * 60 * 24)
+      });
+    }
+
+    const releasedMonth = toMonthLabel(releaseDate);
+    if (releasedMonth) {
+      const item = throughputMap.get(releasedMonth) || { label: releasedMonth, createdCount: 0, releasedCount: 0 };
+      item.releasedCount += 1;
+      throughputMap.set(releasedMonth, item);
+    }
+
+    if (expectedDate && expectedDate < todayDate && status !== STATUS.RELEASED) {
+      overdueCount += 1;
+    }
+
+    const platform = requirement.platform || '未分类';
+    const platformItem = platformMap.get(platform) || { platform, total: 0, released: 0, releaseRate: 0 };
+    platformItem.total += 1;
+    if (status === STATUS.RELEASED) {
+      platformItem.released += 1;
+    }
+    platformMap.set(platform, platformItem);
+  });
+
+  const throughput = [...throughputMap.values()].sort((a, b) => a.label.localeCompare(b.label));
+  const platformRanking = [...platformMap.values()]
+    .map((item) => ({
+      ...item,
+      releaseRate: item.total ? roundToOne((item.released / item.total) * 100) : 0
+    }))
+    .sort((a, b) => b.total - a.total || b.released - a.released || a.platform.localeCompare(b.platform));
+
+  const developerHeatmap = developerLoadStats
+    .map((item) => {
+      const loadPercent = roundToOne(item.loadPercent);
+      return {
+        ...item,
+        loadPercent,
+        loadLevel: loadPercent >= 80 ? 'high' : loadPercent >= 60 ? 'medium' : 'normal'
+      };
+    })
+    .sort((a, b) => b.loadPercent - a.loadPercent);
+
+  const approvalTotal = approvalSamples.reduce((sum, item) => sum + item.value, 0);
+  const developmentTotal = developmentSamples.reduce((sum, item) => sum + item.value, 0);
+
+  return {
+    throughput,
+    approvalCycle: {
+      averageHours: approvalSamples.length ? roundToOne(approvalTotal / approvalSamples.length) : 0,
+      sampleCount: approvalSamples.length,
+      trend: averageByMonth(approvalSamples)
+    },
+    developmentCycle: {
+      averageDays: developmentSamples.length ? roundToOne(developmentTotal / developmentSamples.length) : 0,
+      sampleCount: developmentSamples.length,
+      trend: averageByMonth(developmentSamples)
+    },
+    overdue: {
+      count: overdueCount,
+      total,
+      rate: total ? roundToOne((overdueCount / total) * 100) : 0
+    },
+    platformRanking,
+    developerHeatmap
+  };
+}
+
 async function reconcileRequirementState(connection, row) {
   const consistentState = getConsistentRequirementState({
     status: row.STATUS,
@@ -711,7 +933,7 @@ async function getGanttData(filters = {}) {
     
     const result = await connection.execute(
       `SELECT id, title, submitter, developer, platform, capability, 
-              expectedDate, actualDate, priority, score, status, 
+              expectedDate, actualDate, priority, score, status, approvalStatus,
               createdAt, updatedAt
        FROM requirements
        ${whereClause}
@@ -720,7 +942,7 @@ async function getGanttData(filters = {}) {
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     
-    const data = await parseRows(result.rows);
+    const data = parseGanttRows(result.rows);
     
     const platformStats = {};
     data.forEach(req => {
@@ -739,6 +961,121 @@ async function getGanttData(filters = {}) {
       platformStats,
       total: data.length
     };
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
+async function getDashboardMetrics() {
+  let connection;
+  try {
+    connection = await db.getConnection();
+
+    const fields = 'ID, DEVELOPER, PLATFORM, STATUS, EXPECTEDDATE, CREATEDAT, UPDATEDAT';
+    const requirementsResult = await connection.execute(
+      `SELECT ${fields}
+       FROM requirements
+       WHERE isDraft = 0`,
+      {},
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    const requirements = (requirementsResult.rows || []).map((row) => ({
+      id: row.ID,
+      developer: row.DEVELOPER,
+      platform: row.PLATFORM,
+      status: row.STATUS,
+      expectedDate: row.EXPECTEDDATE,
+      createdAt: row.CREATEDAT,
+      updatedAt: row.UPDATEDAT
+    }));
+
+    let auditLogs = [];
+    try {
+      let auditResult;
+      try {
+        auditResult = await connection.execute(
+          `SELECT action, resourceId, details, createdAt
+           FROM audit_logs
+           WHERE "resource" = 'requirement'
+             AND action IN ('approve', 'update_status')
+           ORDER BY createdAt ASC`,
+          {},
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+      } catch (error) {
+        if (!String(error?.message || '').includes('ORA-00904')) {
+          throw error;
+        }
+        auditResult = await connection.execute(
+          `SELECT action, resourceId, details, createdAt
+           FROM audit_logs
+           WHERE resource = 'requirement'
+             AND action IN ('approve', 'update_status')
+           ORDER BY createdAt ASC`,
+          {},
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+      }
+
+      for (const row of auditResult.rows || []) {
+        const details = await readLobContent(row.DETAILS);
+        auditLogs.push({
+          action: row.ACTION,
+          resourceId: row.RESOURCEID,
+          details: details ? JSON.parse(details) : null,
+          createdAt: row.CREATEDAT
+        });
+      }
+    } catch (error) {
+      if (!String(error?.message || '').includes('ORA-00942')) {
+        throw error;
+      }
+    }
+
+    let developerLoadStats = [];
+    try {
+      const developerResult = await connection.execute(
+        `SELECT
+           u.id,
+           u.name,
+           NVL(d.department, '') AS department,
+           NVL(d.maxLoad, 5) AS maxLoad,
+           NVL(d.currentLoad, 0) AS currentLoad
+         FROM users u
+         LEFT JOIN developers d ON d.userId = u.id
+         WHERE (u.role = 'developer' OR u.role = 'role-developer')
+           AND u.status = 1
+         ORDER BY u.name ASC`,
+        {},
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+
+      developerLoadStats = (developerResult.rows || []).map((row) => {
+        const maxLoad = Number(row.MAXLOAD) || 0;
+        const currentLoad = Number(row.CURRENTLOAD) || 0;
+        return {
+          id: row.ID,
+          name: row.NAME,
+          department: row.DEPARTMENT || '',
+          maxLoad,
+          currentLoad,
+          loadPercent: maxLoad ? roundToOne((currentLoad / maxLoad) * 100) : 0
+        };
+      });
+    } catch (error) {
+      if (!String(error?.message || '').includes('ORA-00942') && !String(error?.message || '').includes('ORA-00904')) {
+        throw error;
+      }
+      developerLoadStats = [];
+    }
+
+    return buildDashboardMetrics({
+      requirements,
+      auditLogs,
+      developerLoadStats,
+      today: new Date()
+    });
   } finally {
     if (connection) await connection.close();
   }
@@ -891,7 +1228,9 @@ module.exports = {
   approve,
   score,
   getGanttData,
+  getDashboardMetrics,
   getAIContext,
+  buildDashboardMetrics,
   resolveApprovalListScope,
   getConsistentRequirementState,
   STATUS,

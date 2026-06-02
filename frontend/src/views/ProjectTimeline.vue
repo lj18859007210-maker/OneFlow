@@ -37,6 +37,22 @@
         <button class="tech-btn tech-btn-primary tech-btn-sm" @click="goToToday">
           回到今天
         </button>
+        <div class="tech-export-actions">
+          <button
+            class="tech-btn tech-btn-outline tech-btn-sm"
+            :disabled="exportDisabled"
+            @click="exportGantt('csv')"
+          >
+            导出 CSV
+          </button>
+          <button
+            class="tech-btn tech-btn-outline tech-btn-sm"
+            :disabled="exportDisabled"
+            @click="exportGantt('excel')"
+          >
+            导出 Excel
+          </button>
+        </div>
       </div>
     </div>
 
@@ -199,6 +215,7 @@
 import { ref, computed, onMounted, watch, watchEffect, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { requirementApi } from '../api'
+import { downloadGanttExport } from '../utils/ganttExport'
 import { showToast } from '../utils/toastService'
 
 const router = useRouter()
@@ -214,6 +231,7 @@ const selectedDeveloper = ref('')
 const viewMode = ref('month')
 const expandedGroups = ref({})
 const loading = ref(false)
+const exporting = ref(false)
 
 // 状态选项
 const statusOptions = [
@@ -288,9 +306,17 @@ const todayPosition = computed(() => {
 })
 
 // 分组数据
-const groupedRequirements = computed(() => {
-  let filtered = requirements.value
-  
+const getActiveFilters = () => {
+  const filters = {}
+  if (selectedPlatform.value) filters.platform = selectedPlatform.value
+  if (selectedStatus.value) filters.status = selectedStatus.value
+  if (selectedDeveloper.value) filters.developer = selectedDeveloper.value
+  return filters
+}
+
+const applyActiveFilters = (items) => {
+  let filtered = Array.isArray(items) ? items : []
+
   if (selectedPlatform.value) {
     filtered = filtered.filter(r => r.platform === selectedPlatform.value)
   }
@@ -300,9 +326,13 @@ const groupedRequirements = computed(() => {
   if (selectedDeveloper.value) {
     filtered = filtered.filter(r => r.developer === selectedDeveloper.value)
   }
-  
+
+  return filtered
+}
+
+const buildGanttGroups = (items) => {
   const groups = {}
-  filtered.forEach(req => {
+  items.forEach(req => {
     const platform = req.platform || '未分类'
     if (!groups[platform]) {
       groups[platform] = []
@@ -320,7 +350,11 @@ const groupedRequirements = computed(() => {
       progress
     }
   }).sort((a, b) => a.platform.localeCompare(b.platform))
-})
+}
+
+const groupedRequirements = computed(() => buildGanttGroups(applyActiveFilters(requirements.value)))
+
+const exportDisabled = computed(() => loading.value || exporting.value || groupedRequirements.value.length === 0)
 
 // 方法
 const toggleGroup = (platform) => {
@@ -391,6 +425,38 @@ const goToToday = () => {
   }
 }
 
+const exportGantt = async (format) => {
+  const filters = getActiveFilters()
+
+  try {
+    exporting.value = true
+    const res = await requirementApi.getGanttData({
+      ...filters,
+      _exportAt: Date.now()
+    })
+    const latestRequirements = res.data?.success ? res.data.data || [] : []
+    const exportGroups = buildGanttGroups(applyActiveFilters(latestRequirements))
+
+    const result = downloadGanttExport(exportGroups, {
+      format,
+      viewMode: viewMode.value,
+      filters
+    })
+
+    if (!result.success) {
+      showToast('当前没有可导出的甘特图数据', { type: 'warning', title: '暂无数据' })
+      return
+    }
+
+    showToast(`已导出 ${result.fileName}`, { type: 'success', title: '导出成功' })
+  } catch (error) {
+    console.error('导出甘特图失败:', error)
+    showToast('导出失败，请稍后重试', { type: 'error', title: '导出失败' })
+  } finally {
+    exporting.value = false
+  }
+}
+
 const canViewDetail = (req) => {
   const user = currentUser.value
   if (!user || user.name === '未登录') return false
@@ -410,26 +476,12 @@ const viewRequirement = (req) => {
 const loadData = async () => {
   try {
     loading.value = true
-    const filters = {}
-    if (selectedPlatform.value) filters.platform = selectedPlatform.value
-    if (selectedStatus.value) filters.status = selectedStatus.value
-    if (selectedDeveloper.value) filters.developer = selectedDeveloper.value
+    const filters = getActiveFilters()
     
-    console.log('请求甘特图数据，筛选条件:', filters)
     const res = await requirementApi.getGanttData(filters)
-    console.log('甘特图 API 完整响应:', res)
-    console.log('res.data:', res.data)
     
     if (res.data && res.data.success) {
       requirements.value = res.data.data || []
-      console.log('加载的需求数据:', requirements.value)
-      console.log('数据条数:', requirements.value.length)
-      
-      if (requirements.value.length > 0) {
-        console.log('第一条数据示例:', requirements.value[0])
-        console.log('createdAt 类型:', typeof requirements.value[0].createdAt)
-        console.log('expectedDate 类型:', typeof requirements.value[0].expectedDate)
-      }
       
       // 提取平台和开发人员
       const platformSet = new Set()
@@ -440,9 +492,6 @@ const loadData = async () => {
       })
       platforms.value = Array.from(platformSet).sort()
       developers.value = Array.from(developerSet).sort()
-      console.log('平台列表:', platforms.value)
-      console.log('开发人员列表:', developers.value)
-      console.log('分组数据:', groupedRequirements.value)
     } else {
       console.error('API 返回失败:', res)
     }
@@ -545,6 +594,12 @@ watchEffect(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.tech-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .tech-view-toggle {
