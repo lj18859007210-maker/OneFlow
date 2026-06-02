@@ -198,6 +198,18 @@ function getAuditCreatedAt(log = {}) {
   return toDate(log.createdAt || log.CREATEDAT);
 }
 
+async function parseDashboardAuditRows(rows = []) {
+  return Promise.all((rows || []).map(async (row) => {
+    const details = row.DETAILSTEXT || await readLobContent(row.DETAILS);
+    return {
+      action: row.ACTION,
+      resourceId: row.RESOURCEID,
+      details: details ? JSON.parse(details) : null,
+      createdAt: row.CREATEDAT
+    };
+  }));
+}
+
 function averageByMonth(samples) {
   const grouped = new Map();
   samples.forEach((sample) => {
@@ -995,7 +1007,7 @@ async function getDashboardMetrics() {
       let auditResult;
       try {
         auditResult = await connection.execute(
-          `SELECT action, resourceId, details, createdAt
+          `SELECT action, resourceId, DBMS_LOB.SUBSTR(details, 4000, 1) AS detailsText, createdAt
            FROM audit_logs
            WHERE "resource" = 'requirement'
              AND action IN ('approve', 'update_status')
@@ -1008,7 +1020,7 @@ async function getDashboardMetrics() {
           throw error;
         }
         auditResult = await connection.execute(
-          `SELECT action, resourceId, details, createdAt
+          `SELECT action, resourceId, DBMS_LOB.SUBSTR(details, 4000, 1) AS detailsText, createdAt
            FROM audit_logs
            WHERE resource = 'requirement'
              AND action IN ('approve', 'update_status')
@@ -1018,15 +1030,7 @@ async function getDashboardMetrics() {
         );
       }
 
-      for (const row of auditResult.rows || []) {
-        const details = await readLobContent(row.DETAILS);
-        auditLogs.push({
-          action: row.ACTION,
-          resourceId: row.RESOURCEID,
-          details: details ? JSON.parse(details) : null,
-          createdAt: row.CREATEDAT
-        });
-      }
+      auditLogs = await parseDashboardAuditRows(auditResult.rows || []);
     } catch (error) {
       if (!String(error?.message || '').includes('ORA-00942')) {
         throw error;
@@ -1231,6 +1235,7 @@ module.exports = {
   getDashboardMetrics,
   getAIContext,
   buildDashboardMetrics,
+  parseDashboardAuditRows,
   resolveApprovalListScope,
   getConsistentRequirementState,
   STATUS,

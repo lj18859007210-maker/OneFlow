@@ -174,7 +174,7 @@ const props = defineProps({
   dashboard: { type: Object, default: () => createEmptyDashboard() }
 })
 
-const expanded = ref(true)
+const expanded = ref(false)
 const throughputChartRef = ref(null)
 const statusChartRef = ref(null)
 const priorityChartRef = ref(null)
@@ -204,6 +204,14 @@ const priorityColors = {
   '高': '#ef5350',
   '中': '#f59e0b',
   '低': '#22c55e'
+}
+
+const chartMotion = {
+  animation: true,
+  animationDuration: 900,
+  animationDurationUpdate: 650,
+  animationEasing: 'cubicOut',
+  animationEasingUpdate: 'cubicOut'
 }
 
 const summary = computed(() => buildChartSummary({
@@ -274,6 +282,7 @@ function updateThroughputChart() {
   if (!throughputChart) return
   const data = props.dashboard.throughput || []
   throughputChart.setOption({
+    ...chartMotion,
     color: ['#14b8d6', '#22c55e'],
     tooltip: { ...makeTooltip(), trigger: 'axis' },
     legend: { top: 2, right: 4, textStyle: { color: '#60758e' }, itemWidth: 12, itemHeight: 8 },
@@ -329,6 +338,7 @@ function updateStatusChart() {
     .filter((item) => item.value > 0)
 
   statusChart.setOption({
+    ...chartMotion,
     tooltip: { ...makeTooltip(), trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: {
       orient: 'vertical',
@@ -357,6 +367,7 @@ function updatePriorityChart() {
   const values = names.map((name) => Number(props.priorityStats[name]) || 0)
 
   priorityChart.setOption({
+    ...chartMotion,
     tooltip: { ...makeTooltip(), trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { top: 18, left: 36, right: 18, bottom: 30 },
     xAxis: {
@@ -395,6 +406,7 @@ function updateScoreCharts() {
   const avg = Number(props.avgScore) || 0
   if (gaugeChart) {
     gaugeChart.setOption({
+      ...chartMotion,
       series: [{
         type: 'gauge',
         startAngle: 210,
@@ -437,6 +449,7 @@ function updateScoreCharts() {
     const segments = ['0-60', '61-80', '81-100']
     const values = segments.map((key) => Number(props.scoreStats[key]) || 0)
     scoreLineChart.setOption({
+      ...chartMotion,
       tooltip: { ...makeTooltip(), trigger: 'axis' },
       grid: { top: 18, left: 36, right: 14, bottom: 28 },
       xAxis: {
@@ -476,6 +489,7 @@ function updatePlatformChart() {
   if (!platformChart) return
   const data = (props.dashboard.platformRanking || []).slice(0, 6).reverse()
   platformChart.setOption({
+    ...chartMotion,
     tooltip: { ...makeTooltip(), trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { top: 2, right: 4, textStyle: { color: '#60758e' }, itemWidth: 12, itemHeight: 8 },
     grid: { top: 40, left: 78, right: 18, bottom: 20 },
@@ -515,6 +529,7 @@ function updateHeatmapChart() {
   if (!heatmapChart) return
   const data = props.dashboard.developerHeatmap || []
   heatmapChart.setOption({
+    ...chartMotion,
     tooltip: {
       ...makeTooltip(),
       formatter: (params) => {
@@ -522,13 +537,20 @@ function updateHeatmapChart() {
         return `${item.name || '-'}<br/>部门：${item.department || '-'}<br/>负载：${item.currentLoad || 0}/${item.maxLoad || 0}<br/>占比：${item.loadPercent || 0}%`
       }
     },
-    grid: { top: 12, left: 18, right: 18, bottom: 48 },
+    grid: { top: 44, left: 18, right: 18, bottom: 38 },
     xAxis: {
       type: 'category',
       data: data.map((item) => item.name),
       axisTick: { show: false },
       axisLine: { show: false },
-      axisLabel: { color: '#60758e', interval: 0, rotate: data.length > 6 ? 30 : 0 }
+      axisLabel: {
+        color: '#60758e',
+        fontSize: 12,
+        interval: 0,
+        margin: 14,
+        rotate: data.length > 6 ? 28 : 0,
+        hideOverlap: false
+      }
     },
     yAxis: {
       type: 'category',
@@ -538,12 +560,17 @@ function updateHeatmapChart() {
       axisLabel: { color: '#60758e' }
     },
     visualMap: {
+      show: false,
       min: 0,
       max: 100,
       orient: 'horizontal',
-      left: 'center',
-      bottom: 0,
+      right: 4,
+      top: 0,
+      itemWidth: 118,
+      itemHeight: 8,
       calculable: false,
+      text: ['高负载', '低负载'],
+      textGap: 8,
       textStyle: { color: '#60758e' },
       inRange: { color: ['#dff7ff', '#14b8d6', '#f59e0b', '#ef5350'] }
     },
@@ -805,15 +832,52 @@ onBeforeUnmount(() => {
   z-index: 1;
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.42s ease;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: max-height 0.46s ease, opacity 0.28s ease, transform 0.34s ease;
 }
 
 .charts-panel-body-expanded {
   max-height: 1360px;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .charts-panel-content {
   padding: 0 24px 24px;
+}
+
+.charts-panel-body-expanded .charts-kpi-card,
+.charts-panel-body-expanded .charts-card,
+.charts-panel-body-expanded .charts-insight-item {
+  animation: chartReveal 0.58s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.charts-panel-body-expanded .charts-kpi-card:nth-child(1) { animation-delay: 0.02s; }
+.charts-panel-body-expanded .charts-kpi-card:nth-child(2) { animation-delay: 0.05s; }
+.charts-panel-body-expanded .charts-kpi-card:nth-child(3) { animation-delay: 0.08s; }
+.charts-panel-body-expanded .charts-kpi-card:nth-child(4) { animation-delay: 0.11s; }
+.charts-panel-body-expanded .charts-card:nth-child(1) { animation-delay: 0.10s; }
+.charts-panel-body-expanded .charts-card:nth-child(2) { animation-delay: 0.14s; }
+.charts-panel-body-expanded .charts-card:nth-child(3) { animation-delay: 0.18s; }
+.charts-panel-body-expanded .charts-card:nth-child(4) { animation-delay: 0.22s; }
+.charts-panel-body-expanded .charts-card:nth-child(5) { animation-delay: 0.26s; }
+.charts-panel-body-expanded .charts-card:nth-child(6) { animation-delay: 0.30s; }
+.charts-panel-body-expanded .charts-insight-item:nth-child(1) { animation-delay: 0.34s; }
+.charts-panel-body-expanded .charts-insight-item:nth-child(2) { animation-delay: 0.38s; }
+.charts-panel-body-expanded .charts-insight-item:nth-child(3) { animation-delay: 0.42s; }
+
+@keyframes chartReveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+    filter: saturate(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: saturate(1);
+  }
 }
 
 .charts-kpi-grid {
