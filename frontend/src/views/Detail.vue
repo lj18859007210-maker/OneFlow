@@ -13,7 +13,8 @@
     <section class="ops-summary-strip">
       <div class="ops-summary-item" :class="getPriorityClass(requirement.priority)"><span>优先级</span><strong>{{ requirement.priority || '未设置' }}</strong></div>
       <div class="ops-summary-item"><span>计划日期</span><strong>{{ requirement.expectedDate ? formatDate(requirement.expectedDate) : '未设置' }}</strong></div>
-      <div class="ops-summary-item"><span>平均开发时长</span><strong>{{ requirement.avgDevTime || '-' }}</strong></div>
+      <div class="ops-summary-item"><span>开发前用时</span><strong>{{ requirement.avgDevTime || '-' }}</strong></div>
+      <div class="ops-summary-item"><span>开发后用时</span><strong>{{ requirement.postDevAvgTime || '-' }}</strong></div>
       <div class="ops-summary-item"><span>月调用量</span><strong>{{ requirement.avgMonthlyCalls || '-' }}</strong></div>
       <div class="ops-summary-item"><span>开发人员</span><strong>{{ requirement.developer || '-' }}</strong></div>
       <div class="ops-summary-item" :class="getStatusClass(effectiveStatus)"><span>状态</span><strong>{{ effectiveStatus || '-' }}</strong></div>

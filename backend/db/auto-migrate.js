@@ -384,6 +384,26 @@ async function ensureDeveloperUserMapping(connection) {
   `);
 }
 
+async function ensureRequirementPostDevAvgTime(connection) {
+  try {
+    await connection.execute('SELECT postDevAvgTime FROM requirements WHERE 1 = 0');
+  } catch (error) {
+    if (error.message.includes('ORA-00942')) return;
+    if (!error.message.includes('ORA-00904')) throw error;
+    await connection.execute('ALTER TABLE requirements ADD (postDevAvgTime NVARCHAR2(50))');
+  }
+}
+
+async function ensureRequirementPublishedAt(connection) {
+  try {
+    await connection.execute('SELECT publishedAt FROM requirements WHERE 1 = 0');
+  } catch (error) {
+    if (error.message.includes('ORA-00942')) return;
+    if (!error.message.includes('ORA-00904')) throw error;
+    await connection.execute('ALTER TABLE requirements ADD (publishedAt TIMESTAMP)');
+  }
+}
+
 function roleDefaultPermissionIds(roleName) {
   const codes = ROLE_DEFAULT_PERMISSION_CODES[roleName] || [];
   return codes
@@ -440,6 +460,8 @@ async function initialize() {
     await ensureAdminPermissions(connection);
     await ensureRoleDefaultPermissions(connection, 'user');
     await ensureRoleDefaultPermissions(connection, 'developer');
+    await ensureRequirementPostDevAvgTime(connection);
+    await ensureRequirementPublishedAt(connection);
     await ensureDeveloperUserMapping(connection);
     await ensureWorkflowSeed(connection);
 

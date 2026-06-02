@@ -3,6 +3,7 @@ const oracledb = require('oracledb');
 const db = require('../db/oracle');
 const workflowModel = require('./workflow');
 const { FLOW_KEY_REQUIREMENT } = require('../utils/workflowDefaults');
+const { calculateRequirementScore } = require('../utils/requirementScoring');
 
 const STATUS = {
   PENDING_APPROVAL: '待审批',
@@ -20,6 +21,20 @@ const STATUS_ORDER = [
   STATUS.IN_DEV,
   STATUS.IN_TEST,
   STATUS.RELEASED
+];
+
+const SCORING_FIELDS = [
+  'avgMonthlyCalls',
+  'capability',
+  'avgDevTime',
+  'postDevAvgTime',
+  'expectedDate',
+  'actualDate',
+  'status',
+  'publishedAt',
+  'publishDate',
+  'releaseAt',
+  'releaseDate'
 ];
 
 function getConsistentRequirementState({ status, approvalStatus }) {
@@ -106,6 +121,7 @@ async function parseRow(row) {
     expectedDate: row.EXPECTEDDATE,
     actualDate: row.ACTUALDATE,
     avgDevTime: row.AVGDEVTIME,
+    postDevAvgTime: row.POSTDEVAVGTIME,
     avgMonthlyCalls: row.AVGMONTHLYCALLS,
     senderEmail: row.SENDEREMAIL,
     ccEmails: ccJson ? JSON.parse(ccJson) : [],
@@ -117,6 +133,7 @@ async function parseRow(row) {
     noteImages: noteJson ? JSON.parse(noteJson) : [],
     approvalStatus: consistentState.approvalStatus,
     approvalComment: approvalJson,
+    publishedAt: row.PUBLISHEDAT,
     createdAt: row.CREATEDAT,
     updatedAt: row.UPDATEDAT
   };
@@ -140,6 +157,7 @@ function parseGanttRow(row) {
     score: row.SCORE,
     status: row.STATUS,
     approvalStatus: row.APPROVALSTATUS,
+    publishedAt: row.PUBLISHEDAT,
     createdAt: row.CREATEDAT,
     updatedAt: row.UPDATEDAT
   };
@@ -160,6 +178,74 @@ function toDate(value) {
 
 function roundToOne(value) {
   return Math.round((Number(value) || 0) * 10) / 10;
+}
+
+function valueOrCurrent(value, currentValue) {
+  if (value === undefined || value === null || value === '') return currentValue;
+  return value;
+}
+
+function rowValue(row = {}, ...fields) {
+  for (const field of fields) {
+    if (row[field] !== undefined && row[field] !== null && row[field] !== '') {
+      return row[field];
+    }
+  }
+  return null;
+}
+
+function getScoringInputFromRow(row = {}) {
+  return {
+    avgMonthlyCalls: rowValue(row, 'AVGMONTHLYCALLS', 'avgMonthlyCalls'),
+    capability: rowValue(row, 'CAPABILITY', 'capability'),
+    avgDevTime: rowValue(row, 'AVGDEVTIME', 'avgDevTime'),
+    postDevAvgTime: rowValue(row, 'POSTDEVAVGTIME', 'postDevAvgTime'),
+    expectedDate: rowValue(row, 'EXPECTEDDATE', 'expectedDate'),
+    actualDate: rowValue(row, 'ACTUALDATE', 'actualDate'),
+    status: rowValue(row, 'STATUS', 'status'),
+    publishedAt: rowValue(row, 'PUBLISHEDAT', 'publishedAt'),
+    updatedAt: rowValue(row, 'UPDATEDAT', 'updatedAt')
+  };
+}
+
+function getNextScoringInput(row = {}, data = {}) {
+  const current = getScoringInputFromRow(row);
+  return {
+    avgMonthlyCalls: valueOrCurrent(data.avgMonthlyCalls, current.avgMonthlyCalls),
+    capability: valueOrCurrent(data.capability, current.capability),
+    avgDevTime: valueOrCurrent(data.avgDevTime, current.avgDevTime),
+    postDevAvgTime: valueOrCurrent(data.postDevAvgTime, current.postDevAvgTime),
+    expectedDate: valueOrCurrent(data.expectedDate, current.expectedDate),
+    actualDate: valueOrCurrent(data.actualDate, current.actualDate),
+    status: valueOrCurrent(data.status, current.status),
+    publishedAt: valueOrCurrent(data.publishedAt, current.publishedAt),
+    updatedAt: valueOrCurrent(data.updatedAt, current.updatedAt),
+    publishDate: data.publishDate,
+    releaseAt: data.releaseAt,
+    releaseDate: data.releaseDate
+  };
+}
+
+function hasScoringFieldChange(data = {}) {
+  return SCORING_FIELDS.some((field) => data[field] !== undefined);
+}
+
+function resolveRequirementScore(data = {}, row = null) {
+  if (data.score !== undefined && data.score !== null && data.score !== '') {
+    return data.score;
+  }
+  const rowIsDraft = rowValue(row || {}, 'ISDRAFT', 'isDraft');
+  const rowScore = rowValue(row || {}, 'SCORE', 'score');
+  if (data.isDraft === true) {
+    return row ? (rowScore ?? 0) : 0;
+  }
+  if (rowIsDraft && data.isDraft !== false) {
+    return rowScore ?? 0;
+  }
+  if (!row || rowIsDraft || hasScoringFieldChange(data)) {
+    return calculateRequirementScore(row ? getNextScoringInput(row, data) : data);
+  }
+  return rowScore ?? 0;
 }
 
 function toMonthLabel(value) {
@@ -654,14 +740,14 @@ async function create(data) {
     await connection.execute(
       `INSERT INTO requirements (
         id, title, description, submitter, developer, platform, capability,
-        expectedDate, actualDate, avgDevTime, avgMonthlyCalls, senderEmail, ccEmails,
+        expectedDate, actualDate, avgDevTime, postDevAvgTime, avgMonthlyCalls, senderEmail, ccEmails,
         priority, score, status, isDraft, steps, noteImages,
-        approvalStatus, approvalComment, CREATEDAT, UPDATEDAT
+        approvalStatus, approvalComment, publishedAt, CREATEDAT, UPDATEDAT
       ) VALUES (
         :id, :title, :description, :submitter, :developer, :platform,
-        :capability, :expectedDate, :actualDate, :avgDevTime, :avgMonthlyCalls, :senderEmail,
+        :capability, :expectedDate, :actualDate, :avgDevTime, :postDevAvgTime, :avgMonthlyCalls, :senderEmail,
         :ccEmails, :priority, :score, :status, :isDraft, :steps, :noteImages,
-        :approvalStatus, :approvalComment, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        :approvalStatus, :approvalComment, :publishedAt, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )`,
       {
         id,
@@ -674,17 +760,19 @@ async function create(data) {
         expectedDate: data.expectedDate ? (data.expectedDate instanceof Date ? data.expectedDate : new Date(data.expectedDate)) : null,
         actualDate: data.actualDate ? (data.actualDate instanceof Date ? data.actualDate : new Date(data.actualDate)) : null,
         avgDevTime: data.avgDevTime || null,
+        postDevAvgTime: data.postDevAvgTime || null,
         avgMonthlyCalls: data.avgMonthlyCalls || null,
         senderEmail: data.senderEmail || null,
         ccEmails: data.ccEmails && data.ccEmails.length ? JSON.stringify(data.ccEmails) : null,
         priority: data.priority || '中',
-        score: data.score ?? 0,
+        score: resolveRequirementScore(data),
         status: data.status || STATUS.PENDING_APPROVAL,
         isDraft: data.isDraft ? 1 : 0,
         steps: data.steps ? JSON.stringify(data.steps) : null,
         noteImages: data.noteImages && data.noteImages.length ? JSON.stringify(data.noteImages) : null,
         approvalStatus: data.approvalStatus || 'pending',
-        approvalComment: data.approvalComment || null
+        approvalComment: data.approvalComment || null,
+        publishedAt: data.publishedAt ? (data.publishedAt instanceof Date ? data.publishedAt : new Date(data.publishedAt)) : null
       }
     );
     await connection.commit();
@@ -721,6 +809,11 @@ async function update(id, data) {
         developer = NVL(:developer, developer),
         platform = NVL(:platform, platform),
         capability = NVL(:capability, capability),
+        avgDevTime = NVL(:avgDevTime, avgDevTime),
+        postDevAvgTime = NVL(:postDevAvgTime, postDevAvgTime),
+        avgMonthlyCalls = NVL(:avgMonthlyCalls, avgMonthlyCalls),
+        expectedDate = NVL(:expectedDate, expectedDate),
+        actualDate = NVL(:actualDate, actualDate),
         priority = NVL(:priority, priority),
         score = NVL(:score, score),
         status = NVL(:status, status),
@@ -740,8 +833,13 @@ async function update(id, data) {
         developer: data.developer || null,
         platform: data.platform || null,
         capability: data.capability || null,
+        avgDevTime: data.avgDevTime || null,
+        postDevAvgTime: data.postDevAvgTime || null,
+        avgMonthlyCalls: data.avgMonthlyCalls || null,
+        expectedDate: data.expectedDate ? (data.expectedDate instanceof Date ? data.expectedDate : new Date(data.expectedDate)) : null,
+        actualDate: data.actualDate ? (data.actualDate instanceof Date ? data.actualDate : new Date(data.actualDate)) : null,
         priority: data.priority || null,
-        score: data.score ?? null,
+        score: resolveRequirementScore(data, row),
         status: data.status || null,
         isDraft: data.isDraft !== undefined ? (data.isDraft ? 1 : 0) : null,
         ccEmails,
@@ -793,10 +891,19 @@ async function updateStatus(id, status, actorRole) {
   let connection;
   try {
     connection = await db.getConnection();
-    await connection.execute(
-      `UPDATE requirements SET status = :status, UPDATEDAT = CURRENT_TIMESTAMP WHERE id = :id`,
-      { status, id }
-    );
+    if (status === STATUS.RELEASED) {
+      const publishedAt = current.publishedAt || new Date();
+      const nextScore = resolveRequirementScore({ status, publishedAt }, current);
+      await connection.execute(
+        `UPDATE requirements SET status = :status, score = :score, publishedAt = NVL(publishedAt, :publishedAt), UPDATEDAT = CURRENT_TIMESTAMP WHERE id = :id`,
+        { status, score: nextScore, publishedAt, id }
+      );
+    } else {
+      await connection.execute(
+        `UPDATE requirements SET status = :status, UPDATEDAT = CURRENT_TIMESTAMP WHERE id = :id`,
+        { status, id }
+      );
+    }
     await connection.commit();
     const requirement = await getById(id);
     return { requirement, transition };
@@ -1238,6 +1345,7 @@ module.exports = {
   parseDashboardAuditRows,
   resolveApprovalListScope,
   getConsistentRequirementState,
+  resolveRequirementScore,
   STATUS,
   STATUS_ORDER,
   getNextStatuses,

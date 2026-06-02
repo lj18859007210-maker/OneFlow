@@ -48,14 +48,10 @@
                 <span>{{ data.avgMonthlyCalls || '-' }}</span>
               </div>
               <div class="view-info-item">
-                <label>发送人邮箱</label>
-                <span>{{ data.senderEmail || '-' }}</span>
+                <label>开发后预计平均用时/次</label>
+                <span>{{ data.postDevAvgTime || '-' }}</span>
               </div>
               <div class="view-info-item">
-                <label>抄送邮箱</label>
-                <span>{{ Array.isArray(data.ccEmails) ? data.ccEmails.join(', ') : (data.ccEmails || '-') }}</span>
-              </div>
-              <div class="view-info-item full-width">
                 <label>优先级</label>
                 <span><span class="tech-tag" :class="getPriorityClass(data.priority)">{{ data.priority || '-' }}</span></span>
               </div>
@@ -140,12 +136,16 @@
               </div>
               <div class="tech-form-row">
                 <div class="tech-form-group">
-                  <label class="tech-form-label">发送人邮箱</label>
-                  <input v-model="editForm.senderEmail" class="tech-input" placeholder="例：zhangsan@cmcc.cn" />
+                  <label class="tech-form-label">开发后预计平均用时/次</label>
+                  <input v-model="editForm.postDevAvgTime" class="tech-input" placeholder="例：1 天" />
                 </div>
                 <div class="tech-form-group">
-                  <label class="tech-form-label">抄送邮箱 (逗号分隔)</label>
-                  <input v-model="editForm.ccEmails" class="tech-input" placeholder="例：manager@cmcc.cn, team@cmcc.cn" />
+                  <label class="tech-form-label">优先级</label>
+                  <select v-model="editForm.priority" class="tech-select">
+                    <option value="低">低</option>
+                    <option value="中">中</option>
+                    <option value="高">高</option>
+                  </select>
                 </div>
               </div>
             </form>
@@ -261,9 +261,9 @@ const editForm = ref({
   capability: '',
   expectedDate: '',
   avgDevTime: '',
+  postDevAvgTime: '',
   avgMonthlyCalls: '',
-  senderEmail: '',
-  ccEmails: '',
+  priority: '中',
   description: ''
 })
 
@@ -287,9 +287,9 @@ function initEditForm() {
     capability: d.capability || '',
     expectedDate: d.expectedDate || '',
     avgDevTime: d.avgDevTime || '',
+    postDevAvgTime: d.postDevAvgTime || '',
     avgMonthlyCalls: d.avgMonthlyCalls || '',
-    senderEmail: d.senderEmail || '',
-    ccEmails: Array.isArray(d.ccEmails) ? d.ccEmails.join(', ') : (d.ccEmails || ''),
+    priority: d.priority || '中',
     description: d.description || ''
   }
   if (d.steps && d.steps.length) {
@@ -476,14 +476,10 @@ async function saveEdit() {
   }
   saving.value = true
   try {
-    const cc = editForm.value.ccEmails
-      ? editForm.value.ccEmails.split(',').map(e => e.trim()).filter(e => e)
-      : []
     const noteStep = steps.value.find(s => s.type === 'note')
     const noteImages = (noteStep && noteStep.images) || []
     await requirementApi.update(props.data.id, {
       ...editForm.value,
-      ccEmails: cc,
       steps: steps.value.map(s => ({
         label: s.label,
         answer: s.answer,
@@ -510,15 +506,11 @@ async function submitRequirement() {
   }
   saving.value = true
   try {
-    const cc = editForm.value.ccEmails
-      ? editForm.value.ccEmails.split(',').map(e => e.trim()).filter(e => e)
-      : []
     const noteStep = steps.value.find(s => s.type === 'note')
     const noteImages = (noteStep && noteStep.images) || []
     await requirementApi.update(props.data.id, {
       ...editForm.value,
       status: '待审批',
-      ccEmails: cc,
       steps: steps.value.map(s => ({
         label: s.label,
         answer: s.answer,

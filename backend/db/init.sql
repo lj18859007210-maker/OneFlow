@@ -40,6 +40,7 @@ CREATE TABLE requirements (
   expectedDate DATE,
   actualDate DATE,
   avgDevTime NVARCHAR2(50),
+  postDevAvgTime NVARCHAR2(50),
   avgMonthlyCalls NUMBER,
   senderEmail NVARCHAR2(200),
   ccEmails NCLOB,
@@ -51,6 +52,7 @@ CREATE TABLE requirements (
   noteImages NCLOB,
   approvalStatus NVARCHAR2(20) DEFAULT 'pending',
   approvalComment NCLOB,
+  publishedAt TIMESTAMP,
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -86,20 +86,20 @@
         </div>
         <div class="tech-form-row">
           <div class="tech-form-group">
-            <label class="tech-form-label">发送人邮箱</label>
+            <label class="tech-form-label">开发后预计平均用时/次</label>
             <input
-              v-model="form.senderEmail"
+              v-model="form.postDevAvgTime"
               class="tech-input"
-              placeholder="例：zhangsan@cmcc.cn"
+              placeholder="例：1 天"
             />
           </div>
           <div class="tech-form-group">
-            <label class="tech-form-label">抄送邮箱 (逗号分隔)</label>
-            <input
-              v-model="form.ccEmails"
-              class="tech-input"
-              placeholder="例：manager@cmcc.cn, team@cmcc.cn"
-            />
+            <label class="tech-form-label">优先级</label>
+            <select v-model="form.priority" class="tech-select">
+              <option value="低">低</option>
+              <option value="中">中</option>
+              <option value="高">高</option>
+            </select>
           </div>
         </div>
       </form>
@@ -298,9 +298,9 @@ const form = ref({
   capability: "",
   expectedDate: "",
   avgDevTime: "",
+  postDevAvgTime: "",
   avgMonthlyCalls: "",
-  senderEmail: "",
-  ccEmails: "",
+  priority: "中",
   description: "",
 });
 
@@ -387,9 +387,9 @@ function resetAll() {
     capability: "",
     expectedDate: "",
     avgDevTime: "",
+    postDevAvgTime: "",
     avgMonthlyCalls: "",
-    senderEmail: "",
-    ccEmails: "",
+    priority: "中",
     description: "",
   };
   steps.value = [
@@ -601,14 +601,6 @@ async function doSubmit() {
       return;
     }
 
-    const cc = form.value.ccEmails
-      ? (typeof form.value.ccEmails === "string"
-          ? form.value.ccEmails.split(",").map((e) => e.trim()).filter((e) => e)
-          : Array.isArray(form.value.ccEmails)
-            ? form.value.ccEmails
-            : [])
-      : [];
-
     const noteStep = steps.value.find((s) => s.type === "note");
     const noteImages = (noteStep && noteStep.images) || [];
 
@@ -616,18 +608,17 @@ async function doSubmit() {
     if (currentDraftId.value) {
       await requirementApi.update(currentDraftId.value, { 
         ...form.value, 
-        ccEmails: cc, 
         noteImages,
         isDraft: false 
       });
     } else {
-      await requirementApi.create({ ...form.value, ccEmails: cc, noteImages });
+      await requirementApi.create({ ...form.value, noteImages });
     }
     
     try {
       await emailApi.send({
         to: "admin@cmcc.cn",
-        cc,
+        cc: [],
         subject: "新需求：" + form.value.title,
         body:
           form.value.description +
@@ -663,9 +654,9 @@ async function saveDraft() {
       capability: form.value.capability,
       expectedDate: form.value.expectedDate,
       avgDevTime: form.value.avgDevTime,
+      postDevAvgTime: form.value.postDevAvgTime,
       avgMonthlyCalls: form.value.avgMonthlyCalls,
-      senderEmail: form.value.senderEmail,
-      ccEmails: form.value.ccEmails,
+      priority: form.value.priority,
       description: form.value.description,
       isDraft: true,
       steps: steps.value.map(s => ({
@@ -718,9 +709,9 @@ async function loadLatestDraft() {
         capability: draft.capability || "",
         expectedDate: draft.expectedDate || "",
         avgDevTime: draft.avgDevTime || "",
+        postDevAvgTime: draft.postDevAvgTime || "",
         avgMonthlyCalls: draft.avgMonthlyCalls || "",
-        senderEmail: draft.senderEmail || "",
-        ccEmails: draft.ccEmails || "",
+        priority: draft.priority || "中",
         description: draft.description || "",
       };
       if (draft.steps && draft.steps.length) {
@@ -777,9 +768,9 @@ function loadDraftData(draft) {
     capability: draft.capability || "",
     expectedDate: draft.expectedDate || "",
     avgDevTime: draft.avgDevTime || "",
+    postDevAvgTime: draft.postDevAvgTime || "",
     avgMonthlyCalls: draft.avgMonthlyCalls || "",
-    senderEmail: draft.senderEmail || "",
-    ccEmails: draft.ccEmails || "",
+    priority: draft.priority || "中",
     description: draft.description || "",
   };
   

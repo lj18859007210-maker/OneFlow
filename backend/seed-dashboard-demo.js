@@ -1,10 +1,11 @@
 const db = require('./db/oracle');
+const { calculateRequirementScore } = require('./utils/requirementScoring');
 
 const PREFIX = 'demo-dashboard-';
 const platforms = ['CRM 系统', 'BOSS 系统', '大数据分析平台', '掌上移动 APP', '网管支撑平台', 'OA 办公系统'];
 const developers = ['张伟', '王磊', '李娜', '陈强', '赵敏', '刘洋'];
 const submitters = ['市场部', '客服中心', '网络部', '政企中心', '数据运营部', '综合办公室'];
-const capabilities = ['流程优化', '数据分析', '客户服务', '系统集成', '移动应用', '自动化'];
+const capabilities = ['一线支撑', '内部支撑', '集团迎检'];
 const priorities = ['高', '中', '低'];
 const statuses = ['待审批', '待评审', '待开发', '开发中', '测试中', '已发布'];
 const developerProfiles = [
@@ -50,7 +51,7 @@ function buildRows() {
       const devStartLagDays = 2 + ((i + month) % 4);
       const releaseLagDays = devStartLagDays + 5 + ((i + month) % 10);
 
-      rows.push({
+      const row = {
         id: `${PREFIX}${String(index).padStart(3, '0')}`,
         title: `演示需求 ${String(index).padStart(3, '0')} - ${pick(platforms, i + month)} ${pick(capabilities, i)}`,
         description: `用于数据图表分析的演示需求，覆盖不同月份、平台、状态、评分和开发周期。`,
@@ -61,11 +62,11 @@ function buildRows() {
         expectedDate,
         actualDate,
         avgDevTime: `${releaseLagDays}天`,
+        postDevAvgTime: `${Math.max(1, Math.round(releaseLagDays / 3))}天`,
         avgMonthlyCalls: 200 + month * 60 + i * 9,
         senderEmail: `demo${index}@cmcc.cn`,
         ccEmails: JSON.stringify([`owner${index % 5}@cmcc.cn`]),
         priority: pick(priorities, i + month),
-        score: isReleased || i % 3 !== 0 ? 55 + ((index * 7) % 43) : 0,
         status,
         isDraft: 0,
         steps: JSON.stringify([{ title: '需求受理', done: true }, { title: '方案评估', done: status !== '待审批' }]),
@@ -77,7 +78,9 @@ function buildRows() {
         approvalAt: new Date(createdAt.getTime() + approvalLagHours * 60 * 60 * 1000),
         devStartAt: addDays(createdAt, devStartLagDays),
         releaseAt: isReleased ? addDays(createdAt, releaseLagDays) : null
-      });
+      };
+      row.score = calculateRequirementScore(row);
+      rows.push(row);
     }
   }
 
@@ -176,6 +179,7 @@ async function insertRequirement(connection, row) {
     expectedDate: row.expectedDate,
     actualDate: row.actualDate,
     avgDevTime: row.avgDevTime,
+    postDevAvgTime: row.postDevAvgTime,
     avgMonthlyCalls: row.avgMonthlyCalls,
     senderEmail: row.senderEmail,
     ccEmails: row.ccEmails,
@@ -187,6 +191,7 @@ async function insertRequirement(connection, row) {
     noteImages: row.noteImages,
     approvalStatus: row.approvalStatus,
     approvalComment: row.approvalComment,
+    publishedAt: row.releaseAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -194,14 +199,14 @@ async function insertRequirement(connection, row) {
   await connection.execute(
     `INSERT INTO requirements (
       id, title, description, submitter, developer, platform, capability,
-      expectedDate, actualDate, avgDevTime, avgMonthlyCalls, senderEmail, ccEmails,
+      expectedDate, actualDate, avgDevTime, postDevAvgTime, avgMonthlyCalls, senderEmail, ccEmails,
       priority, score, status, isDraft, steps, noteImages, approvalStatus, approvalComment,
-      createdAt, updatedAt
+      publishedAt, createdAt, updatedAt
     ) VALUES (
       :id, :title, :description, :submitter, :developer, :platform, :capability,
-      :expectedDate, :actualDate, :avgDevTime, :avgMonthlyCalls, :senderEmail, :ccEmails,
+      :expectedDate, :actualDate, :avgDevTime, :postDevAvgTime, :avgMonthlyCalls, :senderEmail, :ccEmails,
       :priority, :score, :status, :isDraft, :steps, :noteImages, :approvalStatus, :approvalComment,
-      :createdAt, :updatedAt
+      :publishedAt, :createdAt, :updatedAt
     )`,
     binds
   );
