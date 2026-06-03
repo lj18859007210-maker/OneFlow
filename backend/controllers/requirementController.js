@@ -52,7 +52,7 @@ function parseRequirementListQuery(query = {}) {
   const dateEnd = parseDateOnly(query.dateEnd, 'dateEnd');
   const minScore = parseScore(query.minScore, 'minScore');
   const maxScore = parseScore(query.maxScore, 'maxScore');
-  const isOverdue = ['true', 'false'].includes(query.isOverdue) ? query.isOverdue : null;
+  const isOverdue = ['true', 'early', 'false'].includes(query.isOverdue) ? query.isOverdue : null;
 
   if (dateStart && dateEnd && dateStart.getTime() > dateEnd.getTime()) {
     throw new Error('dateStart cannot be later than dateEnd');

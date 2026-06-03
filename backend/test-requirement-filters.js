@@ -89,6 +89,16 @@ function run() {
   const notOverdue = requirementModel.buildRequirementListFilters({ isOverdue: 'false' });
   assert.match(notOverdue.whereClause, /\(expectedDate IS NULL OR expectedDate >= TRUNC\(SYSDATE\) OR status = :releasedStatus\)/);
 
+  const earlyFinishedQuery = requirementController.parseRequirementListQuery({ isOverdue: 'early' });
+  assert.strictEqual(earlyFinishedQuery.isOverdue, 'early');
+
+  const earlyFinished = requirementModel.buildRequirementListFilters({ isOverdue: 'early' });
+  assert.match(earlyFinished.whereClause, /status = :earlyReleasedStatus/);
+  assert.match(earlyFinished.whereClause, /expectedDate IS NOT NULL/);
+  assert.match(earlyFinished.whereClause, /publishedAt IS NOT NULL/);
+  assert.match(earlyFinished.whereClause, /TRUNC\(publishedAt\) < TRUNC\(expectedDate\)/);
+  assert.strictEqual(earlyFinished.params.earlyReleasedStatus, '已发布');
+
   const summary = requirementModel.buildSummaryQueryParts({ platform: 'OneFlow' });
   assert.match(summary.whereClause, /platform = :platform/);
   assert.deepStrictEqual(summary.params, { platform: 'OneFlow' });

@@ -575,6 +575,13 @@ function buildRequirementListFilters(filters = {}) {
     clauses.push('AND (expectedDate IS NULL OR expectedDate >= TRUNC(SYSDATE) OR status = :releasedStatus)');
     params.releasedStatus = STATUS.RELEASED;
   }
+  if (filters.isOverdue === 'early') {
+    clauses.push('AND status = :earlyReleasedStatus');
+    clauses.push('AND expectedDate IS NOT NULL');
+    clauses.push('AND publishedAt IS NOT NULL');
+    clauses.push('AND TRUNC(publishedAt) < TRUNC(expectedDate)');
+    params.earlyReleasedStatus = STATUS.RELEASED;
+  }
 
   return {
     whereClause: clauses.join(' '),

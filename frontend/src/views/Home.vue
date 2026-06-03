@@ -80,8 +80,9 @@
           <input v-model="filterForm.maxScore" type="number" min="0" max="100" class="tech-input" placeholder="最高评分" />
 
           <select v-model="filterForm.isOverdue" class="tech-filter-select">
-            <option value="">全部逾期状态</option>
+            <option value="">全部时限状态</option>
             <option value="true">仅逾期</option>
+            <option value="early">提前完成</option>
             <option value="false">仅未逾期</option>
           </select>
         </div>
@@ -236,7 +237,7 @@ function updateSummaryFromResponse(payload) {
 }
 
 async function loadDevelopers() {
-  const response = await developerApi.getAll()
+  const response = await developerApi.getAssignable()
   const developers = response.data?.data || response.data || []
   developerOptions.value = [...new Set(developers.map(item => item.name).filter(Boolean))]
 }
