@@ -15,6 +15,16 @@ async function getAll(req, res) {
   }
 }
 
+async function getAssignable(req, res) {
+  try {
+    const developers = await developerModel.getAssignable();
+    res.json({ success: true, data: developers });
+  } catch (error) {
+    console.error('getAssignable error:', error);
+    res.status(500).json({ success: false, message: String(error.message || error) });
+  }
+}
+
 async function getById(req, res) {
   try {
     const developer = await developerModel.getById(req.params.id);
@@ -86,6 +96,7 @@ async function getDepartments(req, res) {
 
 module.exports = {
   getAll,
+  getAssignable,
   getById,
   create,
   update,

@@ -56,7 +56,7 @@
             <td>{{ req.developer || '-' }}</td>
             <td><span class="tech-tag" :class="getPriorityClass(req.priority)">{{ req.priority || '-' }}</span></td>
             <td><span v-if="req.isDraft" class="tech-tag tech-tag-draft">草稿</span><span v-else class="tech-tag" :class="getStatusClass(req.status)">{{ req.status }}</span></td>
-            <td>{{ req.score > 0 ? req.score + '分' : '-' }}</td>
+            <td>{{ formatRequirementScore(req) }}</td>
             <td>{{ formatDate(req.createdAt) }}</td>
             <td>
               <template v-if="req.isDraft">
@@ -198,6 +198,12 @@ const getPriorityClass = (priority) => {
 }
 
 const formatDate = (date) => new Date(date).toLocaleDateString('zh-CN')
+
+const formatRequirementScore = (req) => {
+  if (req.isDraft || req.status !== '已发布') return '-'
+  const score = Number(req.score)
+  return score > 0 ? `${score}分` : '-'
+}
 
 const goToDetailOrDraft = (id, isDraft) => {
   if (isDraft) {

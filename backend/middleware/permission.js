@@ -37,6 +37,43 @@ function requirePermission(permissionCode) {
   };
 }
 
+function requireAnyPermission(...permissionCodes) {
+  return async (req, res, next) => {
+    const userRole = req.user?.role;
+    const normalizedRoleId = normalizeRoleId(userRole);
+
+    if (!normalizedRoleId) {
+      logger.warn(`权限不足: ${req.user?.name || 'unknown'} (${userRole || 'unknown'}) 尝试访问 ${permissionCodes.join(' 或 ')}`);
+      return res.status(403).json({
+        success: false,
+        message: `权限不足：需要 ${permissionCodes.join(' 或 ')} 权限`
+      });
+    }
+
+    if (normalizedRoleId === 'role-admin') {
+      return next();
+    }
+
+    try {
+      for (const permissionCode of permissionCodes) {
+        const hasPermission = await permissionModel.checkPermission(normalizedRoleId, permissionCode);
+        if (hasPermission) {
+          return next();
+        }
+      }
+
+      logger.warn(`权限不足: ${req.user?.name || 'unknown'} (${userRole}) 尝试访问 ${permissionCodes.join(' 或 ')}`);
+      return res.status(403).json({
+        success: false,
+        message: `权限不足：需要 ${permissionCodes.join(' 或 ')} 权限`
+      });
+    } catch (error) {
+      logger.error(`权限检查失败: ${error.message}`);
+      res.status(500).json({ success: false, message: '权限检查失败' });
+    }
+  };
+}
+
 function requireRole(...roles) {
   return (req, res, next) => {
     const userRole = req.user?.role;
@@ -56,5 +93,6 @@ function requireRole(...roles) {
 
 module.exports = {
   requirePermission,
+  requireAnyPermission,
   requireRole
 };

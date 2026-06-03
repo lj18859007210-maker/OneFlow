@@ -25,7 +25,8 @@ function run() {
     dateEnd: '2026-05-26',
     minScore: '0',
     maxScore: '100',
-    isOverdue: 'true'
+    isOverdue: 'true',
+    keyword: '  OneFlow  '
   });
 
   assert.strictEqual(filters.page, 3);
@@ -37,6 +38,7 @@ function run() {
   assert.strictEqual(filters.minScore, 0);
   assert.strictEqual(filters.maxScore, 100);
   assert.strictEqual(filters.isOverdue, 'true');
+  assert.strictEqual(filters.keyword, 'OneFlow');
   assert(filters.dateStart instanceof Date);
   assert(filters.dateEndExclusive instanceof Date);
   assert.strictEqual(filters.dateStart.toISOString(), '2026-05-01T00:00:00.000Z');
@@ -61,7 +63,8 @@ function run() {
     dateEndExclusive: new Date('2026-05-27T00:00:00.000Z'),
     minScore: 0,
     maxScore: 100,
-    isOverdue: 'true'
+    isOverdue: 'true',
+    keyword: 'OneFlow'
   });
 
   assert.match(built.whereClause, /WHERE isDraft = 0/);
@@ -76,6 +79,11 @@ function run() {
   assert.match(built.whereClause, /expectedDate IS NOT NULL/);
   assert.match(built.whereClause, /expectedDate < TRUNC\(SYSDATE\)/);
   assert.match(built.whereClause, /status != :releasedStatus/);
+  assert.match(built.whereClause, /LOWER\(title\) LIKE :keyword/);
+  assert.match(built.whereClause, /LOWER\(submitter\) LIKE :keyword/);
+  assert.match(built.whereClause, /LOWER\(developer\) LIKE :keyword/);
+  assert.match(built.whereClause, /LOWER\(status\) LIKE :keyword/);
+  assert.strictEqual(built.params.keyword, '%oneflow%');
   assert.strictEqual(built.params.releasedStatus, '已发布');
 
   const notOverdue = requirementModel.buildRequirementListFilters({ isOverdue: 'false' });

@@ -1,4 +1,5 @@
-const FIXED_SUCCESS_RATE_SCORE = 30;
+const FIXED_SUCCESS_RATE_SCORE = 15;
+const RELEASED_STATUS = '已发布';
 
 function toNumber(value) {
   if (value === undefined || value === null || value === '') return null;
@@ -35,6 +36,24 @@ function getField(source = {}, ...names) {
     }
   }
   return null;
+}
+
+function getPublishTime(requirement = {}) {
+  return getField(
+    requirement,
+    'publishedAt',
+    'publishDate',
+    'releaseAt',
+    'releaseDate',
+    'PUBLISHEDAT',
+    'PUBLISHDATE',
+    'RELEASEAT',
+    'RELEASEDATE'
+  );
+}
+
+function isReleased(requirement = {}) {
+  return String(getField(requirement, 'status', 'STATUS') || '').trim() === RELEASED_STATUS;
 }
 
 function toCalendarDay(value) {
@@ -76,29 +95,24 @@ function scoreCapability(capability) {
   return map[String(capability || '').trim()] || 10;
 }
 
+function scorePriority(priority) {
+  const map = {
+    '低': 8,
+    '中': 12,
+    '高': 15
+  };
+  return map[String(priority || '').trim()] || 12;
+}
+
 function scoreCompletionTimeliness(requirement = {}) {
-  const directPublishTime = getField(
-    requirement,
-    'publishedAt',
-    'publishDate',
-    'releaseAt',
-    'releaseDate',
-    'PUBLISHEDAT',
-    'PUBLISHDATE',
-    'RELEASEAT',
-    'RELEASEDATE'
-  );
-  const status = String(getField(requirement, 'status', 'STATUS') || '').trim();
-  const publishTime = directPublishTime || (status === '已发布'
-    ? getField(requirement, 'updatedAt', 'UPDATEDAT')
-    : null);
+  const publishTime = getPublishTime(requirement);
   const deadline = getField(requirement, 'actualDate', 'ACTUALDATE', 'expectedDate', 'EXPECTEDDATE');
   const publishDay = toCalendarDay(publishTime);
   const deadlineDay = toCalendarDay(deadline);
 
   if (publishDay === null || deadlineDay === null) return 0;
   if (publishDay < deadlineDay) return 15;
-  if (publishDay === deadlineDay) return 8;
+  if (publishDay === deadlineDay) return 10;
   return 0;
 }
 
@@ -117,10 +131,13 @@ function scorePressureReduction({ avgDevTime, postDevAvgTime } = {}) {
 }
 
 function calculateRequirementScore(requirement = {}) {
+  if (!isReleased(requirement)) return 0;
+
   return roundScore(
     scoreCallVolume(requirement.avgMonthlyCalls) +
     scoreCapability(requirement.capability) +
     FIXED_SUCCESS_RATE_SCORE +
+    scorePriority(requirement.priority) +
     scoreCompletionTimeliness(requirement) +
     scorePressureReduction({
       avgDevTime: requirement.avgDevTime,
@@ -134,6 +151,7 @@ module.exports = {
   calculateRequirementScore,
   scoreCallVolume,
   scoreCapability,
+  scorePriority,
   scoreCompletionTimeliness,
   scorePressureReduction,
   parseTimeToHours

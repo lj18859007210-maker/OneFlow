@@ -26,6 +26,7 @@ const STATUS_ORDER = [
 const SCORING_FIELDS = [
   'avgMonthlyCalls',
   'capability',
+  'priority',
   'avgDevTime',
   'postDevAvgTime',
   'expectedDate',
@@ -126,7 +127,7 @@ async function parseRow(row) {
     senderEmail: row.SENDEREMAIL,
     ccEmails: ccJson ? JSON.parse(ccJson) : [],
     priority: row.PRIORITY,
-    score: row.SCORE,
+    score: resolveStoredRequirementScore(row, consistentState.status),
     status: consistentState.status,
     isDraft: row.ISDRAFT,
     steps: stepsJson ? JSON.parse(stepsJson) : [],
@@ -154,7 +155,7 @@ function parseGanttRow(row) {
     expectedDate: row.EXPECTEDDATE,
     actualDate: row.ACTUALDATE,
     priority: row.PRIORITY,
-    score: row.SCORE,
+    score: resolveStoredRequirementScore(row, consistentState.status),
     status: row.STATUS,
     approvalStatus: row.APPROVALSTATUS,
     publishedAt: row.PUBLISHEDAT,
@@ -194,10 +195,16 @@ function rowValue(row = {}, ...fields) {
   return null;
 }
 
+function resolveStoredRequirementScore(row = {}, status) {
+  const normalizedStatus = String(status || rowValue(row, 'STATUS', 'status') || '').trim();
+  return normalizedStatus === STATUS.RELEASED ? (rowValue(row, 'SCORE', 'score') ?? 0) : 0;
+}
+
 function getScoringInputFromRow(row = {}) {
   return {
     avgMonthlyCalls: rowValue(row, 'AVGMONTHLYCALLS', 'avgMonthlyCalls'),
     capability: rowValue(row, 'CAPABILITY', 'capability'),
+    priority: rowValue(row, 'PRIORITY', 'priority'),
     avgDevTime: rowValue(row, 'AVGDEVTIME', 'avgDevTime'),
     postDevAvgTime: rowValue(row, 'POSTDEVAVGTIME', 'postDevAvgTime'),
     expectedDate: rowValue(row, 'EXPECTEDDATE', 'expectedDate'),
@@ -213,6 +220,7 @@ function getNextScoringInput(row = {}, data = {}) {
   return {
     avgMonthlyCalls: valueOrCurrent(data.avgMonthlyCalls, current.avgMonthlyCalls),
     capability: valueOrCurrent(data.capability, current.capability),
+    priority: valueOrCurrent(data.priority, current.priority),
     avgDevTime: valueOrCurrent(data.avgDevTime, current.avgDevTime),
     postDevAvgTime: valueOrCurrent(data.postDevAvgTime, current.postDevAvgTime),
     expectedDate: valueOrCurrent(data.expectedDate, current.expectedDate),
@@ -230,6 +238,15 @@ function hasScoringFieldChange(data = {}) {
   return SCORING_FIELDS.some((field) => data[field] !== undefined);
 }
 
+function isReleasedScoringInput(input = {}) {
+  const status = rowValue(input, 'STATUS', 'status');
+  return String(status || '').trim() === STATUS.RELEASED;
+}
+
+function hasKnownStatus(input = {}) {
+  return rowValue(input, 'STATUS', 'status') !== null;
+}
+
 function resolveRequirementScore(data = {}, row = null) {
   if (data.score !== undefined && data.score !== null && data.score !== '') {
     return data.score;
@@ -242,8 +259,15 @@ function resolveRequirementScore(data = {}, row = null) {
   if (rowIsDraft && data.isDraft !== false) {
     return rowScore ?? 0;
   }
+  const scoringInput = row ? getNextScoringInput(row, data) : data;
   if (!row || rowIsDraft || hasScoringFieldChange(data)) {
-    return calculateRequirementScore(row ? getNextScoringInput(row, data) : data);
+    if (!isReleasedScoringInput(scoringInput)) {
+      return 0;
+    }
+    return calculateRequirementScore(scoringInput);
+  }
+  if (hasKnownStatus(scoringInput) && !isReleasedScoringInput(scoringInput)) {
+    return 0;
   }
   return rowScore ?? 0;
 }
@@ -492,6 +516,10 @@ async function reconcileRequirementStates(connection, rows) {
   return normalizedRows;
 }
 
+function escapeLikeKeyword(value) {
+  return String(value).trim().toLowerCase().replace(/[\\%_]/g, (match) => '\\' + match);
+}
+
 function buildRequirementListFilters(filters = {}) {
   const clauses = ['WHERE isDraft = 0'];
   const params = {};
@@ -507,6 +535,15 @@ function buildRequirementListFilters(filters = {}) {
   if (filters.developer) {
     clauses.push('AND developer = :developer');
     params.developer = filters.developer;
+  }
+  if (filters.keyword) {
+    clauses.push(`AND (
+      LOWER(title) LIKE :keyword ESCAPE '\\'
+      OR LOWER(submitter) LIKE :keyword ESCAPE '\\'
+      OR LOWER(developer) LIKE :keyword ESCAPE '\\'
+      OR LOWER(status) LIKE :keyword ESCAPE '\\'
+    )`);
+    params.keyword = '%' + escapeLikeKeyword(filters.keyword) + '%';
   }
   if (filters.priority) {
     clauses.push('AND priority = :priority');
@@ -899,9 +936,10 @@ async function updateStatus(id, status, actorRole) {
         { status, score: nextScore, publishedAt, id }
       );
     } else {
+      const nextScore = resolveRequirementScore({ status }, current);
       await connection.execute(
-        `UPDATE requirements SET status = :status, UPDATEDAT = CURRENT_TIMESTAMP WHERE id = :id`,
-        { status, id }
+        `UPDATE requirements SET status = :status, score = :score, UPDATEDAT = CURRENT_TIMESTAMP WHERE id = :id`,
+        { status, score: nextScore, id }
       );
     }
     await connection.commit();
@@ -1216,7 +1254,7 @@ async function getAIContext() {
         capability: row.CAPABILITY,
         priority: row.PRIORITY,
         status: row.STATUS,
-        score: row.SCORE,
+    score: resolveStoredRequirementScore(row, row.STATUS),
         expectedDate: fmt(row.EXPECTEDDATE),
         actualDate: fmt(row.ACTUALDATE),
         createdAt: fmt(row.CREATEDAT),
@@ -1345,6 +1383,7 @@ module.exports = {
   parseDashboardAuditRows,
   resolveApprovalListScope,
   getConsistentRequirementState,
+  resolveStoredRequirementScore,
   resolveRequirementScore,
   STATUS,
   STATUS_ORDER,

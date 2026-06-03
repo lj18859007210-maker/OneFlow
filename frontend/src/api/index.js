@@ -32,7 +32,10 @@ export const authApi = {
 }
 
 export const requirementApi = {
-  getAll: (page, pageSize, filters = {}) => api.get('/requirements', { params: { page, pageSize, ...filters } }),
+  getAll: (page, pageSize, filters = {}) => {
+    const hasFilters = Object.values(filters).some(value => value !== '' && value !== null && value !== undefined)
+    return api.get('/requirements', { params: { page, pageSize, ...filters, ...(hasFilters ? { _t: Date.now() } : {}) } })
+  },
   getApprovalList: (page, pageSize) => api.get('/requirements/approval-list', { params: { page, pageSize } }),
   getBySubmitter: (submitter, page, pageSize) => api.get('/requirements/my', { params: { submitter, page, pageSize } }),
   getDrafts: (submitter) => api.get('/requirements/drafts', { params: { submitter } }),
@@ -53,6 +56,7 @@ export const emailApi = {
 }
 
 export const developerApi = {
+  getAssignable: () => api.get('/developers/assignable', { params: { _t: Date.now() } }),
   getAll: (filters = {}) => api.get('/developers', { params: { ...filters, _t: Date.now() } }),
   getById: (id) => api.get(`/developers/${id}`),
   create: (data) => api.post('/developers', data),

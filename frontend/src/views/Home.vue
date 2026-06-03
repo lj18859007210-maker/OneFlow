@@ -46,6 +46,14 @@
 
       <div class="home-filter-panel">
         <div class="home-filter-grid">
+          <input
+            v-model="filterForm.keyword"
+            type="search"
+            class="tech-input home-keyword-input"
+            placeholder="开发人员 / 提交人 / 需求标题 / 状态"
+            @keyup.enter="applyFilters"
+          />
+
           <select v-model="filterForm.status" class="tech-filter-select">
             <option value="">全部状态</option>
             <option v-for="status in statusList" :key="status" :value="status">{{ status }}</option>
@@ -130,7 +138,7 @@
             <td>{{ req.platform || '-' }}</td>
             <td><span class="tech-tag" :class="getPriorityClass(req.priority)">{{ req.priority || '-' }}</span></td>
             <td><span class="tech-tag" :class="getStatusClass(req.status)">{{ req.status }}</span></td>
-            <td>{{ req.score > 0 ? req.score + '分' : '-' }}</td>
+            <td>{{ formatRequirementScore(req) }}</td>
             <td>{{ formatDate(req.createdAt) }}</td>
             <td>
               <span
@@ -185,6 +193,7 @@ const canCreateRequirement = computed(() => hasPermission(currentUser.value, 're
 
 function createEmptyFilters() {
   return {
+    keyword: '',
     status: '',
     platform: '',
     developer: '',
@@ -299,6 +308,12 @@ function formatDate(date) {
   return new Date(date).toLocaleDateString('zh-CN')
 }
 
+function formatRequirementScore(req) {
+  if (req.status !== '已发布') return '-'
+  const score = Number(req.score)
+  return score > 0 ? `${score}分` : '-'
+}
+
 function goToDetail(id) {
   router.push(`/detail/${id}`)
 }
@@ -392,6 +407,10 @@ onMounted(async () => {
   gap: 12px;
 }
 
+.home-keyword-input {
+  grid-column: span 2;
+}
+
 .home-filter-actions {
   display: flex;
   justify-content: flex-end;
@@ -452,6 +471,10 @@ onMounted(async () => {
   .home-filter-actions {
     justify-content: stretch;
     flex-direction: column;
+  }
+
+  .home-keyword-input {
+    grid-column: span 1;
   }
 }
 </style>

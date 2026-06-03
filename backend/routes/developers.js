@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const auditMiddleware = require('../middleware/audit');
-const { requirePermission } = require('../middleware/permission');
+const { requirePermission, requireAnyPermission } = require('../middleware/permission');
 const developerController = require('../controllers/developerController');
 
 router.use(authMiddleware);
 
+router.get('/assignable', requireAnyPermission('requirement:create', 'developer:view'), developerController.getAssignable);
 router.get('/', requirePermission('developer:view'), developerController.getAll);
 router.get('/load-stats', requirePermission('developer:view'), developerController.getLoadStats);
 router.get('/departments', requirePermission('developer:view'), developerController.getDepartments);

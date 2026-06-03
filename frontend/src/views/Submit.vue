@@ -706,7 +706,7 @@ function showToast(msg) {
 
 onMounted(async () => {
   try {
-    const r = await developerApi.getAll();
+    const r = await developerApi.getAssignable();
     developers.value = r.data.data;
     // 页面加载时自动加载最新草稿
     await loadLatestDraft();

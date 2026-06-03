@@ -19,6 +19,8 @@ function isLegacySchemaError(error) {
 }
 
 function toView(row, skills) {
+  const role = row.ROLE || '';
+  const department = row.DEPARTMENT || (role === 'admin' || role === 'role-admin' ? '管理员' : '');
   return {
     id: row.USERID,
     userId: row.USERID,
@@ -26,7 +28,8 @@ function toView(row, skills) {
     name: row.NAME,
     username: row.USERNAME,
     email: row.EMAIL,
-    department: row.DEPARTMENT || '',
+    role,
+    department,
     skills: skills || [],
     maxLoad: row.MAXLOAD ?? 5,
     currentLoad: row.CURRENTLOAD ?? 0,
@@ -45,8 +48,11 @@ async function parseRows(rows) {
   return result;
 }
 
-function buildFilters(filters = {}, useAlias = true) {
-  let whereClause = `WHERE (u.role = 'developer' OR u.role = 'role-developer')`;
+const DEVELOPER_ROLE_SQL = "('developer', 'role-developer')";
+const ASSIGNABLE_ROLE_SQL = "('developer', 'role-developer', 'admin', 'role-admin')";
+
+function buildFilters(filters = {}, useAlias = true, roleSql = DEVELOPER_ROLE_SQL) {
+  let whereClause = `WHERE u.role IN ${roleSql}`;
   const params = {};
   const deptCol = useAlias ? 'NVL(d.department, \'\')' : 'NVL(d.department, \'\')';
   const statusCol = 'u.status';
@@ -63,7 +69,7 @@ function buildFilters(filters = {}, useAlias = true) {
 }
 
 async function queryAll(connection, filters = {}) {
-  const { whereClause, params } = buildFilters(filters);
+  const { whereClause, params } = buildFilters(filters, true, filters.roleSql || DEVELOPER_ROLE_SQL);
   try {
     const result = await connection.execute(
       `SELECT
@@ -71,6 +77,7 @@ async function queryAll(connection, filters = {}) {
          u.username,
          u.name,
          u.email,
+         u.role,
          u.status,
          u.createdAt,
          u.updatedAt,
@@ -95,6 +102,7 @@ async function queryAll(connection, filters = {}) {
          u.username,
          u.name,
          u.email,
+         u.role,
          u.status,
          u.createdAt,
          u.updatedAt,
@@ -122,6 +130,10 @@ async function getAll(filters = {}) {
   } finally {
     if (connection) await connection.close();
   }
+}
+
+async function getAssignable() {
+  return getAll({ status: 1, roleSql: ASSIGNABLE_ROLE_SQL });
 }
 
 async function getById(userId) {
@@ -357,4 +369,4 @@ async function getDepartments() {
   return [...new Set(list.map((item) => item.department).filter(Boolean))].sort();
 }
 
-module.exports = { getAll, getById, create, update, remove, updateLoad, getLoadStats, getDepartments };
+module.exports = { getAll, getAssignable, getById, create, update, remove, updateLoad, getLoadStats, getDepartments };

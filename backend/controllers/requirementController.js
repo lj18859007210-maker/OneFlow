@@ -6,6 +6,7 @@ const oracledb = require('oracledb');
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
+const ASSIGNABLE_DEVELOPER_MESSAGE = '请选择用户角色管理中的启用开发人员或管理员';
 
 function toOptionalString(value) {
   if (value === undefined || value === null) return null;
@@ -68,6 +69,7 @@ function parseRequirementListQuery(query = {}) {
     status: toOptionalString(query.status),
     platform: toOptionalString(query.platform),
     developer: toOptionalString(query.developer),
+    keyword: toOptionalString(query.keyword),
     priority: toOptionalString(query.priority),
     dateStart,
     dateEnd,
@@ -86,6 +88,34 @@ function isBadFilterRequest(error) {
     error.message.includes('cannot be greater than') ||
     error.message.includes('must be between 0 and 100')
   );
+}
+
+async function resolveAssignableDeveloper(developerName) {
+  const normalizedName = toOptionalString(developerName);
+  if (!normalizedName) return null;
+
+  let connection;
+  try {
+    connection = await db.getConnection();
+    const devResult = await connection.execute(
+      `SELECT id, name
+       FROM users
+       WHERE name = :devName
+         AND role IN ('developer', 'role-developer', 'admin', 'role-admin')
+         AND status = 1`,
+      { devName: normalizedName },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    const developer = devResult.rows?.[0];
+    if (!developer) {
+      throw new Error(ASSIGNABLE_DEVELOPER_MESSAGE);
+    }
+
+    return { id: developer.ID, name: developer.NAME };
+  } finally {
+    if (connection) await connection.close();
+  }
 }
 
 async function getApprovalList(req, res) {
@@ -175,54 +205,30 @@ async function getById(req, res) {
 
 async function create(req, res) {
   try {
+    const developer = await resolveAssignableDeveloper(req.body.developer);
     const requirement = await requirementModel.create(req.body);
-    if (req.body.developer) {
-      let connection;
-      try {
-        connection = await db.getConnection();
-        const devResult = await connection.execute(
-          `SELECT id, name FROM users WHERE name = :devName`,
-          { devName: req.body.developer },
-          { outFormat: oracledb.OUT_FORMAT_OBJECT }
-        );
-        if (devResult.rows.length > 0) {
-          const developer = devResult.rows[0];
-          await notificationService.notifyAssignDev({ id: developer.ID, name: developer.NAME }, requirement);
-        }
-      } finally {
-        if (connection) await connection.close();
-      }
+    if (developer) {
+      await notificationService.notifyAssignDev(developer, requirement);
     }
     res.status(201).json({ success: true, data: requirement, message: 'requirement created' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    const status = error.message === ASSIGNABLE_DEVELOPER_MESSAGE ? 400 : 500;
+    res.status(status).json({ success: false, message: error.message });
   }
 }
 
 async function update(req, res) {
   try {
+    const developer = await resolveAssignableDeveloper(req.body.developer);
     const requirement = await requirementModel.update(req.params.id, req.body);
     if (!requirement) return res.status(404).json({ success: false, message: 'requirement not found' });
-    if (req.body.developer) {
-      let connection;
-      try {
-        connection = await db.getConnection();
-        const devResult = await connection.execute(
-          `SELECT id, name FROM users WHERE name = :devName`,
-          { devName: req.body.developer },
-          { outFormat: oracledb.OUT_FORMAT_OBJECT }
-        );
-        if (devResult.rows.length > 0) {
-          const developer = devResult.rows[0];
-          await notificationService.notifyAssignDev({ id: developer.ID, name: developer.NAME }, requirement);
-        }
-      } finally {
-        if (connection) await connection.close();
-      }
+    if (developer) {
+      await notificationService.notifyAssignDev(developer, requirement);
     }
     res.json({ success: true, data: requirement, message: 'requirement updated' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    const status = error.message === ASSIGNABLE_DEVELOPER_MESSAGE ? 400 : 500;
+    res.status(status).json({ success: false, message: error.message });
   }
 }
 
@@ -370,6 +376,7 @@ async function getDashboard(req, res) {
 
 module.exports = {
   parseRequirementListQuery,
+  resolveAssignableDeveloper,
   getAll,
   getApprovalList,
   getBySubmitter,
