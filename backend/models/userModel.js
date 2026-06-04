@@ -92,12 +92,16 @@ module.exports = {
       const result = await connection.execute(
         `SELECT id, username, name, email, role, status, createdAt, updatedAt
          FROM (
-           SELECT id, username, name, email, role, status, createdAt, updatedAt,
-                  ROW_NUMBER() OVER (ORDER BY createdAt DESC) as rn
-           FROM users
-           ${whereClause}
+           SELECT sorted_users.*, ROWNUM AS rn
+           FROM (
+             SELECT id, username, name, email, role, status, createdAt, updatedAt
+             FROM users
+             ${whereClause}
+             ORDER BY createdAt DESC
+           ) sorted_users
+           WHERE ROWNUM <= :limit
          )
-         WHERE rn > :offset AND rn <= :limit`,
+         WHERE rn > :offset`,
         { ...params, offset, limit: offset + pageSize },
         { outFormat: oracledb.OUT_FORMAT_OBJECT }
       );

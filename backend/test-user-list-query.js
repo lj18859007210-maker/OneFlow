@@ -40,7 +40,9 @@ async function run() {
     assert.strictEqual(result.page, 2);
     assert.strictEqual(result.pageSize, 20);
     assert.strictEqual(result.data[0].USERNAME, 'dev01');
-    assert.match(executed[0].sql, /ROW_NUMBER\(\) OVER \(ORDER BY createdAt DESC\)/i);
+    assert.doesNotMatch(executed[0].sql, /ROW_NUMBER\(\)/i);
+    assert.match(executed[0].sql, /ROWNUM <= :limit/i);
+    assert.match(executed[0].sql, /ORDER BY createdAt DESC/i);
     assert.match(executed[0].sql, /role IN \(:role0, :role1\)/i);
     assert.match(executed[0].sql, /LOWER\(name\) LIKE :keyword/i);
     assert.match(executed[0].sql, /LOWER\(username\) LIKE :keyword/i);

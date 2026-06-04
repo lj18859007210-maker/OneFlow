@@ -17,8 +17,15 @@
             />
           </div>
           <div class="tech-form-group">
-            <label class="tech-form-label">提交人</label>
-            <input :value="getSubmitterName()" class="tech-input" disabled />
+            <label class="tech-form-label"
+              >提交人<span class="required">*</span></label
+            >
+            <input
+              :value="getSubmitterName()"
+              class="tech-input"
+              disabled
+              aria-required="true"
+            />
           </div>
         </div>
         <div class="tech-form-row">
@@ -34,8 +41,10 @@
             </select>
           </div>
           <div class="tech-form-group">
-            <label class="tech-form-label">对应平台</label>
-            <select v-model="form.platform" class="tech-select">
+            <label class="tech-form-label"
+              >对应平台<span class="required">*</span></label
+            >
+            <select v-model="form.platform" class="tech-select" required>
               <option value="">请选择平台</option>
               <option value="CRM 系统">CRM 系统</option>
               <option value="BOSS 系统">BOSS 系统</option>
@@ -48,8 +57,10 @@
         </div>
         <div class="tech-form-row">
           <div class="tech-form-group">
-            <label class="tech-form-label">能力</label>
-            <select v-model="form.capability" class="tech-select">
+            <label class="tech-form-label"
+              >能力<span class="required">*</span></label
+            >
+            <select v-model="form.capability" class="tech-select" required>
               <option value="">请选择</option>
               <option value="内部支撑">内部支撑</option>
               <option value="一线支撑">一线支撑</option>
@@ -57,41 +68,84 @@
             </select>
           </div>
           <div class="tech-form-group">
-            <label class="tech-form-label">期望日期</label>
-            <input v-model="form.expectedDate" type="date" class="tech-input" />
+            <label class="tech-form-label"
+              >期望日期<span class="required">*</span></label
+            >
+            <input
+              v-model="form.expectedDate"
+              type="date"
+              class="tech-input"
+              required
+            />
           </div>
         </div>
         <div class="tech-form-row">
           <div class="tech-form-group">
-            <label class="tech-form-label">开发前平均用时/次</label>
+            <label class="tech-form-label"
+              >开发前平均用时/次（小时）<span class="required">*</span></label
+            >
             <input
               v-model="form.avgDevTime"
               class="tech-input"
-              placeholder="例：3 天"
+              type="number"
+              min="0"
+              step="0.1"
+              inputmode="decimal"
+              placeholder="例：0.8"
+              required
+              @beforeinput="allowDecimalNumberInput"
+              @input="form.avgDevTime = sanitizeDecimalNumberText(form.avgDevTime)"
             />
           </div>
           <div class="tech-form-group">
-            <label class="tech-form-label">平均预估每月调用量/次</label>
+            <label class="tech-form-label"
+              >平均预估每月调用量/次<span class="required">*</span></label
+            >
             <input
               v-model="form.avgMonthlyCalls"
               class="tech-input"
               type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
               placeholder="例：500"
+              required
+              @beforeinput="allowIntegerNumberInput"
+              @input="
+                form.avgMonthlyCalls = sanitizeIntegerNumberText(
+                  form.avgMonthlyCalls,
+                )
+              "
             />
           </div>
         </div>
         <div class="tech-form-row">
           <div class="tech-form-group">
-            <label class="tech-form-label">开发后预计平均用时/次</label>
+            <label class="tech-form-label"
+              >开发后预计平均用时/次（小时）<span class="required">*</span></label
+            >
             <input
               v-model="form.postDevAvgTime"
               class="tech-input"
-              placeholder="例：1 天"
+              type="number"
+              min="0"
+              step="0.1"
+              inputmode="decimal"
+              placeholder="例：0.8"
+              required
+              @beforeinput="allowDecimalNumberInput"
+              @input="
+                form.postDevAvgTime = sanitizeDecimalNumberText(
+                  form.postDevAvgTime,
+                )
+              "
             />
           </div>
           <div class="tech-form-group">
-            <label class="tech-form-label">优先级</label>
-            <select v-model="form.priority" class="tech-select">
+            <label class="tech-form-label"
+              >优先级<span class="required">*</span></label
+            >
+            <select v-model="form.priority" class="tech-select" required>
               <option value="低">低</option>
               <option value="中">中</option>
               <option value="高">高</option>
@@ -291,6 +345,13 @@
 <script setup>
 import { ref, computed, onMounted, inject, watch } from "vue";
 import { requirementApi, emailApi, developerApi } from "../api";
+import {
+  allowDecimalNumberInput,
+  allowIntegerNumberInput,
+  sanitizeDecimalNumberText,
+  sanitizeIntegerNumberText,
+  validateRequirementForm,
+} from "../utils/requirementFormValidation";
 
 const emit = defineEmits(["close", "submit-success"]);
 
@@ -618,8 +679,9 @@ ${qa}
 async function doSubmit() {
   submitting.value = true;
   try {
-    if (!form.value.title || !form.value.developer) {
-      showToast("请填写需求标题和选择开发人员");
+    const validationMessage = validateRequirementForm(form.value);
+    if (validationMessage) {
+      showToast(validationMessage);
       return;
     }
 

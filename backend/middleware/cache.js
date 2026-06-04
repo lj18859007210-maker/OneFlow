@@ -62,7 +62,7 @@ function clearCacheByPattern(pattern) {
 }
 
 // 定期清理过期缓存（每 5 分钟）
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, value] of cache.entries()) {
     if (now - value.timestamp > 300000) { // 5 分钟
@@ -70,6 +70,10 @@ setInterval(() => {
     }
   }
 }, 300000);
+
+if (typeof cleanupTimer.unref === 'function') {
+  cleanupTimer.unref();
+}
 
 module.exports = {
   cacheMiddleware,

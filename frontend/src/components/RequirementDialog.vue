@@ -46,15 +46,15 @@
                 }}</span>
               </div>
               <div class="view-info-item">
-                <label>开发前平均用时/次</label>
+                <label>开发前平均用时/次（小时）</label>
                 <span>{{ data.avgDevTime || "-" }}</span>
               </div>
               <div class="view-info-item">
-                <label>平均预计每月调用量/次</label>
+                <label>平均预估每月调用量/次</label>
                 <span>{{ data.avgMonthlyCalls || "-" }}</span>
               </div>
               <div class="view-info-item">
-                <label>开发后预计平均用时/次</label>
+                <label>开发后预计平均用时/次（小时）</label>
                 <span>{{ data.postDevAvgTime || "-" }}</span>
               </div>
               <div class="view-info-item">
@@ -117,8 +117,15 @@
                   />
                 </div>
                 <div class="tech-form-group">
-                  <label class="tech-form-label">提交人</label>
-                  <input :value="data.submitter" class="tech-input" disabled />
+                  <label class="tech-form-label"
+                    >提交人<span class="required">*</span></label
+                  >
+                  <input
+                    :value="data.submitter"
+                    class="tech-input"
+                    disabled
+                    aria-required="true"
+                  />
                 </div>
               </div>
               <div class="tech-form-row">
@@ -138,8 +145,14 @@
                   </select>
                 </div>
                 <div class="tech-form-group">
-                  <label class="tech-form-label">对应平台</label>
-                  <select v-model="editForm.platform" class="tech-select">
+                  <label class="tech-form-label"
+                    >对应平台<span class="required">*</span></label
+                  >
+                  <select
+                    v-model="editForm.platform"
+                    class="tech-select"
+                    required
+                  >
                     <option value="">请选择平台</option>
                     <option value="CRM 系统">CRM 系统</option>
                     <option value="BOSS 系统">BOSS 系统</option>
@@ -152,8 +165,14 @@
               </div>
               <div class="tech-form-row">
                 <div class="tech-form-group">
-                  <label class="tech-form-label">能力</label>
-                  <select v-model="editForm.capability" class="tech-select">
+                  <label class="tech-form-label"
+                    >能力<span class="required">*</span></label
+                  >
+                  <select
+                    v-model="editForm.capability"
+                    class="tech-select"
+                    required
+                  >
                     <option value="">请选择</option>
                     <option value="内部支撑">内部支撑</option>
                     <option value="一线支撑">一线支撑</option>
@@ -161,45 +180,98 @@
                   </select>
                 </div>
                 <div class="tech-form-group">
-                  <label class="tech-form-label">期望日期</label>
+                  <label class="tech-form-label"
+                    >期望日期<span class="required">*</span></label
+                  >
                   <input
                     v-model="editForm.expectedDate"
                     type="date"
                     class="tech-input"
+                    required
                   />
                 </div>
               </div>
               <div class="tech-form-row">
                 <div class="tech-form-group">
-                  <label class="tech-form-label">开发前平均用时/次</label>
+                  <label class="tech-form-label"
+                    >开发前平均用时/次（小时）<span class="required"
+                      >*</span
+                    ></label
+                  >
                   <input
                     v-model="editForm.avgDevTime"
                     class="tech-input"
-                    placeholder="例：3 天"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    inputmode="decimal"
+                    placeholder="例：0.8"
+                    required
+                    @beforeinput="allowDecimalNumberInput"
+                    @input="
+                      editForm.avgDevTime = sanitizeDecimalNumberText(
+                        editForm.avgDevTime,
+                      )
+                    "
                   />
                 </div>
                 <div class="tech-form-group">
-                  <label class="tech-form-label">平均预计每月调用量/次</label>
+                  <label class="tech-form-label"
+                    >平均预估每月调用量/次<span class="required"
+                      >*</span
+                    ></label
+                  >
                   <input
                     v-model="editForm.avgMonthlyCalls"
                     class="tech-input"
                     type="number"
+                    min="0"
+                    step="1"
+                    inputmode="numeric"
                     placeholder="例：500"
+                    required
+                    @beforeinput="allowIntegerNumberInput"
+                    @input="
+                      editForm.avgMonthlyCalls = sanitizeIntegerNumberText(
+                        editForm.avgMonthlyCalls,
+                      )
+                    "
                   />
                 </div>
               </div>
               <div class="tech-form-row">
                 <div class="tech-form-group">
-                  <label class="tech-form-label">开发后预计平均用时/次</label>
+                  <label class="tech-form-label"
+                    >开发后预计平均用时/次（小时）<span class="required"
+                      >*</span
+                    ></label
+                  >
                   <input
                     v-model="editForm.postDevAvgTime"
                     class="tech-input"
-                    placeholder="例：1 天"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    inputmode="decimal"
+                    placeholder="例：0.8"
+                    required
+                    @beforeinput="allowDecimalNumberInput"
+                    @input="
+                      editForm.postDevAvgTime = sanitizeDecimalNumberText(
+                        editForm.postDevAvgTime,
+                      )
+                    "
                   />
                 </div>
                 <div class="tech-form-group">
-                  <label class="tech-form-label">优先级</label>
-                  <select v-model="editForm.priority" class="tech-select">
+                  <label class="tech-form-label"
+                    >优先级<span class="required">*</span></label
+                  >
+                  <select
+                    v-model="editForm.priority"
+                    class="tech-select"
+                    required
+                  >
                     <option value="低">低</option>
                     <option value="中">中</option>
                     <option value="高">高</option>
@@ -404,6 +476,13 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { requirementApi, developerApi } from "../api";
+import {
+  allowDecimalNumberInput,
+  allowIntegerNumberInput,
+  sanitizeDecimalNumberText,
+  sanitizeIntegerNumberText,
+  validateRequirementForm,
+} from "../utils/requirementFormValidation";
 
 const props = defineProps({
   mode: { type: String, default: "view" },
@@ -679,8 +758,12 @@ ${qa}
 }
 
 async function saveEdit() {
-  if (!editForm.value.title || !editForm.value.developer) {
-    showToast("请填写需求标题和选择开发人员");
+  const validationMessage = validateRequirementForm({
+    ...editForm.value,
+    submitter: props.data.submitter,
+  });
+  if (validationMessage) {
+    showToast(validationMessage);
     return;
   }
   saving.value = true;
@@ -709,8 +792,12 @@ async function saveEdit() {
 }
 
 async function submitRequirement() {
-  if (!editForm.value.title || !editForm.value.developer) {
-    showToast("请填写需求标题和选择开发人员");
+  const validationMessage = validateRequirementForm({
+    ...editForm.value,
+    submitter: props.data.submitter,
+  });
+  if (validationMessage) {
+    showToast(validationMessage);
     return;
   }
   saving.value = true;

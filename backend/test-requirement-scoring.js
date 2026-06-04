@@ -5,7 +5,8 @@ const {
   scoreCapability,
   scorePriority,
   scoreCompletionTimeliness,
-  scorePressureReduction
+  scorePressureReduction,
+  parseTimeToHours
 } = require('./utils/requirementScoring');
 const requirementModel = require('./models/requirement');
 
@@ -68,6 +69,10 @@ function run() {
   assert.strictEqual(scorePressureReduction({ avgDevTime: '4天', postDevAvgTime: '3天' }), 12.5);
   assert.strictEqual(scorePressureReduction({ avgDevTime: '10天', postDevAvgTime: '12天' }), 5);
   assert.strictEqual(scorePressureReduction({ avgDevTime: '2天', postDevAvgTime: '24小时' }), 15);
+  assert.strictEqual(parseTimeToHours('0.8'), 0.8);
+  assert.strictEqual(parseTimeToHours(0.8), 0.8);
+  assert.strictEqual(parseTimeToHours('3天'), 72);
+  assert.strictEqual(parseTimeToHours('30分钟'), 0.5);
 
   assert.strictEqual(calculateRequirementScore({
     avgMonthlyCalls: 360,

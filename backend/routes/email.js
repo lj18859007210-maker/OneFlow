@@ -11,9 +11,14 @@ router.get('/settings', requirePermission('email:settings:manage'), emailSetting
 router.put('/settings', requirePermission('email:settings:manage'), emailSettingsController.updateSettings);
 
 router.post('/send', async (req, res) => {
-  const { to, cc, subject, body } = req.body;
-  const result = await sendEmail({ to, cc, subject, body });
-  res.json(result);
+  try {
+    const { to, cc, subject, body } = req.body;
+    const result = await sendEmail({ to, cc, subject, body });
+    res.json(result);
+  } catch (error) {
+    console.error('send email error:', error);
+    res.status(500).json({ success: false, message: String(error.message || error) });
+  }
 });
 
 module.exports = router;

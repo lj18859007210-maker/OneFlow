@@ -9,7 +9,7 @@ function toNumber(value) {
 
 function parseTimeToHours(value) {
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value === 'number') return Number.isFinite(value) ? value * 24 : null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
 
   const normalized = String(value).trim();
   if (!normalized) return null;
@@ -22,7 +22,8 @@ function parseTimeToHours(value) {
 
   if (/小时|hour|hr|h/i.test(normalized)) return amount;
   if (/分钟|minute|min|m/i.test(normalized)) return amount / 60;
-  return amount * 24;
+  if (/天|day|d/i.test(normalized)) return amount * 24;
+  return amount;
 }
 
 function roundScore(value) {

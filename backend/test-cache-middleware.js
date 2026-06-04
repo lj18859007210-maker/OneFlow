@@ -1,4 +1,5 @@
 const assert = require('assert');
+const { spawnSync } = require('child_process');
 const { cacheMiddleware } = require('./middleware/cache');
 
 function createResponse() {
@@ -40,6 +41,13 @@ function run() {
   assert.deepStrictEqual(second.body.data, [{ status: '待开发' }]);
   assert.strictEqual(third.nextCalled, false, 'same authorization and URL should hit cache');
   assert.deepStrictEqual(third.body.data, [{ status: '测试中' }]);
+
+  const child = spawnSync(
+    process.execPath,
+    ['-e', "require('./middleware/cache'); console.log('cache module loaded')"],
+    { cwd: __dirname, encoding: 'utf8', timeout: 1000 }
+  );
+  assert.strictEqual(child.status, 0, 'cache cleanup timer should not keep Node process alive');
 
   console.log('cache middleware tests passed');
 }
