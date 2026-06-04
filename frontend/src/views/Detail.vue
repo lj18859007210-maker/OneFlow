@@ -298,23 +298,23 @@
           </button>
         </section>
         <section class="ops-panel">
-          <div class="ops-panel-head"><h2>信息面板</h2></div>
+          <div class="ops-panel-head"><h2>联系方式</h2></div>
           <dl class="ops-kv-list tight">
             <div>
-              <dt>平台</dt>
-              <dd>{{ requirement.platform || "-" }}</dd>
+              <dt>提交人</dt>
+              <dd>{{ requirement.submitter || "-" }}</dd>
             </div>
             <div>
-              <dt>能力</dt>
-              <dd>{{ requirement.capability || "-" }}</dd>
+              <dt>需求人邮箱</dt>
+              <dd>{{ requirement.submitterEmail || "-" }}</dd>
             </div>
             <div>
-              <dt>实时限额</dt>
-              <dd>{{ requirement.realTimeLimit || "审批通过后设置" }}</dd>
+              <dt>开发人员</dt>
+              <dd>{{ requirement.developer || "-" }}</dd>
             </div>
             <div>
-              <dt>创建时间</dt>
-              <dd>{{ formatDateTime(requirement.createdAt) }}</dd>
+              <dt>开发人员邮箱</dt>
+              <dd>{{ formatContactEmails(requirement.developerEmails) }}</dd>
             </div>
           </dl>
         </section>
@@ -578,6 +578,14 @@ function formatDateTime(date) {
 
 function formatScore(score) {
   return score === 0 || score ? score : "-";
+}
+
+function formatContactEmails(emails) {
+  if (!Array.isArray(emails)) return emails || "-";
+  const normalizedEmails = emails
+    .map((email) => String(email || "").trim())
+    .filter(Boolean);
+  return normalizedEmails.length > 0 ? normalizedEmails.join("、") : "-";
 }
 
 function getCommentLines(content) {

@@ -691,6 +691,52 @@ function serializeDeveloperIdentifiers(value) {
   return normalizeDeveloperIdentifiers(value).join(', ');
 }
 
+async function resolveRequirementContactEmails(connection, requirement = {}) {
+  const submitterId = String(requirement.submitterId || '').trim();
+  const submitterName = String(requirement.submitter || '').trim();
+  const developerIds = normalizeDeveloperIdentifiers(requirement.developerIds);
+  const developerNames = normalizeDeveloperNames(requirement.developer);
+  const contactKeys = [
+    submitterId,
+    submitterName,
+    ...developerIds,
+    ...developerNames
+  ];
+  const uniqueContactKeys = [...new Set(contactKeys.filter(Boolean))];
+
+  if (uniqueContactKeys.length === 0) {
+    return { submitterEmail: '', developerEmails: [] };
+  }
+
+  const binds = {};
+  const clauses = uniqueContactKeys.map((value, index) => {
+    const key = `contactId${index}`;
+    binds[key] = value;
+    return `:${key}`;
+  });
+
+  const result = await connection.execute(
+    `SELECT id, name, email FROM users WHERE id IN (${clauses.join(', ')}) OR name IN (${clauses.join(', ')})`,
+    binds,
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
+  );
+  const emailById = new Map(
+    (result.rows || []).map(row => [String(row.ID || '').trim(), String(row.EMAIL || '').trim()])
+  );
+  const emailByName = new Map(
+    (result.rows || []).map(row => [String(row.NAME || '').trim(), String(row.EMAIL || '').trim()])
+  );
+
+  return {
+    submitterEmail: submitterId
+      ? emailById.get(submitterId) || emailByName.get(submitterName) || ''
+      : emailByName.get(submitterName) || '',
+    developerEmails: developerNames
+      .map((name, index) => emailById.get(developerIds[index]) || emailByName.get(name) || '')
+      .filter(Boolean)
+  };
+}
+
 function pickBinds(source, keys) {
   return keys.reduce((binds, key) => {
     binds[key] = source[key];
@@ -999,8 +1045,11 @@ async function getById(id) {
       }
     }
 
+    const contactEmails = await resolveRequirementContactEmails(connection, requirement);
+
     return {
       ...requirement,
+      ...contactEmails,
       lifecycleTiming: buildRequirementLifecycleTiming({ requirement, auditLogs })
     };
   } finally {
