@@ -91,6 +91,7 @@ async function uploadFormal(req, res) {
       await autoEmailService.enqueueRequirementEvent({
         requirementId: req.params.requirementId,
         eventType: 'attachment_uploaded',
+        actorId: req.user?.id,
         actorName: req.user?.name || req.user?.username,
         summary: `上传附件：${attachment.originalName || req.file.originalname}`
       });
@@ -125,6 +126,7 @@ async function uploadComment(req, res) {
       await autoEmailService.enqueueRequirementEvent({
         requirementId: req.body.requirementId,
         eventType: 'attachment_uploaded',
+        actorId: req.user?.id,
         actorName: req.user?.name || req.user?.username,
         summary: `上传评论附件：${attachments.map(item => item.originalName).join('、')}`
       });
@@ -156,6 +158,7 @@ async function addVersion(req, res) {
       await autoEmailService.enqueueRequirementEvent({
         requirementId: attachment.requirementId,
         eventType: 'attachment_uploaded',
+        actorId: req.user?.id,
         actorName: req.user?.name || req.user?.username,
         summary: `上传附件新版本：${attachment.originalName || req.file.originalname}`
       });
@@ -191,6 +194,7 @@ async function promoteCommentAttachment(req, res) {
       await autoEmailService.enqueueRequirementEvent({
         requirementId,
         eventType: 'attachment_uploaded',
+        actorId: req.user?.id,
         actorName: req.user?.name || req.user?.username,
         summary: `归档评论附件：${attachment.originalName}`
       });

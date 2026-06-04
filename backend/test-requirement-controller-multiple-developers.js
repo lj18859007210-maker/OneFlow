@@ -18,8 +18,8 @@ async function run() {
       queries.push({ sql, params });
       return {
         rows: [
-          { ID: 'dev-1', NAME: '张三' },
-          { ID: 'dev-2', NAME: '李四' }
+          { ID: 'dev-1', USERNAME: 'zhangsan', NAME: '张三' },
+          { ID: 'dev-2', USERNAME: 'lisi', NAME: '李四' }
         ]
       };
     },
@@ -27,17 +27,30 @@ async function run() {
   });
 
   try {
-    const developers = await requirementController.resolveAssignableDevelopers([' 张三 ', '李四', '张三']);
+    const developers = await requirementController.resolveAssignableDevelopers([
+      { userId: 'dev-1', username: 'zhangsan', name: '张三' },
+      { userId: 'dev-2', username: 'lisi', name: '李四' },
+      { userId: 'dev-1', username: 'zhangsan', name: '张三' }
+    ]);
     assert.deepStrictEqual(developers, [
-      { id: 'dev-1', name: '张三' },
-      { id: 'dev-2', name: '李四' }
+      { id: 'dev-1', username: 'zhangsan', name: '张三' },
+      { id: 'dev-2', username: 'lisi', name: '李四' }
     ]);
 
     assert.strictEqual(queries.length, 1);
-    assert.match(queries[0].sql, /name IN \(:devName0, :devName1\)/);
+    assert.match(queries[0].sql, /id = :devId0/);
+    assert.match(queries[0].sql, /username = :devUsername0/);
+    assert.match(queries[0].sql, /name = :devName0/);
     assert.match(queries[0].sql, /role IN \('developer', 'role-developer', 'admin', 'role-admin'\)/);
     assert.match(queries[0].sql, /status = 1/);
-    assert.deepStrictEqual(queries[0].params, { devName0: '张三', devName1: '李四' });
+    assert.deepStrictEqual(queries[0].params, {
+      devId0: 'dev-1',
+      devUsername0: 'zhangsan',
+      devName0: '张三',
+      devId1: 'dev-2',
+      devUsername1: 'lisi',
+      devName1: '李四'
+    });
   } finally {
     db.getConnection = originalGetConnection;
   }

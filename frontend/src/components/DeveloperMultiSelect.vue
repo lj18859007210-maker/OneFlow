@@ -12,17 +12,17 @@
       </span>
       <span v-else class="developer-chip-list">
         <span
-          v-for="name in selectedNames"
-          :key="name"
+          v-for="developer in selectedNames"
+          :key="getSelectedKey(developer)"
           class="developer-chip"
-          :title="getDeveloperLabel(name)"
+          :title="getDeveloperLabel(developer)"
         >
-          <span class="developer-chip-name">{{ name }}</span>
+          <span class="developer-chip-name">{{ developer.name }}</span>
           <button
             class="developer-chip-remove"
             type="button"
-            :aria-label="`移除${name}`"
-            @click.stop="removeDeveloper(name)"
+            :aria-label="`移除${developer.name}`"
+            @click.stop="removeDeveloper(developer)"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -50,18 +50,18 @@
         v-for="developer in normalizedDevelopers"
         :key="developer.key"
         class="developer-option"
-        :class="{ selected: isSelected(developer.name) }"
+        :class="{ selected: isSelected(developer.value) }"
         type="button"
-        @click="toggleDeveloper(developer.name)"
+        @click="toggleDeveloper(developer)"
       >
         <span class="developer-option-main">
           <span class="developer-option-name">{{ developer.name }}</span>
           <span class="developer-option-department">
-            {{ developer.department || "未设置部门" }}
+            {{ developer.meta }}
           </span>
         </span>
         <span class="developer-check" aria-hidden="true">
-          <svg v-if="isSelected(developer.name)" viewBox="0 0 24 24">
+          <svg v-if="isSelected(developer.value)" viewBox="0 0 24 24">
             <path d="M20 6 9 17l-5-5" />
           </svg>
         </span>
@@ -95,25 +95,65 @@ const normalizedDevelopers = computed(() => {
   return props.developers
     .map((developer, index) => {
       const name = String(developer?.name || "").trim();
-      if (!name || seen.has(name)) return null;
-      seen.add(name);
+      const userId = String(developer?.userId || developer?.id || "").trim();
+      const username = String(developer?.username || "").trim();
+      const value = userId || username || name;
+      if (!name || !value || seen.has(value)) return null;
+      seen.add(value);
+
+      const department = String(developer?.department || "").trim();
+      const meta = [
+        username ? `账号: ${username}` : "",
+        department || "未设置部门",
+      ].filter(Boolean).join(" · ");
+
       return {
-        key: developer?.id ?? `${name}-${index}`,
+        key: value || `${name}-${index}`,
+        value,
+        userId,
+        username,
         name,
-        department: String(developer?.department || "").trim(),
+        department,
+        meta,
       };
     })
     .filter(Boolean);
 });
 
 function normalizeNames(value) {
-  const names = Array.isArray(value) ? value : String(value || "").split(",");
+  const values = Array.isArray(value) ? value : String(value || "").split(",");
   const seen = new Set();
-  return names
-    .map((name) => String(name || "").trim())
-    .filter((name) => {
-      if (!name || seen.has(name)) return false;
-      seen.add(name);
+
+  return values
+    .map((item) => {
+      if (item && typeof item === "object") {
+        const userId = String(item.userId || item.id || item.value || "").trim();
+        const username = String(item.username || "").trim();
+        const name = String(item.name || item.label || username || userId || "").trim();
+        return name ? { id: userId || username || name, userId, username, name } : null;
+      }
+
+      const raw = String(item || "").trim();
+      const developer = normalizedDevelopers.value.find((candidate) =>
+        [candidate.value, candidate.userId, candidate.username]
+          .filter(Boolean)
+          .includes(raw),
+      );
+      if (developer) {
+        return {
+          id: developer.userId || developer.value,
+          userId: developer.userId,
+          username: developer.username,
+          name: developer.name,
+        };
+      }
+      return raw ? { id: raw, userId: raw, username: "", name: raw } : null;
+    })
+    .filter((developer) => {
+      if (!developer?.name) return false;
+      const key = getSelectedValue(developer);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
 }
@@ -123,27 +163,50 @@ function toggleOpen() {
   open.value = !open.value;
 }
 
-function isSelected(name) {
-  return selectedNames.value.includes(name);
+function getSelectedValue(developer) {
+  return developer?.userId || developer?.id || developer?.username || developer?.name || "";
 }
 
-function toggleDeveloper(name) {
-  const next = isSelected(name)
-    ? selectedNames.value.filter((selected) => selected !== name)
-    : [...selectedNames.value, name];
+function isSelected(value) {
+  return selectedNames.value.some((developer) => getSelectedValue(developer) === value);
+}
+
+function toggleDeveloper(developer) {
+  const next = isSelected(developer.value)
+    ? selectedNames.value.filter((selected) => getSelectedValue(selected) !== developer.value)
+    : [
+        ...selectedNames.value,
+        {
+          id: developer.userId || developer.value,
+          userId: developer.userId,
+          username: developer.username,
+          name: developer.name,
+        },
+      ];
   emit("update:modelValue", next);
 }
 
-function removeDeveloper(name) {
+function removeDeveloper(developer) {
+  const value = getSelectedValue(developer);
   emit(
     "update:modelValue",
-    selectedNames.value.filter((selected) => selected !== name),
+    selectedNames.value.filter((selected) => getSelectedValue(selected) !== value),
   );
 }
 
-function getDeveloperLabel(name) {
-  const developer = normalizedDevelopers.value.find((item) => item.name === name);
-  return developer?.department ? `${name} - ${developer.department}` : name;
+function getSelectedKey(developer) {
+  return getSelectedValue(developer);
+}
+
+function getDeveloperLabel(developer) {
+  const value = getSelectedValue(developer);
+  const option = normalizedDevelopers.value.find((item) => item.value === value);
+  if (option) {
+    return [option.name, option.username ? `账号: ${option.username}` : "", option.department]
+      .filter(Boolean)
+      .join(" - ");
+  }
+  return developer?.name || "";
 }
 
 function handleClickOutside(event) {

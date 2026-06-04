@@ -39,8 +39,8 @@ for (const file of files) {
   assert.match(source, /优先级/, `${file} should show priority`);
   assert.match(source, /v-model="(?:form|editForm)\.priority"/, `${file} should bind priority`);
   assert.match(source, /placeholder="例：0\.8"/, `${file} should use hour-based examples for development time`);
-  assert.match(source, /v-model="(?:form|editForm)\.avgDevTime"[\s\S]*?type="number"[\s\S]*?step="0\.1"[\s\S]*?@beforeinput="allowDecimalNumberInput"/, `${file} should restrict pre-development time to decimal numbers`);
-  assert.match(source, /v-model="(?:form|editForm)\.postDevAvgTime"[\s\S]*?type="number"[\s\S]*?step="0\.1"[\s\S]*?@beforeinput="allowDecimalNumberInput"/, `${file} should restrict post-development time to decimal numbers`);
+  assert.match(source, /v-model="(?:form|editForm)\.avgDevTime"[\s\S]*?type="text"[\s\S]*?step="0\.1"[\s\S]*?inputmode="decimal"[\s\S]*?@beforeinput="allowDecimalNumberInput"/, `${file} should restrict pre-development time to decimal numbers`);
+  assert.match(source, /v-model="(?:form|editForm)\.postDevAvgTime"[\s\S]*?type="text"[\s\S]*?step="0\.1"[\s\S]*?inputmode="decimal"[\s\S]*?@beforeinput="allowDecimalNumberInput"/, `${file} should restrict post-development time to decimal numbers`);
   assert.match(source, /v-model="(?:form|editForm)\.avgMonthlyCalls"[\s\S]*?type="number"[\s\S]*?step="1"[\s\S]*?@beforeinput="allowIntegerNumberInput"/, `${file} should restrict monthly calls to numbers`);
   assert.doesNotMatch(source, /发送人邮箱/, `${file} should not show sender email`);
   assert.doesNotMatch(source, /抄送邮箱/, `${file} should not show cc email`);

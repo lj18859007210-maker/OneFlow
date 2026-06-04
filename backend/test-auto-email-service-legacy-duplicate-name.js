@@ -4,30 +4,33 @@ const Module = require('module');
 async function run() {
   const originalLoad = Module._load;
   const sentEmails = [];
-  const executedSql = [];
+  const userQueries = [];
 
   const connection = {
     async execute(sql, params) {
-      executedSql.push({ sql, params });
       if (/FROM requirements/i.test(sql)) {
         return {
           rows: [{
-            ID: 'req-001',
-            TITLE: '客户资料同步',
-            SENDEREMAIL: 'legacy-submitter@example.com',
-            CCEMAILS: JSON.stringify(['legacy-cc@example.com']),
-            SUBMITTER: 'A',
-            DEVELOPER: 'B, C'
+            ID: 'req-legacy-duplicate-name',
+            TITLE: '历史同名开发人员邮件测试',
+            SUBMITTER: '需求人员A',
+            DEVELOPER: '刘洋'
           }]
         };
       }
       if (/FROM users/i.test(sql)) {
+        userQueries.push({ sql, params });
+        if (/role IN/i.test(sql)) {
+          return {
+            rows: [
+              { NAME: '刘洋', EMAIL: '18859007210@139.com' }
+            ]
+          };
+        }
         return {
           rows: [
-            { NAME: 'A', EMAIL: 'a@example.com' },
-            { NAME: 'B', EMAIL: 'b@example.com' },
-            { NAME: 'C', EMAIL: 'c@example.com' },
-            { NAME: 'D', EMAIL: 'unrelated-dev@example.com' }
+            { NAME: '需求人员A', EMAIL: 'a@example.com' },
+            { NAME: '刘洋', EMAIL: 'liuyang@cmcc.cn' }
           ]
         };
       }
@@ -58,23 +61,21 @@ async function run() {
     delete require.cache[require.resolve('./utils/autoEmailService')];
     const autoEmailService = require('./utils/autoEmailService');
 
-    const queued = await autoEmailService.enqueueRequirementEvent({
-      requirementId: 'req-001',
-      eventType: 'status_updated',
-      actorName: 'B',
-      summary: '状态更新为：开发中'
+    const queued = await autoEmailService.enqueueRequirementCreatedEvent({
+      requirementId: 'req-legacy-duplicate-name',
+      actorName: '需求人员A',
+      summary: '历史数据提交给刘洋'
     });
 
     assert.strictEqual(queued.queued, true);
     await autoEmailService.digestService.flushAll();
 
-    assert.ok(executedSql.some(item => /FROM users/i.test(item.sql)), 'should look up participant emails');
     assert.strictEqual(sentEmails.length, 1);
-    assert.deepStrictEqual(sentEmails[0].to.sort(), ['a@example.com', 'c@example.com'].sort());
-    assert.deepStrictEqual(sentEmails[0].cc, []);
-    assert.match(sentEmails[0].body, /状态更新为：开发中/);
+    assert.deepStrictEqual(sentEmails[0].to, ['18859007210@139.com']);
+    assert.ok(!sentEmails[0].to.includes('liuyang@cmcc.cn'), 'legacy fallback must not email same-name normal user');
+    assert.ok(userQueries.some(query => /role IN/i.test(query.sql)), 'developer fallback should restrict assignable roles');
 
-    console.log('auto email service tests passed');
+    console.log('auto email legacy duplicate-name tests passed');
   } finally {
     Module._load = originalLoad;
   }

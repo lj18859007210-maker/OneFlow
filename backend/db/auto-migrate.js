@@ -466,6 +466,27 @@ async function ensureRequirementPublishedAt(connection) {
   }
 }
 
+async function ensureRequirementAccountColumns(connection) {
+  try {
+    await connection.execute('SELECT submitterId, developerIds FROM requirements WHERE 1 = 0');
+  } catch (error) {
+    if (error.message.includes('ORA-00942')) return;
+    if (!error.message.includes('ORA-00904')) throw error;
+
+    try {
+      await connection.execute('ALTER TABLE requirements ADD (submitterId VARCHAR2(36))');
+    } catch (submitterError) {
+      if (!String(submitterError?.message || '').includes('ORA-01430')) throw submitterError;
+    }
+
+    try {
+      await connection.execute('ALTER TABLE requirements ADD (developerIds NVARCHAR2(500))');
+    } catch (developerError) {
+      if (!String(developerError?.message || '').includes('ORA-01430')) throw developerError;
+    }
+  }
+}
+
 async function ensureEmailSettings(connection) {
   const defaults = [
     ['email.send_interval_minutes', '10'],
@@ -557,6 +578,7 @@ async function initialize() {
     await ensureRolePermissionsUniqueIndex(connection);
     await ensureRequirementPostDevAvgTime(connection);
     await ensureRequirementPublishedAt(connection);
+    await ensureRequirementAccountColumns(connection);
     await ensureEmailSettings(connection);
     await ensureDeveloperUserMapping(connection);
     await ensureWorkflowSeed(connection);

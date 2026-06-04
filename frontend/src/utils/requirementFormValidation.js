@@ -19,6 +19,13 @@ export function normalizeDeveloperNames(value) {
 
   values.forEach((item) => {
     if (item === undefined || item === null) return;
+    if (item && typeof item === "object") {
+      const name = String(item.name || item.label || item.username || item.userId || item.id || "").trim();
+      if (name && !names.includes(name)) {
+        names.push(name);
+      }
+      return;
+    }
     String(item)
       .split(/[,;，；]+/)
       .map((name) => name.trim())

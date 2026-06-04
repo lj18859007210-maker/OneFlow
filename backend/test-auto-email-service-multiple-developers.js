@@ -13,17 +13,18 @@ async function run() {
             TITLE: '多人开发邮件',
             SENDEREMAIL: 'sender@example.com',
             CCEMAILS: JSON.stringify(['cc@example.com']),
-            SUBMITTER: '提交人',
-            DEVELOPER: '张三, 李四'
+            SUBMITTER: 'A',
+            DEVELOPER: 'B, C'
           }]
         };
       }
       if (/FROM users/i.test(sql)) {
         return {
           rows: [
-            { NAME: '提交人', EMAIL: 'owner@example.com' },
-            { NAME: '张三', EMAIL: 'dev-a@example.com' },
-            { NAME: '李四', EMAIL: 'dev-b@example.com' }
+            { NAME: 'A', EMAIL: 'a@example.com' },
+            { NAME: 'B', EMAIL: 'b@example.com' },
+            { NAME: 'C', EMAIL: 'c@example.com' },
+            { NAME: 'D', EMAIL: 'unrelated-dev@example.com' }
           ]
         };
       }
@@ -54,34 +55,32 @@ async function run() {
     delete require.cache[require.resolve('./utils/autoEmailService')];
     const autoEmailService = require('./utils/autoEmailService');
 
-    const context = await autoEmailService.getRequirementMailContext('req-mail-1');
+    const contextForSubmitter = await autoEmailService.getRequirementMailContext('req-mail-1', {
+      actorName: 'A'
+    });
 
-    assert.deepStrictEqual(context.to, ['owner@example.com']);
-    assert.deepStrictEqual(
-      context.cc.sort(),
-      ['cc@example.com', 'dev-a@example.com', 'dev-b@example.com', 'sender@example.com'].sort()
-    );
+    assert.deepStrictEqual(contextForSubmitter.to.sort(), ['b@example.com', 'c@example.com'].sort());
+    assert.deepStrictEqual(contextForSubmitter.cc, []);
+
+    const contextForDeveloper = await autoEmailService.getRequirementMailContext('req-mail-1', {
+      actorName: 'B'
+    });
+
+    assert.deepStrictEqual(contextForDeveloper.to.sort(), ['a@example.com', 'c@example.com'].sort());
+    assert.deepStrictEqual(contextForDeveloper.cc, []);
 
     const queued = await autoEmailService.enqueueRequirementEvent({
-      requirement: {
-        id: 'req-mail-1',
-        title: '多人开发邮件',
-        senderEmail: 'sender@example.com',
-        ccEmails: ['direct-cc@example.com']
-      },
+      requirementId: 'req-mail-1',
       eventType: 'comment_created',
-      actorName: '评论人',
+      actorName: 'B',
       summary: '新增评论'
     });
     assert.strictEqual(queued.queued, true);
     await autoEmailService.digestService.flushAll();
 
     assert.strictEqual(sentEmails.length, 1);
-    assert.deepStrictEqual(sentEmails[0].to, ['owner@example.com']);
-    assert.deepStrictEqual(
-      sentEmails[0].cc.sort(),
-      ['cc@example.com', 'dev-a@example.com', 'dev-b@example.com', 'sender@example.com'].sort()
-    );
+    assert.deepStrictEqual(sentEmails[0].to.sort(), ['a@example.com', 'c@example.com'].sort());
+    assert.deepStrictEqual(sentEmails[0].cc, []);
 
     console.log('auto email service multiple developer tests passed');
   } finally {

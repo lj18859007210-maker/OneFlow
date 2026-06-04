@@ -73,7 +73,7 @@ async function run() {
         type: 'user_message',
         content: '请两位开发都看一下'
       },
-      user: { id: 'user-1', username: '提交人', role: 'user' }
+      user: { id: 'user-1', username: 'submitter', name: '提交人', role: 'user' }
     };
     const res = {
       statusCode: 200,

@@ -77,7 +77,7 @@
             <input
               v-model="form.avgDevTime"
               class="tech-input"
-              type="number"
+              type="text"
               min="0"
               step="0.1"
               inputmode="decimal"
@@ -117,7 +117,7 @@
             <input
               v-model="form.postDevAvgTime"
               class="tech-input"
-              type="number"
+              type="text"
               min="0"
               step="0.1"
               inputmode="decimal"

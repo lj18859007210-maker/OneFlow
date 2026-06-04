@@ -116,7 +116,9 @@ async function parseRow(row) {
     title: row.TITLE,
     description: desc,
     submitter: row.SUBMITTER,
+    submitterId: row.SUBMITTERID,
     developer: row.DEVELOPER,
+    developerIds: row.DEVELOPERIDS,
     platform: row.PLATFORM,
     capability: row.CAPABILITY,
     expectedDate: row.EXPECTEDDATE,
@@ -160,7 +162,9 @@ async function parseApprovalRow(row) {
     title: row.TITLE || '',
     description: desc || '',
     submitter: row.SUBMITTER || '',
+    submitterId: row.SUBMITTERID || '',
     developer: row.DEVELOPER || '',
+    developerIds: row.DEVELOPERIDS || '',
     expectedDate: row.EXPECTEDDATE,
     actualDate: row.ACTUALDATE,
     priority: row.PRIORITY || '低',
@@ -183,7 +187,9 @@ function parseGanttRow(row) {
     id: row.ID,
     title: row.TITLE,
     submitter: row.SUBMITTER,
+    submitterId: row.SUBMITTERID,
     developer: row.DEVELOPER,
+    developerIds: row.DEVELOPERIDS,
     platform: row.PLATFORM,
     capability: row.CAPABILITY,
     expectedDate: row.EXPECTEDDATE,
@@ -611,8 +617,85 @@ function normalizeDeveloperNames(value) {
   return names;
 }
 
+function getDeveloperName(item) {
+  if (item && typeof item === 'object') {
+    return String(item.name || item.label || item.username || item.userId || item.id || '').trim();
+  }
+  return String(item || '').trim();
+}
+
+function getDeveloperIdentifier(item) {
+  if (item && typeof item === 'object') {
+    return String(item.userId || item.id || item.username || item.value || item.name || '').trim();
+  }
+  return String(item || '').trim();
+}
+
+function normalizeDeveloperIdentifiers(value) {
+  const values = Array.isArray(value) ? value : [value];
+  const identifiers = [];
+
+  values.forEach((item) => {
+    if (item === undefined || item === null) return;
+    if (item && typeof item === 'object') {
+      const identifier = getDeveloperIdentifier(item);
+      if (identifier && !identifiers.includes(identifier)) {
+        identifiers.push(identifier);
+      }
+      return;
+    }
+
+    String(item)
+      .split(/[,;，；]+/)
+      .map(identifier => identifier.trim())
+      .filter(Boolean)
+      .forEach((identifier) => {
+        if (!identifiers.includes(identifier)) {
+          identifiers.push(identifier);
+        }
+      });
+  });
+
+  return identifiers;
+}
+
 function serializeDeveloperNames(value) {
-  return normalizeDeveloperNames(value).join(', ');
+  const values = Array.isArray(value) ? value : [value];
+  const names = [];
+
+  values.forEach((item) => {
+    if (item === undefined || item === null) return;
+    if (item && typeof item === 'object') {
+      const name = getDeveloperName(item);
+      if (name && !names.includes(name)) {
+        names.push(name);
+      }
+      return;
+    }
+
+    String(item)
+      .split(/[,;，；]+/)
+      .map(name => name.trim())
+      .filter(Boolean)
+      .forEach((name) => {
+        if (!names.includes(name)) {
+          names.push(name);
+        }
+      });
+  });
+
+  return names.join(', ');
+}
+
+function serializeDeveloperIdentifiers(value) {
+  return normalizeDeveloperIdentifiers(value).join(', ');
+}
+
+function pickBinds(source, keys) {
+  return keys.reduce((binds, key) => {
+    binds[key] = source[key];
+    return binds;
+  }, {});
 }
 
 function appendDeveloperFilter(clauses, params, developer, paramKey = 'developerPattern') {
@@ -931,45 +1014,81 @@ async function create(data) {
     connection = await db.getConnection();
     const id = uuidv4();
     const developer = serializeDeveloperNames(data.developer);
+    const developerIds = serializeDeveloperIdentifiers(data.developerIds ?? data.developer);
     
-    await connection.execute(
-      `INSERT INTO requirements (
-        id, title, description, submitter, developer, platform, capability,
-        expectedDate, actualDate, avgDevTime, postDevAvgTime, avgMonthlyCalls, senderEmail, ccEmails,
-        priority, score, status, isDraft, steps, noteImages,
-        approvalStatus, approvalComment, publishedAt, CREATEDAT, UPDATEDAT
-      ) VALUES (
-        :id, :title, :description, :submitter, :developer, :platform,
-        :capability, :expectedDate, :actualDate, :avgDevTime, :postDevAvgTime, :avgMonthlyCalls, :senderEmail,
-        :ccEmails, :priority, :score, :status, :isDraft, :steps, :noteImages,
-        :approvalStatus, :approvalComment, :publishedAt, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )`,
-      {
-        id,
-        title: data.title,
-        description: data.description || null,
-        submitter: data.submitter,
-        developer,
-        platform: data.platform,
-        capability: data.capability,
-        expectedDate: data.expectedDate ? (data.expectedDate instanceof Date ? data.expectedDate : new Date(data.expectedDate)) : null,
-        actualDate: data.actualDate ? (data.actualDate instanceof Date ? data.actualDate : new Date(data.actualDate)) : null,
-        avgDevTime: data.avgDevTime || null,
-        postDevAvgTime: data.postDevAvgTime || null,
-        avgMonthlyCalls: data.avgMonthlyCalls || null,
-        senderEmail: data.senderEmail || null,
-        ccEmails: data.ccEmails && data.ccEmails.length ? JSON.stringify(data.ccEmails) : null,
-        priority: data.priority || '中',
-        score: resolveRequirementScore(data),
-        status: data.status || STATUS.PENDING_APPROVAL,
-        isDraft: data.isDraft ? 1 : 0,
-        steps: data.steps ? JSON.stringify(data.steps) : null,
-        noteImages: data.noteImages && data.noteImages.length ? JSON.stringify(data.noteImages) : null,
-        approvalStatus: data.approvalStatus || 'pending',
-        approvalComment: data.approvalComment || null,
-        publishedAt: data.publishedAt ? (data.publishedAt instanceof Date ? data.publishedAt : new Date(data.publishedAt)) : null
+    const binds = {
+      id,
+      title: data.title,
+      description: data.description || null,
+      submitter: data.submitter,
+      submitterId: data.submitterId || null,
+      developer,
+      developerIds,
+      platform: data.platform,
+      capability: data.capability,
+      expectedDate: data.expectedDate ? (data.expectedDate instanceof Date ? data.expectedDate : new Date(data.expectedDate)) : null,
+      actualDate: data.actualDate ? (data.actualDate instanceof Date ? data.actualDate : new Date(data.actualDate)) : null,
+      avgDevTime: data.avgDevTime || null,
+      postDevAvgTime: data.postDevAvgTime || null,
+      avgMonthlyCalls: data.avgMonthlyCalls || null,
+      senderEmail: data.senderEmail || null,
+      ccEmails: data.ccEmails && data.ccEmails.length ? JSON.stringify(data.ccEmails) : null,
+      priority: data.priority || '中',
+      score: resolveRequirementScore(data),
+      status: data.status || STATUS.PENDING_APPROVAL,
+      isDraft: data.isDraft ? 1 : 0,
+      steps: data.steps ? JSON.stringify(data.steps) : null,
+      noteImages: data.noteImages && data.noteImages.length ? JSON.stringify(data.noteImages) : null,
+      approvalStatus: data.approvalStatus || 'pending',
+      approvalComment: data.approvalComment || null,
+      publishedAt: data.publishedAt ? (data.publishedAt instanceof Date ? data.publishedAt : new Date(data.publishedAt)) : null
+    };
+
+    try {
+      await connection.execute(
+        `INSERT INTO requirements (
+          id, title, description, submitter, submitterId, developer, developerIds, platform, capability,
+          expectedDate, actualDate, avgDevTime, postDevAvgTime, avgMonthlyCalls, senderEmail, ccEmails,
+          priority, score, status, isDraft, steps, noteImages,
+          approvalStatus, approvalComment, publishedAt, CREATEDAT, UPDATEDAT
+        ) VALUES (
+          :id, :title, :description, :submitter, :submitterId, :developer, :developerIds, :platform,
+          :capability, :expectedDate, :actualDate, :avgDevTime, :postDevAvgTime, :avgMonthlyCalls, :senderEmail,
+          :ccEmails, :priority, :score, :status, :isDraft, :steps, :noteImages,
+          :approvalStatus, :approvalComment, :publishedAt, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )`,
+        pickBinds(binds, [
+          'id', 'title', 'description', 'submitter', 'submitterId', 'developer',
+          'developerIds', 'platform', 'capability', 'expectedDate', 'actualDate',
+          'avgDevTime', 'postDevAvgTime', 'avgMonthlyCalls', 'senderEmail', 'ccEmails',
+          'priority', 'score', 'status', 'isDraft', 'steps', 'noteImages',
+          'approvalStatus', 'approvalComment', 'publishedAt'
+        ])
+      );
+    } catch (error) {
+      if (!String(error?.message || '').includes('ORA-00904')) {
+        throw error;
       }
-    );
+      await connection.execute(
+        `INSERT INTO requirements (
+          id, title, description, submitter, developer, platform, capability,
+          expectedDate, actualDate, avgDevTime, postDevAvgTime, avgMonthlyCalls, senderEmail, ccEmails,
+          priority, score, status, isDraft, steps, noteImages,
+          approvalStatus, approvalComment, publishedAt, CREATEDAT, UPDATEDAT
+        ) VALUES (
+          :id, :title, :description, :submitter, :developer, :platform,
+          :capability, :expectedDate, :actualDate, :avgDevTime, :postDevAvgTime, :avgMonthlyCalls, :senderEmail,
+          :ccEmails, :priority, :score, :status, :isDraft, :steps, :noteImages,
+          :approvalStatus, :approvalComment, :publishedAt, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )`,
+        pickBinds(binds, [
+          'id', 'title', 'description', 'submitter', 'developer', 'platform',
+          'capability', 'expectedDate', 'actualDate', 'avgDevTime', 'postDevAvgTime',
+          'avgMonthlyCalls', 'senderEmail', 'ccEmails', 'priority', 'score', 'status',
+          'isDraft', 'steps', 'noteImages', 'approvalStatus', 'approvalComment', 'publishedAt'
+        ])
+      );
+    }
     await connection.commit();
     
     return await getById(id);
@@ -996,55 +1115,107 @@ async function update(id, data) {
     const steps = data.steps !== undefined ? JSON.stringify(data.steps) : await readLobContent(row.STEPS);
     const noteImages = data.noteImages !== undefined ? JSON.stringify(data.noteImages) : await readLobContent(row.NOTEIMAGES);
     const developer = data.developer !== undefined ? serializeDeveloperNames(data.developer) : null;
+    const developerIds = data.developer !== undefined || data.developerIds !== undefined
+      ? serializeDeveloperIdentifiers(data.developerIds ?? data.developer)
+      : null;
     
-    await connection.execute(
-      `UPDATE requirements SET 
-        title = NVL(:title, title),
-        description = NVL(:description, description),
-        submitter = NVL(:submitter, submitter),
-        developer = NVL(:developer, developer),
-        platform = NVL(:platform, platform),
-        capability = NVL(:capability, capability),
-        avgDevTime = NVL(:avgDevTime, avgDevTime),
-        postDevAvgTime = NVL(:postDevAvgTime, postDevAvgTime),
-        avgMonthlyCalls = NVL(:avgMonthlyCalls, avgMonthlyCalls),
-        expectedDate = NVL(:expectedDate, expectedDate),
-        actualDate = NVL(:actualDate, actualDate),
-        priority = NVL(:priority, priority),
-        score = NVL(:score, score),
-        status = NVL(:status, status),
-        isDraft = NVL(:isDraft, isDraft),
-        ccEmails = NVL(:ccEmails, ccEmails),
-        steps = NVL(:steps, steps),
-        noteImages = NVL(:noteImages, noteImages),
-        approvalStatus = NVL(:approvalStatus, approvalStatus),
-        approvalComment = NVL(:approvalComment, approvalComment),
-        UPDATEDAT = CURRENT_TIMESTAMP
-      WHERE id = :id`,
-      {
-        id,
-        title: data.title || null,
-        description: data.description || null,
-        submitter: data.submitter || null,
-        developer,
-        platform: data.platform || null,
-        capability: data.capability || null,
-        avgDevTime: data.avgDevTime || null,
-        postDevAvgTime: data.postDevAvgTime || null,
-        avgMonthlyCalls: data.avgMonthlyCalls || null,
-        expectedDate: data.expectedDate ? (data.expectedDate instanceof Date ? data.expectedDate : new Date(data.expectedDate)) : null,
-        actualDate: data.actualDate ? (data.actualDate instanceof Date ? data.actualDate : new Date(data.actualDate)) : null,
-        priority: data.priority || null,
-        score: resolveRequirementScore(data, row),
-        status: data.status || null,
-        isDraft: data.isDraft !== undefined ? (data.isDraft ? 1 : 0) : null,
-        ccEmails,
-        steps,
-        noteImages,
-        approvalStatus: data.approvalStatus || null,
-        approvalComment: data.approvalComment || null
+    const binds = {
+      id,
+      title: data.title || null,
+      description: data.description || null,
+      submitter: data.submitter || null,
+      submitterId: data.submitterId || null,
+      developer,
+      developerIds,
+      platform: data.platform || null,
+      capability: data.capability || null,
+      avgDevTime: data.avgDevTime || null,
+      postDevAvgTime: data.postDevAvgTime || null,
+      avgMonthlyCalls: data.avgMonthlyCalls || null,
+      expectedDate: data.expectedDate ? (data.expectedDate instanceof Date ? data.expectedDate : new Date(data.expectedDate)) : null,
+      actualDate: data.actualDate ? (data.actualDate instanceof Date ? data.actualDate : new Date(data.actualDate)) : null,
+      priority: data.priority || null,
+      score: resolveRequirementScore(data, row),
+      status: data.status || null,
+      isDraft: data.isDraft !== undefined ? (data.isDraft ? 1 : 0) : null,
+      ccEmails,
+      steps,
+      noteImages,
+      approvalStatus: data.approvalStatus || null,
+      approvalComment: data.approvalComment || null
+    };
+
+    try {
+      await connection.execute(
+        `UPDATE requirements SET 
+          title = NVL(:title, title),
+          description = NVL(:description, description),
+          submitter = NVL(:submitter, submitter),
+          submitterId = NVL(:submitterId, submitterId),
+          developer = NVL(:developer, developer),
+          developerIds = NVL(:developerIds, developerIds),
+          platform = NVL(:platform, platform),
+          capability = NVL(:capability, capability),
+          avgDevTime = NVL(:avgDevTime, avgDevTime),
+          postDevAvgTime = NVL(:postDevAvgTime, postDevAvgTime),
+          avgMonthlyCalls = NVL(:avgMonthlyCalls, avgMonthlyCalls),
+          expectedDate = NVL(:expectedDate, expectedDate),
+          actualDate = NVL(:actualDate, actualDate),
+          priority = NVL(:priority, priority),
+          score = NVL(:score, score),
+          status = NVL(:status, status),
+          isDraft = NVL(:isDraft, isDraft),
+          ccEmails = NVL(:ccEmails, ccEmails),
+          steps = NVL(:steps, steps),
+          noteImages = NVL(:noteImages, noteImages),
+          approvalStatus = NVL(:approvalStatus, approvalStatus),
+          approvalComment = NVL(:approvalComment, approvalComment),
+          UPDATEDAT = CURRENT_TIMESTAMP
+        WHERE id = :id`,
+        pickBinds(binds, [
+          'id', 'title', 'description', 'submitter', 'submitterId', 'developer',
+          'developerIds', 'platform', 'capability', 'avgDevTime', 'postDevAvgTime',
+          'avgMonthlyCalls', 'expectedDate', 'actualDate', 'priority', 'score',
+          'status', 'isDraft', 'ccEmails', 'steps', 'noteImages', 'approvalStatus',
+          'approvalComment'
+        ])
+      );
+    } catch (error) {
+      if (!String(error?.message || '').includes('ORA-00904')) {
+        throw error;
       }
-    );
+      await connection.execute(
+        `UPDATE requirements SET 
+          title = NVL(:title, title),
+          description = NVL(:description, description),
+          submitter = NVL(:submitter, submitter),
+          developer = NVL(:developer, developer),
+          platform = NVL(:platform, platform),
+          capability = NVL(:capability, capability),
+          avgDevTime = NVL(:avgDevTime, avgDevTime),
+          postDevAvgTime = NVL(:postDevAvgTime, postDevAvgTime),
+          avgMonthlyCalls = NVL(:avgMonthlyCalls, avgMonthlyCalls),
+          expectedDate = NVL(:expectedDate, expectedDate),
+          actualDate = NVL(:actualDate, actualDate),
+          priority = NVL(:priority, priority),
+          score = NVL(:score, score),
+          status = NVL(:status, status),
+          isDraft = NVL(:isDraft, isDraft),
+          ccEmails = NVL(:ccEmails, ccEmails),
+          steps = NVL(:steps, steps),
+          noteImages = NVL(:noteImages, noteImages),
+          approvalStatus = NVL(:approvalStatus, approvalStatus),
+          approvalComment = NVL(:approvalComment, approvalComment),
+          UPDATEDAT = CURRENT_TIMESTAMP
+        WHERE id = :id`,
+        pickBinds(binds, [
+          'id', 'title', 'description', 'submitter', 'developer', 'platform',
+          'capability', 'avgDevTime', 'postDevAvgTime', 'avgMonthlyCalls',
+          'expectedDate', 'actualDate', 'priority', 'score', 'status', 'isDraft',
+          'ccEmails', 'steps', 'noteImages', 'approvalStatus', 'approvalComment'
+        ])
+      );
+    }
     await connection.commit();
     
     return await getById(id);
@@ -1194,14 +1365,14 @@ async function getApprovalList(userId, userRole, permissions = [], page = 1, pag
     const { whereClause, params } = buildApprovalListFilters(normalizedFilters);
     const offset = (page - 1) * pageSize;
     const result = await connection.execute(
-      `SELECT id, title, description, submitter, developer, expectedDate, actualDate,
+      `SELECT id, title, description, submitter, submitterId, developer, developerIds, expectedDate, actualDate,
               priority, status, approvalStatus, approvalComment, createdAt, updatedAt
        FROM (
-        SELECT r.id, r.title, r.description, r.submitter, r.developer, r.expectedDate, r.actualDate,
+        SELECT r.id, r.title, r.description, r.submitter, r.submitterId, r.developer, r.developerIds, r.expectedDate, r.actualDate,
                r.priority, r.status, r.approvalStatus, r.approvalComment, r.createdAt, r.updatedAt,
                ROW_NUMBER() OVER (ORDER BY r.CREATEDAT DESC) as rn
-        FROM (
-          SELECT id, title, description, submitter, developer, expectedDate, actualDate,
+       FROM (
+          SELECT id, title, description, submitter, submitterId, developer, developerIds, expectedDate, actualDate,
                  priority, status, approvalStatus, approvalComment, createdAt, updatedAt
           FROM requirements
           ${whereClause}
@@ -1263,7 +1434,7 @@ async function getGanttData(filters = {}) {
     }
     
     const result = await connection.execute(
-      `SELECT id, title, submitter, developer, platform, capability, 
+      `SELECT id, title, submitter, submitterId, developer, developerIds, platform, capability, 
               expectedDate, actualDate, priority, score, status, approvalStatus, publishedAt,
               (
                 SELECT MIN(a.createdAt)
@@ -1566,7 +1737,9 @@ module.exports = {
   resolveApprovalListScope,
   getConsistentRequirementState,
   normalizeDeveloperNames,
+  normalizeDeveloperIdentifiers,
   serializeDeveloperNames,
+  serializeDeveloperIdentifiers,
   resolveStoredRequirementScore,
   resolveRequirementScore,
   STATUS,

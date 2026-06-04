@@ -99,9 +99,9 @@ async function resolveAssignableDeveloper(developerName) {
   try {
     connection = await db.getConnection();
     const devResult = await connection.execute(
-      `SELECT id, name
+      `SELECT id, username, name
        FROM users
-       WHERE name = :devName
+       WHERE (id = :devName OR username = :devName OR name = :devName)
          AND role IN ('developer', 'role-developer', 'admin', 'role-admin')
          AND status = 1`,
       { devName: normalizedName },
@@ -113,45 +113,114 @@ async function resolveAssignableDeveloper(developerName) {
       throw new Error(ASSIGNABLE_DEVELOPER_MESSAGE);
     }
 
-    return { id: developer.ID, name: developer.NAME };
+    return { id: developer.ID, name: developer.NAME, username: developer.USERNAME };
   } finally {
     if (connection) await connection.close();
   }
 }
 
 async function resolveAssignableDevelopers(developerValue) {
-  const names = requirementModel.normalizeDeveloperNames(developerValue);
-  if (!names.length) return [];
+  const inputs = Array.isArray(developerValue) ? developerValue : [developerValue];
+  const selected = [];
+  const seen = new Set();
+
+  inputs.forEach((item) => {
+    if (item === undefined || item === null) return;
+    if (item && typeof item === 'object') {
+      const id = toOptionalString(item.userId || item.id || item.value);
+      const username = toOptionalString(item.username);
+      const name = toOptionalString(item.name || item.label);
+      const key = id ? `id:${id}` : username ? `username:${username}` : name ? `name:${name}` : null;
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        selected.push({ id, username, name });
+      }
+      return;
+    }
+
+    String(item)
+      .split(/[,;，；]+/)
+      .map(value => value.trim())
+      .filter(Boolean)
+      .forEach((value) => {
+        const key = `raw:${value}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          selected.push({ id: value, username: value, name: value });
+        }
+      });
+  });
+
+  if (!selected.length) return [];
 
   let connection;
   try {
     connection = await db.getConnection();
     const binds = {};
-    const placeholders = names.map((name, index) => {
-      const key = `devName${index}`;
-      binds[key] = name;
-      return `:${key}`;
-    });
+    const clauses = selected.map((developer, index) => {
+      const parts = [];
+      if (developer.id) {
+        const key = `devId${index}`;
+        binds[key] = developer.id;
+        parts.push(`id = :${key}`);
+      }
+      if (developer.username) {
+        const key = `devUsername${index}`;
+        binds[key] = developer.username;
+        parts.push(`username = :${key}`);
+      }
+      if (developer.name) {
+        const key = `devName${index}`;
+        binds[key] = developer.name;
+        parts.push(`name = :${key}`);
+      }
+      return `(${parts.join(' OR ')})`;
+    }).filter(Boolean);
+
     const devResult = await connection.execute(
-      `SELECT id, name
+      `SELECT id, username, name
        FROM users
-       WHERE name IN (${placeholders.join(', ')})
+       WHERE (${clauses.join(' OR ')})
          AND role IN ('developer', 'role-developer', 'admin', 'role-admin')
          AND status = 1`,
       binds,
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
 
+    const developerById = new Map();
+    const developerByUsername = new Map();
     const developerByName = new Map();
     (devResult.rows || []).forEach((row) => {
-      const name = String(row.NAME || '').trim();
-      if (name && !developerByName.has(name)) {
-        developerByName.set(name, { id: row.ID, name });
+      const developer = {
+        id: String(row.ID || '').trim(),
+        username: String(row.USERNAME || '').trim(),
+        name: String(row.NAME || '').trim()
+      };
+      if (developer.id && !developerById.has(developer.id)) {
+        developerById.set(developer.id, developer);
+      }
+      if (developer.username && !developerByUsername.has(developer.username)) {
+        developerByUsername.set(developer.username, developer);
+      }
+      if (developer.name && !developerByName.has(developer.name)) {
+        developerByName.set(developer.name, developer);
       }
     });
 
-    const developers = names.map(name => developerByName.get(name)).filter(Boolean);
-    if (developers.length !== names.length) {
+    const developers = selected.map((developer) => {
+      if (developer.id && developerById.has(developer.id)) {
+        return developerById.get(developer.id);
+      }
+      if (developer.username && developerByUsername.has(developer.username)) {
+        return developerByUsername.get(developer.username);
+      }
+      if (developer.name && developerByName.has(developer.name)) {
+        return developerByName.get(developer.name);
+      }
+      return null;
+    }).filter(Boolean);
+
+    if (developers.length !== selected.length) {
       throw new Error(ASSIGNABLE_DEVELOPER_MESSAGE);
     }
 
@@ -159,6 +228,21 @@ async function resolveAssignableDevelopers(developerValue) {
   } finally {
     if (connection) await connection.close();
   }
+}
+
+function applyResolvedRequirementUsers(body = {}, reqUser = {}, developers = [], options = {}) {
+  const next = { ...body };
+  if (options.includeSubmitterId) {
+    next.submitterId = reqUser.id || body.submitterId || null;
+  }
+  next.developer = developers.map(developer => ({
+    id: developer.id,
+    userId: developer.id,
+    username: developer.username,
+    name: developer.name
+  }));
+  next.developerIds = developers.map(developer => developer.id);
+  return next;
 }
 
 async function getApprovalList(req, res) {
@@ -253,7 +337,8 @@ async function getById(req, res) {
 async function create(req, res) {
   try {
     const developers = await resolveAssignableDevelopers(req.body.developer);
-    const requirement = await requirementModel.create(req.body);
+    const requirementBody = applyResolvedRequirementUsers(req.body, req.user, developers, { includeSubmitterId: true });
+    const requirement = await requirementModel.create(requirementBody);
     for (const developer of developers) {
       await notificationService.notifyAssignDev(developer, requirement);
     }
@@ -261,6 +346,7 @@ async function create(req, res) {
       try {
         await autoEmailService.enqueueRequirementCreatedEvent({
           requirement,
+          actorId: req.user.id,
           actorName: req.user.name || req.user.username || requirement.submitter,
           summary: `新需求已提交：${requirement.title}`
         });
@@ -280,7 +366,10 @@ async function update(req, res) {
     const developers = req.body.developer !== undefined
       ? await resolveAssignableDevelopers(req.body.developer)
       : [];
-    const requirement = await requirementModel.update(req.params.id, req.body);
+    const requirementBody = req.body.developer !== undefined
+      ? applyResolvedRequirementUsers(req.body, req.user, developers)
+      : { ...req.body };
+    const requirement = await requirementModel.update(req.params.id, requirementBody);
     if (!requirement) return res.status(404).json({ success: false, message: 'requirement not found' });
     for (const developer of developers) {
       await notificationService.notifyAssignDev(developer, requirement);
@@ -342,6 +431,7 @@ async function updateStatus(req, res) {
       await autoEmailService.enqueueRequirementEvent({
         requirement,
         eventType: 'status_updated',
+        actorId: req.user.id,
         actorName: req.user.name || req.user.username,
         summary: `状态更新为：${status}`
       });
@@ -402,6 +492,7 @@ async function approve(req, res) {
       await autoEmailService.enqueueRequirementEvent({
         requirement,
         eventType: 'approval_updated',
+        actorId: req.user.id,
         actorName: req.user.name || req.user.username,
         summary: `审批${approved ? '通过' : '拒绝'}${comment ? `：${comment}` : ''}`
       });

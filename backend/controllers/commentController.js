@@ -15,7 +15,13 @@ function uniqueNames(values) {
 async function create(req, res) {
   try {
     const { requirementId, type, content, attachmentIds } = req.body;
-    const { id: userId, username: userName, role: userRole } = req.user;
+    const {
+      id: userId,
+      username,
+      name,
+      role: userRole
+    } = req.user;
+    const userName = name || username;
     const normalizedAttachmentIds = Array.isArray(attachmentIds) ? attachmentIds.filter(Boolean) : [];
     const normalizedContent = String(content || '').trim();
 
@@ -83,6 +89,7 @@ async function create(req, res) {
           await autoEmailService.enqueueRequirementEvent({
             requirementId,
             eventType: 'comment_created',
+            actorId: userId,
             actorName: userName,
             summary: normalizedContent || `上传了 ${normalizedAttachmentIds.length} 个评论附件`
           });

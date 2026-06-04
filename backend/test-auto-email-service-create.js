@@ -4,9 +4,11 @@ const Module = require('module');
 async function run() {
   const originalLoad = Module._load;
   const sentEmails = [];
+  const executedSql = [];
 
   const connection = {
-    async execute(sql) {
+    async execute(sql, params) {
+      executedSql.push({ sql, params });
       if (/FROM requirements/i.test(sql)) {
         return {
           rows: [{
@@ -14,8 +16,8 @@ async function run() {
             TITLE: '新需求邮件测试',
             SENDEREMAIL: 'legacy-submitter@example.com',
             CCEMAILS: JSON.stringify(['legacy-cc@example.com']),
-            SUBMITTER: '张三',
-            DEVELOPER: '李四'
+            SUBMITTER: 'A',
+            DEVELOPER: 'B, C'
           }]
         };
       }
@@ -30,8 +32,10 @@ async function run() {
       if (/FROM users/i.test(sql)) {
         return {
           rows: [
-            { NAME: '张三', EMAIL: 'owner@example.com' },
-            { NAME: '李四', EMAIL: 'developer@example.com' }
+            { NAME: 'A', EMAIL: 'a@example.com' },
+            { NAME: 'B', EMAIL: 'b@example.com' },
+            { NAME: 'C', EMAIL: 'c@example.com' },
+            { NAME: 'D', EMAIL: 'unrelated-dev@example.com' }
           ]
         };
       }
@@ -64,7 +68,7 @@ async function run() {
 
     const queued = await autoEmailService.enqueueRequirementCreatedEvent({
       requirementId: 'req-create-1',
-      actorName: '张三',
+      actorName: 'A',
       summary: '新需求已提交：新需求邮件测试'
     });
 
@@ -72,11 +76,9 @@ async function run() {
     await autoEmailService.digestService.flushAll();
 
     assert.strictEqual(sentEmails.length, 1);
-    assert.deepStrictEqual(sentEmails[0].to.sort(), ['admin@example.com', 'approver@example.com'].sort());
-    assert.deepStrictEqual(
-      sentEmails[0].cc.sort(),
-      ['developer@example.com', 'legacy-cc@example.com', 'legacy-submitter@example.com', 'owner@example.com'].sort()
-    );
+    assert.deepStrictEqual(sentEmails[0].to.sort(), ['b@example.com', 'c@example.com'].sort());
+    assert.deepStrictEqual(sentEmails[0].cc, []);
+    assert.ok(!executedSql.some(item => /p\.code = :permissionCode/i.test(item.sql)), 'should not email all approvers');
     assert.match(sentEmails[0].body, /新需求已提交/);
 
     console.log('auto email service create tests passed');

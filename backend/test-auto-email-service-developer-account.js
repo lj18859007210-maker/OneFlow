@@ -4,30 +4,27 @@ const Module = require('module');
 async function run() {
   const originalLoad = Module._load;
   const sentEmails = [];
-  const executedSql = [];
 
   const connection = {
-    async execute(sql, params) {
-      executedSql.push({ sql, params });
+    async execute(sql) {
       if (/FROM requirements/i.test(sql)) {
         return {
           rows: [{
-            ID: 'req-001',
-            TITLE: '客户资料同步',
-            SENDEREMAIL: 'legacy-submitter@example.com',
-            CCEMAILS: JSON.stringify(['legacy-cc@example.com']),
-            SUBMITTER: 'A',
-            DEVELOPER: 'B, C'
+            ID: 'req-duplicate-name',
+            TITLE: '同名开发人员邮件测试',
+            SUBMITTER: '需求人员A',
+            SUBMITTERID: 'submitter-a',
+            DEVELOPER: '刘洋',
+            DEVELOPERIDS: 'dev-demo-liuyang'
           }]
         };
       }
       if (/FROM users/i.test(sql)) {
         return {
           rows: [
-            { NAME: 'A', EMAIL: 'a@example.com' },
-            { NAME: 'B', EMAIL: 'b@example.com' },
-            { NAME: 'C', EMAIL: 'c@example.com' },
-            { NAME: 'D', EMAIL: 'unrelated-dev@example.com' }
+            { ID: 'submitter-a', USERNAME: 'submitter_a', NAME: '需求人员A', EMAIL: 'a@example.com' },
+            { ID: 'dev-demo-liuyang', USERNAME: 'demo_liuyang', NAME: '刘洋', EMAIL: '18859007210@139.com' },
+            { ID: 'normal-liuyang', USERNAME: 'liuyang', NAME: '刘洋', EMAIL: 'liuyang@cmcc.cn' }
           ]
         };
       }
@@ -58,23 +55,21 @@ async function run() {
     delete require.cache[require.resolve('./utils/autoEmailService')];
     const autoEmailService = require('./utils/autoEmailService');
 
-    const queued = await autoEmailService.enqueueRequirementEvent({
-      requirementId: 'req-001',
-      eventType: 'status_updated',
-      actorName: 'B',
-      summary: '状态更新为：开发中'
+    const queued = await autoEmailService.enqueueRequirementCreatedEvent({
+      requirementId: 'req-duplicate-name',
+      actorId: 'submitter-a',
+      actorName: '需求人员A',
+      summary: '提交给 demo_liuyang'
     });
 
     assert.strictEqual(queued.queued, true);
     await autoEmailService.digestService.flushAll();
 
-    assert.ok(executedSql.some(item => /FROM users/i.test(item.sql)), 'should look up participant emails');
     assert.strictEqual(sentEmails.length, 1);
-    assert.deepStrictEqual(sentEmails[0].to.sort(), ['a@example.com', 'c@example.com'].sort());
-    assert.deepStrictEqual(sentEmails[0].cc, []);
-    assert.match(sentEmails[0].body, /状态更新为：开发中/);
+    assert.deepStrictEqual(sentEmails[0].to, ['18859007210@139.com']);
+    assert.ok(!sentEmails[0].to.includes('liuyang@cmcc.cn'), 'must not email same-name unselected account');
 
-    console.log('auto email service tests passed');
+    console.log('auto email developer account tests passed');
   } finally {
     Module._load = originalLoad;
   }
