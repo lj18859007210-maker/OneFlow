@@ -84,7 +84,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { permissionApi, authApi } from '../api'
-import { refreshCurrentUser } from '../utils/session'
+import { getStoredCurrentUser, refreshCurrentUser } from '../utils/session'
 import { getPermissionSaveSuccessMessage } from '../utils/permissionMessages'
 import { showToast } from '../utils/toastService'
 
@@ -106,6 +106,15 @@ const sessionDebug = ref({
   role: '',
   permissions: []
 })
+
+const updateSessionDebug = (user) => {
+  sessionDebug.value = {
+    username: user?.username || '',
+    name: user?.name || '',
+    role: user?.role || '',
+    permissions: Array.isArray(user?.permissions) ? user.permissions : []
+  }
+}
 
 const selectedRoleName = computed(() => {
   const role = roles.value.find(r => r.id === selectedRole.value)
@@ -146,7 +155,8 @@ const savePermissions = async () => {
   try {
     saving.value = true
     await permissionApi.assignPermissions(selectedRole.value, selectedPermissions.value)
-    await refreshCurrentUser()
+    const currentUser = await refreshCurrentUser()
+    updateSessionDebug(currentUser)
     showToast(getPermissionSaveSuccessMessage(), { type: 'success', title: '保存成功' })
   } catch (error) {
     console.error('保存权限失败:', error)
@@ -175,12 +185,7 @@ const refreshSessionDebug = async () => {
     debugLoading.value = true
     const res = await authApi.me()
     if (res.data?.success && res.data?.data) {
-      sessionDebug.value = {
-        username: res.data.data.username || '',
-        name: res.data.data.name || '',
-        role: res.data.data.role || '',
-        permissions: Array.isArray(res.data.data.permissions) ? res.data.data.permissions : []
-      }
+      updateSessionDebug(res.data.data)
     }
   } catch (error) {
     console.error('刷新当前登录账号信息失败:', error)
@@ -190,7 +195,9 @@ const refreshSessionDebug = async () => {
 }
 
 onMounted(() => {
+  updateSessionDebug(getStoredCurrentUser())
   loadData()
+  refreshSessionDebug()
 })
 </script>
 

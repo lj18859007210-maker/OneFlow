@@ -139,7 +139,7 @@ const loadUnreadCount = async () => {
 
   try {
     const res = await notificationApi.getUnreadCount()
-    unreadCount.value = res.data.count
+    unreadCount.value = Number(res.data?.data?.count ?? 0)
   } catch (error) {
     console.error('获取未读数量失败:', error)
   }

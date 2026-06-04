@@ -1,9 +1,9 @@
 <template>
   <div class="submit">
-  <!-- 基本信息卡片 -->
-  <div class="tech-detail-card full-width">
-    <div class="tech-detail-title">基本信息</div>
-    <form @submit.prevent="doSubmit" class="tech-form">
+    <!-- 基本信息卡片 -->
+    <div class="tech-detail-card full-width">
+      <div class="tech-detail-title">基本信息</div>
+      <form @submit.prevent="doSubmit" class="tech-form">
         <div class="tech-form-row">
           <div class="tech-form-group">
             <label class="tech-form-label"
@@ -18,11 +18,7 @@
           </div>
           <div class="tech-form-group">
             <label class="tech-form-label">提交人</label>
-            <input
-              :value="getSubmitterName()"
-              class="tech-input"
-              disabled
-            />
+            <input :value="getSubmitterName()" class="tech-input" disabled />
           </div>
         </div>
         <div class="tech-form-row">
@@ -75,7 +71,7 @@
             />
           </div>
           <div class="tech-form-group">
-            <label class="tech-form-label">平均每月调用量/次</label>
+            <label class="tech-form-label">平均预计每月调用量/次</label>
             <input
               v-model="form.avgMonthlyCalls"
               class="tech-input"
@@ -107,10 +103,10 @@
 
     <!-- AI 分步关卡 -->
     <div class="tech-detail-card full-width" style="margin-top: 10px">
-    <div class="tech-detail-title">
-      AI 需求引导（{{ completedSteps }}/{{ steps.length }} 步完成）
-      <button class="reset-btn" @click="resetAll">重置所有内容</button>
-    </div>
+      <div class="tech-detail-title">
+        AI 需求引导（{{ completedSteps }}/{{ steps.length }} 步完成）
+        <button class="reset-btn" @click="resetAll">重置所有内容</button>
+      </div>
 
       <div class="gate-progress">
         <div
@@ -149,11 +145,23 @@
           </div>
 
           <!-- 已完成且未展开：折叠展示 -->
-          <div v-if="s.state === 'done' && openStep !== i" class="gate-card-done" @click="toggleStep(i)">
+          <div
+            v-if="s.state === 'done' && openStep !== i"
+            class="gate-card-done"
+            @click="toggleStep(i)"
+          >
             <div class="gate-card-done-inner">
               <p>{{ s.answer }}</p>
-              <div v-if="s.images && s.images.length" class="gate-card-done-imgs">
-                <img v-for="(img, idx) in s.images" :key="idx" :src="img.url" :alt="img.name" />
+              <div
+                v-if="s.images && s.images.length"
+                class="gate-card-done-imgs"
+              >
+                <img
+                  v-for="(img, idx) in s.images"
+                  :key="idx"
+                  :src="img.url"
+                  :alt="img.name"
+                />
               </div>
             </div>
             <span class="gate-card-edit">
@@ -179,7 +187,10 @@
           </div>
 
           <!-- 展开状态：首次填写 或 编辑已完成的步骤 -->
-          <div v-if="openStep === i && s.state !== 'locked'" class="gate-card-body">
+          <div
+            v-if="openStep === i && s.state !== 'locked'"
+            class="gate-card-body"
+          >
             <textarea
               v-model="s.answer"
               class="tech-textarea"
@@ -192,10 +203,18 @@
             <div v-if="s.type === 'note'" class="note-images">
               <div v-for="(img, idx) in s.images" :key="idx" class="note-img">
                 <img :src="img.url" :alt="img.name" />
-                <button class="note-img-del" @click="removeImage(i, idx)">×</button>
+                <button class="note-img-del" @click="removeImage(i, idx)">
+                  ×
+                </button>
               </div>
               <label class="note-img-upload" v-if="s.images.length < 5">
-                <input type="file" accept="image/*" multiple hidden @change="uploadImages(i, $event)" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  @change="uploadImages(i, $event)"
+                />
                 <span>+</span>
               </label>
             </div>
@@ -226,7 +245,11 @@
           </div>
 
           <!-- 未展开的活跃步骤提示 -->
-          <div v-if="s.state === 'active' && openStep !== i" class="gate-card-pending" @click="toggleStep(i)">
+          <div
+            v-if="s.state === 'active' && openStep !== i"
+            class="gate-card-pending"
+            @click="toggleStep(i)"
+          >
             <p>点击填写 →</p>
           </div>
 
@@ -248,18 +271,18 @@
             class="tech-textarea"
             readonly
             rows="10"
-        ></textarea>
+          ></textarea>
+        </div>
+        <button
+          class="tech-btn tech-btn-primary"
+          @click="doSubmit"
+          :disabled="submitting"
+        >
+          {{ submitting ? "提交中..." : "提交需求" }}
+        </button>
       </div>
-      <button
-        class="tech-btn tech-btn-primary"
-        @click="doSubmit"
-        :disabled="submitting"
-      >
-        {{ submitting ? "提交中..." : "提交需求" }}
-      </button>
     </div>
   </div>
-</div>
 </template>
 
 <script setup>
@@ -554,8 +577,12 @@ ${qa}
 请直接输出需求文档，不要多余说明。`;
 
     const noteStep = steps.value.find((s) => s.type === "note");
-    const noteText = noteStep && noteStep.answer ? `\n\n【补充备注】\n${noteStep.answer}` : "";
-    const imgInfo = noteStep && noteStep.images && noteStep.images.length ? `\n\n【附带图片】\n${noteStep.images.map((img) => `${img.url}`).join("\n")}` : "";
+    const noteText =
+      noteStep && noteStep.answer ? `\n\n【补充备注】\n${noteStep.answer}` : "";
+    const imgInfo =
+      noteStep && noteStep.images && noteStep.images.length
+        ? `\n\n【附带图片】\n${noteStep.images.map((img) => `${img.url}`).join("\n")}`
+        : "";
 
     const res = await fetch("/api/ai/generate", {
       method: "POST",
@@ -583,7 +610,7 @@ async function doSubmit() {
     const noteImages = (noteStep && noteStep.images) || [];
 
     await requirementApi.create({ ...form.value, noteImages });
-    
+
     try {
       await emailApi.send({
         to: "admin@cmcc.cn",
@@ -592,7 +619,8 @@ async function doSubmit() {
         body:
           form.value.description +
           (noteImages.length
-            ? "\n\n图片附件:\n" + noteImages.map((img) => location.origin + img.url).join("\n")
+            ? "\n\n图片附件:\n" +
+              noteImages.map((img) => location.origin + img.url).join("\n")
             : ""),
       });
       showToast("需求提交成功，邮件已发送");
@@ -600,11 +628,13 @@ async function doSubmit() {
       console.warn("邮件发送失败，但需求已提交:", emailErr);
       showToast("需求提交成功，邮件发送失败");
     }
-    
+
     setTimeout(() => router.push("/"), 1500);
   } catch (e) {
     console.error("提交失败:", e);
-    showToast("提交失败：" + (e.response?.data?.message || e.message || "未知错误"));
+    showToast(
+      "提交失败：" + (e.response?.data?.message || e.message || "未知错误"),
+    );
   } finally {
     submitting.value = false;
   }
@@ -627,14 +657,14 @@ async function saveDraft() {
       priority: form.value.priority,
       description: form.value.description,
       isDraft: true,
-      steps: steps.value.map(s => ({
+      steps: steps.value.map((s) => ({
         label: s.label,
         answer: s.answer,
         state: s.state,
         nudge: s.nudge,
         images: s.images || [],
-        type: s.type
-      }))
+        type: s.type,
+      })),
     };
     await requirementApi.create(draftData);
     showToast("草稿已保存");
@@ -683,8 +713,10 @@ async function loadLatestDraft() {
             }
           }
         });
-        
-        const firstActiveIndex = steps.value.findIndex(s => s.state === "active");
+
+        const firstActiveIndex = steps.value.findIndex(
+          (s) => s.state === "active",
+        );
         if (firstActiveIndex !== -1) {
           openStep.value = firstActiveIndex;
         }

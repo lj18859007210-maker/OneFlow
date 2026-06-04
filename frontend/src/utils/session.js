@@ -26,6 +26,12 @@ export function setStoredCurrentUser(user) {
   window.dispatchEvent(new CustomEvent('current-user-updated', { detail: user || null }))
 }
 
+export function clearStoredSession() {
+  localStorage.removeItem('currentUser')
+  localStorage.removeItem('token')
+  window.dispatchEvent(new CustomEvent('current-user-updated', { detail: null }))
+}
+
 export async function refreshCurrentUser() {
   if (refreshInFlight) {
     return refreshInFlight

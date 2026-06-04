@@ -1,9 +1,28 @@
 const userModel = require('../models/userModel');
 
+const VALID_ROLE_FILTERS = new Set(['admin', 'user', 'developer', 'role-admin', 'role-user', 'role-developer']);
+
+function toOptionalString(value) {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
 async function getAll(req, res) {
   try {
-    const users = await userModel.getAll();
-    res.json({ success: true, data: users });
+    const role = toOptionalString(req.query.role);
+    const result = await userModel.getAll({
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      role: VALID_ROLE_FILTERS.has(role) ? role : '',
+      keyword: toOptionalString(req.query.keyword)
+    });
+    res.json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize
+    });
   } catch (error) {
     console.error('getAll users error:', error);
     res.status(500).json({ success: false, message: String(error.message || error) });

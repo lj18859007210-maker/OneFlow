@@ -12,8 +12,17 @@ if (!fs.existsSync(logDir)) {
 
 // 日志格式
 const logFormat = winston.format.printf(({ level, message, timestamp, ...meta }) => {
-  const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : '';
-  return `${timestamp} [${level.toUpperCase()}]: ${message}${metaStr}`;
+  const ignoredKeys = new Set(['access', 'audit']);
+  const metaParts = Object.entries(meta)
+    .filter(([key, value]) => !ignoredKeys.has(key) && value !== undefined && value !== null)
+    .map(([key, value]) => {
+      const formattedValue = key === 'duration' && typeof value === 'number'
+        ? `${value}ms`
+        : String(value).replace(/\s+/g, ' ');
+      return `${key}=${formattedValue}`;
+    });
+  const metaStr = metaParts.length ? ` ${metaParts.join(' ')}` : '';
+  return `${timestamp} [${level.toUpperCase()}] ${message}${metaStr}`;
 });
 
 // 创建 logger 实例
@@ -57,7 +66,6 @@ const logger = winston.createLogger({
 if (config.nodeEnv === 'development') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
-      winston.format.colorize(),
       winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
       logFormat
     )

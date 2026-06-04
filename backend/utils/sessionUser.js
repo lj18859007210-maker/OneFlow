@@ -1,6 +1,14 @@
 const permissionModel = require('../models/permission');
 const { normalizeRoleId } = require('./roleAccess');
 
+function uniquePermissionCodes(permissions) {
+  return [...new Set(
+    permissions
+      .map(permission => permission.code)
+      .filter(Boolean)
+  )];
+}
+
 async function buildCurrentUser(user) {
   if (!user) {
     return null;
@@ -15,10 +23,11 @@ async function buildCurrentUser(user) {
     name: user.name,
     email: user.email,
     role: user.role,
-    permissions: permissions.map(permission => permission.code)
+    permissions: uniquePermissionCodes(permissions)
   };
 }
 
 module.exports = {
-  buildCurrentUser
+  buildCurrentUser,
+  uniquePermissionCodes
 };

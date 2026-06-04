@@ -13,8 +13,9 @@ import DeveloperManagement from './views/DeveloperManagement.vue'
 import PermissionManagement from './views/PermissionManagement.vue'
 import UserRoleManagement from './views/UserRoleManagement.vue'
 import WorkflowManagement from './views/WorkflowManagement.vue'
+import EmailSettings from './views/EmailSettings.vue'
 import { hasPermission } from './utils/access'
-import { refreshCurrentUserIfStale, getStoredCurrentUser } from './utils/session'
+import { clearStoredSession, refreshCurrentUserIfStale, getStoredCurrentUser } from './utils/session'
 
 const routes = [
   { path: '/login', component: Login, meta: { requiresAuth: false } },
@@ -28,7 +29,8 @@ const routes = [
   { path: '/audit-logs', component: AuditLogs, meta: { requiresAuth: true, permission: 'audit:view' } },
   { path: '/user-roles', component: UserRoleManagement, meta: { requiresAuth: true, permission: 'user:role:manage' } },
   { path: '/permissions', component: PermissionManagement, meta: { requiresAuth: true, permission: 'permission:manage' } },
-  { path: '/workflow', component: WorkflowManagement, meta: { requiresAuth: true, permission: 'workflow:manage' } }
+  { path: '/workflow', component: WorkflowManagement, meta: { requiresAuth: true, permission: 'workflow:manage' } },
+  { path: '/email-settings', component: EmailSettings, meta: { requiresAuth: true, permission: 'email:settings:manage' } }
 ]
 
 const router = createRouter({
@@ -37,22 +39,26 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  const user = localStorage.getItem('currentUser')
-  if (to.meta.requiresAuth !== false && !user) {
+  const token = localStorage.getItem('token')
+  const currentUser = getStoredCurrentUser()
+  const hasSession = Boolean(token && currentUser)
+
+  if (to.meta.requiresAuth !== false && !hasSession) {
     next('/login')
-  } else if (to.path === '/login' && user) {
+  } else if (to.path === '/login' && hasSession) {
     next('/')
-  } else if (to.meta.permission && user) {
+  } else if (to.meta.permission && hasSession) {
     try {
-      let currentUser = getStoredCurrentUser()
+      let refreshedUser = currentUser
       if (to.meta.requiresAuth !== false) {
-        currentUser = await refreshCurrentUserIfStale()
+        refreshedUser = await refreshCurrentUserIfStale()
       }
-      if (!hasPermission(currentUser, to.meta.permission)) {
+      if (!hasPermission(refreshedUser, to.meta.permission)) {
         next('/')
         return
       }
     } catch (error) {
+      clearStoredSession()
       next('/login')
       return
     }

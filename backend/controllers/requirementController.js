@@ -1,6 +1,7 @@
 const requirementModel = require('../models/requirement');
 const commentModel = require('../models/comment');
 const notificationService = require('../utils/notificationService');
+const autoEmailService = require('../utils/autoEmailService');
 const db = require('../db/oracle');
 const oracledb = require('oracledb');
 
@@ -122,8 +123,12 @@ async function getApprovalList(req, res) {
   try {
     const page = parseInt(req.query.page, 10) || 1;
     const pageSize = parseInt(req.query.pageSize, 10) || 50;
+    const approvalStatus = ['pending', 'approved', 'rejected'].includes(req.query.approvalStatus)
+      ? req.query.approvalStatus
+      : null;
+    const keyword = toOptionalString(req.query.keyword);
     const { id, role, permissions = [] } = req.user;
-    const result = await requirementModel.getApprovalList(id, role, permissions, page, pageSize);
+    const result = await requirementModel.getApprovalList(id, role, permissions, page, pageSize, { approvalStatus, keyword });
     res.json({ success: true, data: result.data, total: result.total, page: result.page, pageSize: result.pageSize });
   } catch (error) {
     console.error('getApprovalList error:', error);
@@ -276,6 +281,17 @@ async function updateStatus(req, res) {
       } finally {
         if (connection) await connection.close();
       }
+    }
+
+    try {
+      await autoEmailService.enqueueRequirementEvent({
+        requirement,
+        eventType: 'status_updated',
+        actorName: req.user.name || req.user.username,
+        summary: `状态更新为：${status}`
+      });
+    } catch (emailError) {
+      console.error('queue status email error:', emailError.message);
     }
 
     res.json({ success: true, data: requirement, message: 'status updated' });

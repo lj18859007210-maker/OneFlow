@@ -1,5 +1,6 @@
 const commentModel = require('../models/comment');
 const notificationService = require('../utils/notificationService');
+const autoEmailService = require('../utils/autoEmailService');
 const db = require('../db/oracle');
 const oracledb = require('oracledb');
 
@@ -69,6 +70,17 @@ async function create(req, res) {
               comment
             );
           }
+        }
+
+        try {
+          await autoEmailService.enqueueRequirementEvent({
+            requirementId,
+            eventType: 'comment_created',
+            actorName: userName,
+            summary: normalizedContent || `上传了 ${normalizedAttachmentIds.length} 个评论附件`
+          });
+        } catch (emailError) {
+          console.error('queue comment email error:', emailError.message);
         }
       }
     } catch (e) {

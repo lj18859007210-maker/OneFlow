@@ -17,6 +17,10 @@
             <option value="">全部开发人员</option>
             <option v-for="dev in developers" :key="dev" :value="dev">{{ dev }}</option>
           </select>
+          <select v-model="selectedDevelopmentStatus" class="tech-filter-select">
+            <option value="">全部开发状态</option>
+            <option v-for="status in developmentStatusOptions" :key="status" :value="status">{{ status }}</option>
+          </select>
         </div>
       </div>
       <div class="tech-toolbar-right">
@@ -38,6 +42,20 @@
           回到今天
         </button>
         <div class="tech-export-actions">
+          <span class="tech-export-date-label">创建日期</span>
+          <input
+            v-model="exportCreatedAtStart"
+            class="tech-date-input"
+            type="date"
+            title="导出创建日期开始"
+          />
+          <span class="tech-date-separator">至</span>
+          <input
+            v-model="exportCreatedAtEnd"
+            class="tech-date-input"
+            type="date"
+            title="导出创建日期结束"
+          />
           <button
             class="tech-btn tech-btn-outline tech-btn-sm"
             :disabled="exportDisabled"
@@ -215,7 +233,11 @@
 import { ref, computed, onMounted, watch, watchEffect, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { requirementApi } from '../api'
-import { downloadGanttExport } from '../utils/ganttExport'
+import {
+  DEVELOPMENT_STATUS_OPTIONS,
+  downloadGanttExport,
+  getRequirementDevelopmentStatus
+} from '../utils/ganttExport'
 import { showToast } from '../utils/toastService'
 
 const router = useRouter()
@@ -228,6 +250,9 @@ const platforms = ref([])
 const selectedPlatform = ref('')
 const selectedStatus = ref('')
 const selectedDeveloper = ref('')
+const selectedDevelopmentStatus = ref('')
+const exportCreatedAtStart = ref('')
+const exportCreatedAtEnd = ref('')
 const viewMode = ref('month')
 const expandedGroups = ref({})
 const loading = ref(false)
@@ -242,6 +267,7 @@ const statusOptions = [
   '测试中',
   '已发布'
 ]
+const developmentStatusOptions = DEVELOPMENT_STATUS_OPTIONS
 
 // 时间配置
 const timePeriods = computed(() => {
@@ -314,6 +340,13 @@ const getActiveFilters = () => {
   return filters
 }
 
+const getExportFilters = () => ({
+  ...getActiveFilters(),
+  ...(selectedDevelopmentStatus.value ? { developmentStatus: selectedDevelopmentStatus.value } : {}),
+  ...(exportCreatedAtStart.value ? { createdAtStart: exportCreatedAtStart.value } : {}),
+  ...(exportCreatedAtEnd.value ? { createdAtEnd: exportCreatedAtEnd.value } : {})
+})
+
 const applyActiveFilters = (items) => {
   let filtered = Array.isArray(items) ? items : []
 
@@ -325,6 +358,9 @@ const applyActiveFilters = (items) => {
   }
   if (selectedDeveloper.value) {
     filtered = filtered.filter(r => r.developer === selectedDeveloper.value)
+  }
+  if (selectedDevelopmentStatus.value) {
+    filtered = filtered.filter(r => getRequirementDevelopmentStatus(r) === selectedDevelopmentStatus.value)
   }
 
   return filtered
@@ -426,12 +462,18 @@ const goToToday = () => {
 }
 
 const exportGantt = async (format) => {
-  const filters = getActiveFilters()
+  const requestFilters = getActiveFilters()
+  const exportFilters = getExportFilters()
+
+  if (exportCreatedAtStart.value && exportCreatedAtEnd.value && exportCreatedAtStart.value > exportCreatedAtEnd.value) {
+    showToast('创建日期开始不能晚于结束日期', { type: 'warning', title: '日期范围错误' })
+    return
+  }
 
   try {
     exporting.value = true
     const res = await requirementApi.getGanttData({
-      ...filters,
+      ...requestFilters,
       _exportAt: Date.now()
     })
     const latestRequirements = res.data?.success ? res.data.data || [] : []
@@ -440,7 +482,7 @@ const exportGantt = async (format) => {
     const result = downloadGanttExport(exportGroups, {
       format,
       viewMode: viewMode.value,
-      filters
+      filters: exportFilters
     })
 
     if (!result.success) {
@@ -507,7 +549,7 @@ onMounted(() => {
 })
 
 // 监听筛选条件变化
-watch([selectedPlatform, selectedStatus, selectedDeveloper], () => {
+watch([selectedPlatform, selectedStatus, selectedDeveloper, selectedDevelopmentStatus], () => {
   loadData()
 })
 
@@ -561,6 +603,8 @@ watchEffect(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
   margin-bottom: 24px;
   padding: 20px 24px;
   background: var(--tech-card);
@@ -572,6 +616,7 @@ watchEffect(() => {
   display: flex;
   align-items: center;
   gap: 24px;
+  flex-wrap: wrap;
 }
 
 .tech-toolbar-title {
@@ -587,19 +632,44 @@ watchEffect(() => {
 
 .tech-toolbar-filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
 .tech-toolbar-right {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
 .tech-export-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.tech-date-input {
+  height: 32px;
+  width: 138px;
+  padding: 0 8px;
+  border: 1px solid var(--tech-border);
+  border-radius: 6px;
+  background: var(--tech-card);
+  color: var(--tech-text);
+  font-size: 13px;
+}
+
+.tech-date-separator {
+  color: var(--tech-text-secondary);
+  font-size: 13px;
+}
+
+.tech-export-date-label {
+  color: var(--tech-text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .tech-view-toggle {

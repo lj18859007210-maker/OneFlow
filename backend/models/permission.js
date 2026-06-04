@@ -3,6 +3,10 @@ const oracledb = require('oracledb');
 const db = require('../db/oracle');
 const { normalizeRoleId } = require('../utils/roleAccess');
 
+function uniqueValues(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+
 async function getAll() {
   let connection;
   try {
@@ -41,7 +45,7 @@ async function getByRoleId(roleId) {
   try {
     connection = await db.getConnection();
     const result = await connection.execute(
-      `SELECT p.* FROM permissions p
+      `SELECT DISTINCT p.id, p.code, p.name, p.module, p.description FROM permissions p
        INNER JOIN role_permissions rp ON p.id = rp.permissionId
        WHERE rp.roleId = :roleId
        ORDER BY p.module, p.code`,
@@ -98,8 +102,9 @@ async function assignPermissions(roleId, permissionIds) {
     );
 
     // Insert the new permissions.
-    if (permissionIds && permissionIds.length > 0) {
-      for (const permId of permissionIds) {
+    const uniquePermissionIds = uniqueValues(permissionIds || []);
+    if (uniquePermissionIds.length > 0) {
+      for (const permId of uniquePermissionIds) {
         await connection.execute(
           `INSERT INTO role_permissions (id, roleId, permissionId) VALUES (:id, :roleId, :permissionId)`,
           { id: uuidv4(), roleId: normalizedRoleId, permissionId: permId }
@@ -133,5 +138,6 @@ module.exports = {
   checkPermission,
   assignPermissions,
   getModules,
-  normalizeRoleId
+  normalizeRoleId,
+  uniqueValues
 };

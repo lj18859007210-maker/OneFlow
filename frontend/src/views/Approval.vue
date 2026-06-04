@@ -1,70 +1,93 @@
 <template>
   <div class="approval">
     <div class="tech-tabs" style="margin-bottom:20px">
-      <button v-for="tab in tabs" :key="tab.value" class="tech-tab" :class="{ active: activeTab === tab.value }" @click="activeTab = tab.value">{{ tab.label }}</button>
+      <button v-for="tab in tabs" :key="tab.value" class="tech-tab" :class="{ active: activeTab === tab.value }" @click="switchTab(tab.value)">{{ tab.label }}</button>
     </div>
 
-    <div v-if="loading" class="tech-loading">
-      <div class="tech-loading-logo">
-        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" opacity="0.9"/>
-          <rect x="24" y="4" width="16" height="16" rx="3" fill="currentColor" opacity="0.6"/>
-          <rect x="4" y="24" width="16" height="16" rx="3" fill="currentColor" opacity="0.75"/>
-          <rect x="24" y="24" width="16" height="16" rx="3" fill="currentColor" opacity="0.45"/>
-        </svg>
+    <div class="approval-search">
+      <input
+        v-model.trim="searchKeyword"
+        type="search"
+        class="tech-input approval-search-input"
+        placeholder="提交人 / 项目名称"
+        @input="scheduleSearch"
+        @keyup.enter="applySearch"
+      />
+      <button class="tech-btn tech-btn-primary tech-btn-sm" @click="applySearch">搜索</button>
+      <button v-if="searchKeyword" class="tech-btn tech-btn-outline tech-btn-sm" @click="clearSearch">清空</button>
+    </div>
+
+    <div class="approval-list-region">
+      <div v-if="loading" class="tech-loading">
+        <div class="tech-loading-logo">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" opacity="0.9"/>
+            <rect x="24" y="4" width="16" height="16" rx="3" fill="currentColor" opacity="0.6"/>
+            <rect x="4" y="24" width="16" height="16" rx="3" fill="currentColor" opacity="0.75"/>
+            <rect x="24" y="24" width="16" height="16" rx="3" fill="currentColor" opacity="0.45"/>
+          </svg>
+        </div>
+        <div class="tech-loading-text">加载中...</div>
       </div>
-      <div class="tech-loading-text">加载中...</div>
-    </div>
 
-    <div v-else-if="filteredRequirements.length === 0" class="tech-empty">
-      <div class="tech-empty-icon">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
-          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-          <path d="M9 14l2 2 4-4"/>
-        </svg>
+      <div v-else-if="sortedRequirements.length === 0" class="tech-empty">
+        <div class="tech-empty-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+            <path d="M9 14l2 2 4-4"/>
+          </svg>
+        </div>
+        <div class="tech-empty-text">暂无{{ activeTab === 'pending' ? '待审批' : '' }}需求</div>
       </div>
-      <div class="tech-empty-text">暂无{{ activeTab === 'pending' ? '待审批' : '' }}需求</div>
-    </div>
 
-    <div v-else class="tech-approval-cards">
-      <div v-for="req in filteredRequirements" :key="req.id" class="tech-approval-card">
-        <div class="tech-approval-status">
-          <span class="tech-approval-title">{{ req.title }}</span>
-          <span class="tech-tag" :class="getApprovalClass(req.approvalStatus)">{{ getApprovalText(req.approvalStatus) }}</span>
-        </div>
-        <div style="font-size:13px;color:var(--tech-text-secondary);margin-bottom:12px">
-          提交人: {{ req.submitter }} · 开发人员: {{ req.developer }} · 优先级:
-          <span class="tech-tag" :class="getPriorityClass(req.priority)">{{ req.priority }}</span>
-        </div>
-        <div style="font-size:14px;color:var(--tech-text-secondary);line-height:1.6;margin-bottom:12px">{{ req.description }}</div>
-        <div v-if="req.approvalComment && req.approvalStatus !== 'pending'" style="font-size:13px;background:rgba(74,144,226,0.06);padding:8px 12px;border-radius:6px;color:var(--tech-text-secondary)">
-          审批意见: {{ req.approvalComment }}
-        </div>
+      <div v-else class="tech-approval-cards">
+        <div v-for="req in sortedRequirements" :key="req.id" class="tech-approval-card">
+          <div class="tech-approval-status">
+            <span class="tech-approval-title">{{ displayValue(req.title) }}</span>
+            <span class="tech-tag" :class="getApprovalClass(req.approvalStatus)">{{ getApprovalText(req.approvalStatus) }}</span>
+          </div>
+          <div style="font-size:13px;color:var(--tech-text-secondary);margin-bottom:12px">
+            提交人: {{ displayValue(req.submitter) }} · 开发人员: {{ displayValue(req.developer) }} · 优先级:
+            <span class="tech-tag" :class="getPriorityClass(req.priority)">{{ displayValue(req.priority) }}</span>
+          </div>
+          <div style="font-size:14px;color:var(--tech-text-secondary);line-height:1.6;margin-bottom:12px">{{ displayValue(req.description) }}</div>
+          <div v-if="req.approvalComment && req.approvalStatus !== 'pending'" style="font-size:13px;background:rgba(74,144,226,0.06);padding:8px 12px;border-radius:6px;color:var(--tech-text-secondary)">
+            审批意见: {{ req.approvalComment }}
+          </div>
 
-        <div v-if="req.approvalStatus === 'pending' && canApprove" class="tech-approval-actions">
-          <div style="flex:1;margin-right:0">
-            <div class="tech-form-group" style="margin-bottom:8px">
-              <textarea v-model="comments[req.id]" class="tech-textarea" style="min-height:60px" placeholder="请输入审批意见"></textarea>
-            </div>
-            <div style="display:flex;gap:12px">
-              <button @click="showDeadlineDialog(req.id)" class="tech-btn tech-btn-success tech-btn-sm">同意</button>
-              <button @click="showRejectDialog(req.id)" class="tech-btn tech-btn-danger tech-btn-sm">拒绝</button>
-              <span class="tech-link" @click="$router.push(`/detail/${req.id}`)" style="padding:6px 0;font-size:12px">查看详情</span>
+          <div v-if="req.approvalStatus === 'pending' && canApprove" class="tech-approval-actions">
+            <div style="flex:1;margin-right:0">
+              <div class="tech-form-group" style="margin-bottom:8px">
+                <textarea v-model="comments[req.id]" class="tech-textarea" style="min-height:60px" placeholder="请输入审批意见"></textarea>
+              </div>
+              <div style="display:flex;gap:12px">
+                <button @click="showDeadlineDialog(req.id)" class="tech-btn tech-btn-success tech-btn-sm">同意</button>
+                <button @click="showRejectDialog(req.id)" class="tech-btn tech-btn-danger tech-btn-sm">拒绝</button>
+                <span class="tech-link" @click="$router.push(`/detail/${req.id}`)" style="padding:6px 0;font-size:12px">查看详情</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div v-else-if="req.approvalStatus === 'pending'" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--tech-border);font-size:13px;color:var(--tech-text-secondary)">
-          当前账号没有审批权限，仅可查看列表。
-        </div>
+          <div v-else-if="req.approvalStatus === 'pending'" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--tech-border);font-size:13px;color:var(--tech-text-secondary)">
+            当前账号没有审批权限，仅可查看列表。
+          </div>
 
-        <div v-else style="margin-top:12px;padding-top:12px;border-top:1px solid var(--tech-border);display:flex;justify-content:space-between">
-          <span class="tech-link" @click="$router.push(`/detail/${req.id}`)" style="font-size:12px">查看详情</span>
-          <span class="tech-tag" :class="getStatusClass(req.status)">{{ req.status }}</span>
+          <div v-else style="margin-top:12px;padding-top:12px;border-top:1px solid var(--tech-border);display:flex;justify-content:space-between">
+            <span class="tech-link" @click="$router.push(`/detail/${req.id}`)" style="font-size:12px">查看详情</span>
+            <span class="tech-tag" :class="getStatusClass(req.status)">{{ req.status }}</span>
+          </div>
         </div>
       </div>
     </div>
+
+    <Pagination
+      v-if="total > 0"
+      :total="total"
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      @change="handlePageChange"
+    />
   </div>
 
   <div v-if="deadlineDialogVisible" class="tech-dialog-overlay" @click.self="closeDeadlineDialog">
@@ -123,6 +146,7 @@ import { ref, computed, onMounted, inject } from 'vue'
 import { useRoute } from 'vue-router'
 import { requirementApi, emailApi } from '../api'
 import { hasPermission } from '../utils/access'
+import Pagination from '../components/Pagination.vue'
 
 const requirements = ref([])
 const route = useRoute()
@@ -130,12 +154,18 @@ const currentUser = inject('currentUser', ref({ name: '未登录', role: 'user',
 const activeTab = ref('pending')
 const comments = ref({})
 const loading = ref(true)
+const searchKeyword = ref('')
+const total = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(10)
 const deadlineDialogVisible = ref(false)
 const currentRequirement = ref(null)
 const selectedActualDate = ref('')
 const pendingApproveId = ref(null)
 const rejectDialogVisible = ref(false)
 const pendingRejectId = ref(null)
+let searchTimer = null
+let latestRequestId = 0
 
 const tabs = [
   { label: '待审批', value: 'pending' },
@@ -146,20 +176,62 @@ const tabs = [
 
 const canApprove = computed(() => hasPermission(currentUser.value, 'requirement:approve'))
 
-const filteredRequirements = computed(() => {
+const sortedRequirements = computed(() => {
   const selectedId = String(route.query.id || '')
-  const scoped = activeTab.value === 'all'
-    ? requirements.value
-    : requirements.value.filter(r => r.approvalStatus === activeTab.value)
+  if (!selectedId) return requirements.value
 
-  if (!selectedId) return scoped
-
-  return [...scoped].sort((a, b) => {
+  return [...requirements.value].sort((a, b) => {
     if (String(a.id) === selectedId) return -1
     if (String(b.id) === selectedId) return 1
     return 0
   })
 })
+
+const displayValue = (value, fallback = '-') => {
+  if (value === undefined || value === null) return fallback
+  const normalized = String(value).trim()
+  return normalized || fallback
+}
+
+const normalizeRequirement = (req = {}) => ({
+  ...req,
+  title: req.title || '',
+  description: req.description || '',
+  submitter: req.submitter || '',
+  developer: req.developer || '',
+  priority: req.priority || '低',
+  approvalStatus: req.approvalStatus || 'pending',
+  status: req.status || ''
+})
+
+const switchTab = (tab) => {
+  if (activeTab.value === tab) return
+  activeTab.value = tab
+  currentPage.value = 1
+  loadRequirements(1)
+}
+
+const scheduleSearch = () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    applySearch()
+  }, 300)
+}
+
+const applySearch = () => {
+  currentPage.value = 1
+  loadRequirements(1)
+}
+
+const clearSearch = () => {
+  searchKeyword.value = ''
+  applySearch()
+}
+
+const handlePageChange = (page, size) => {
+  pageSize.value = size
+  loadRequirements(page)
+}
 
 const getApprovalClass = (status) => {
   const map = { 'approved': 'tech-tag-released', 'rejected': 'tech-tag-rejected', 'pending': 'tech-tag-pending' }
@@ -263,15 +335,29 @@ const showToast = (message) => {
   setTimeout(() => toast.remove(), 2200)
 }
 
-const loadRequirements = async () => {
+const loadRequirements = async (page = currentPage.value) => {
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+    searchTimer = null
+  }
+  const requestId = ++latestRequestId
   try {
     loading.value = true
-    const res = await requirementApi.getApprovalList(1, 50)
-    requirements.value = res.data.data
+    currentPage.value = page
+    const filters = {
+      approvalStatus: activeTab.value === 'all' ? '' : activeTab.value,
+      keyword: searchKeyword.value || ''
+    }
+    const res = await requirementApi.getApprovalList(page, pageSize.value, filters)
+    if (requestId !== latestRequestId) return
+    requirements.value = (res.data.data || []).map(normalizeRequirement)
+    total.value = res.data.total || 0
   } catch (error) {
     console.error('获取需求列表失败:', error)
   } finally {
-    loading.value = false
+    if (requestId === latestRequestId) {
+      loading.value = false
+    }
   }
 }
 
@@ -279,6 +365,32 @@ onMounted(loadRequirements)
 </script>
 
 <style scoped>
+.approval-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.approval-search-input {
+  max-width: 360px;
+}
+
+.approval-list-region {
+  margin-bottom: 14px;
+}
+
+.approval :deep(.tech-approval-card) {
+  min-height: 260px;
+  box-sizing: border-box;
+}
+
+.approval :deep(.tech-pagination) {
+  padding: 14px 24px;
+  border-top: 1px solid var(--tech-border);
+  background: rgba(232, 243, 255, 0.45);
+}
+
 .tech-loading {
   display: flex;
   flex-direction: column;
@@ -308,6 +420,32 @@ onMounted(loadRequirements)
   50% {
     opacity: 0.6;
     transform: scale(1.05);
+  }
+}
+
+@media (max-width: 640px) {
+  .approval-search {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .approval-search-input {
+    max-width: none;
+  }
+
+  .approval-list-region {
+    margin-bottom: 12px;
+  }
+
+  .approval :deep(.tech-approval-card) {
+    min-height: auto;
+  }
+
+  .approval :deep(.tech-pagination) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
   }
 }
 </style>

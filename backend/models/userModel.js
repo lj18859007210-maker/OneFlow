@@ -1,8 +1,57 @@
 const oracledb = require('oracledb');
 const db = require('../db/oracle');
 const bcrypt = require('bcryptjs');
-const { normalizeRoleName } = require('../utils/roleAccess');
+const { ROLE_ID_MAP, normalizeRoleName } = require('../utils/roleAccess');
 const { v4: uuidv4 } = require('uuid');
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+
+function toPositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function normalizePageOptions(options = {}) {
+  const page = toPositiveInteger(options.page, DEFAULT_PAGE);
+  const requestedPageSize = toPositiveInteger(options.pageSize, DEFAULT_PAGE_SIZE);
+  return {
+    page,
+    pageSize: Math.min(requestedPageSize, MAX_PAGE_SIZE)
+  };
+}
+
+function toSearchKeyword(value) {
+  if (value === undefined || value === null) return '';
+  return String(value).trim().toLowerCase();
+}
+
+function buildUserListFilters(filters = {}) {
+  const clauses = [];
+  const params = {};
+
+  const roleName = normalizeRoleName(filters.role);
+  if (roleName) {
+    params.role0 = roleName;
+    params.role1 = ROLE_ID_MAP[roleName];
+    clauses.push('role IN (:role0, :role1)');
+  }
+
+  const keyword = toSearchKeyword(filters.keyword);
+  if (keyword) {
+    params.keyword = `%${keyword}%`;
+    clauses.push('(LOWER(name) LIKE :keyword OR LOWER(username) LIKE :keyword OR LOWER(email) LIKE :keyword)');
+  }
+
+  return {
+    whereClause: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
+    params
+  };
+}
 
 module.exports = {
   async login(username, password) {
@@ -34,17 +83,36 @@ module.exports = {
     }
   },
 
-  async getAll() {
+  async getAll(options = {}) {
+    const { page, pageSize } = normalizePageOptions(options);
     const connection = await db.getConnection();
     try {
+      const { whereClause, params } = buildUserListFilters(options);
+      const offset = (page - 1) * pageSize;
       const result = await connection.execute(
         `SELECT id, username, name, email, role, status, createdAt, updatedAt
-         FROM users
-         ORDER BY createdAt DESC`,
-        {},
+         FROM (
+           SELECT id, username, name, email, role, status, createdAt, updatedAt,
+                  ROW_NUMBER() OVER (ORDER BY createdAt DESC) as rn
+           FROM users
+           ${whereClause}
+         )
+         WHERE rn > :offset AND rn <= :limit`,
+        { ...params, offset, limit: offset + pageSize },
         { outFormat: oracledb.OUT_FORMAT_OBJECT }
       );
-      return result.rows || [];
+
+      const totalResult = await connection.execute(
+        `SELECT COUNT(*) FROM users ${whereClause}`,
+        params
+      );
+
+      return {
+        data: result.rows || [],
+        total: Number(totalResult.rows?.[0]?.[0]) || 0,
+        page,
+        pageSize
+      };
     } finally {
       connection.close();
     }

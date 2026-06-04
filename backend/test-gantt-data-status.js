@@ -12,6 +12,8 @@ async function run() {
     async execute(sql, params) {
       executions.push({ sql, params });
       const selectsApprovalStatus = /\bapprovalStatus\b/i.test(sql);
+      const selectsPublishedAt = /\bpublishedAt\b/i.test(sql);
+      const selectsApprovedAt = /\bapprovedAt\b/i.test(sql);
 
       return {
         rows: [
@@ -28,6 +30,8 @@ async function run() {
             SCORE: 8,
             STATUS: '开发中',
             APPROVALSTATUS: selectsApprovalStatus ? 'approved' : undefined,
+            PUBLISHEDAT: selectsPublishedAt ? null : undefined,
+            APPROVEDAT: selectsApprovedAt ? '2026-06-01' : undefined,
             CREATEDAT: '2026-06-01',
             UPDATEDAT: '2026-06-02'
           },
@@ -44,6 +48,8 @@ async function run() {
             SCORE: 6,
             STATUS: '测试中',
             APPROVALSTATUS: selectsApprovalStatus ? 'pending' : undefined,
+            PUBLISHEDAT: selectsPublishedAt ? null : undefined,
+            APPROVEDAT: selectsApprovedAt ? '2026-06-02' : undefined,
             CREATEDAT: '2026-06-02',
             UPDATEDAT: '2026-06-03'
           }
@@ -60,8 +66,12 @@ async function run() {
 
     assert.strictEqual(executions.length, 1, 'admin gantt query should only execute the data query');
     assert.match(executions[0].sql, /\bapprovalStatus\b/i, 'gantt query should select approvalStatus for state parsing');
+    assert.match(executions[0].sql, /\bpublishedAt\b/i, 'gantt query should select publishedAt for export completion status');
+    assert.match(executions[0].sql, /\bapprovedAt\b/i, 'gantt query should select approvedAt for actual duration export');
     assert.strictEqual(result.data[0].status, '开发中', 'gantt data should preserve approved workflow status');
     assert.strictEqual(result.data[1].status, '测试中', 'gantt data should preserve raw progress status even for legacy approval state');
+    assert.strictEqual(result.data[0].approvedAt, '2026-06-01', 'gantt data should expose approval time');
+    assert.strictEqual(result.data[0].publishedAt, null, 'gantt data should expose publish time');
     assert.strictEqual(closed, true, 'database connection should be closed');
   } finally {
     db.getConnection = originalGetConnection;

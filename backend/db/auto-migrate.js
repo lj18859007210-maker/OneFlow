@@ -127,9 +127,25 @@ const TABLES = {
       status NVARCHAR2(20) DEFAULT 'pending',
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
+  ,
+  system_settings: `
+    CREATE TABLE system_settings (
+      id VARCHAR2(36) PRIMARY KEY,
+      settingKey NVARCHAR2(100) NOT NULL UNIQUE,
+      settingValue NVARCHAR2(500),
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`
 };
 
+function isIgnorableIndexError(error) {
+  const message = error && error.message ? error.message : '';
+  return message.includes('ORA-00955') || message.includes('ORA-00942') || message.includes('ORA-01408');
+}
+
 const INDEXES = [
+  'CREATE INDEX idx_users_createdAt ON users(createdAt)',
+  'CREATE INDEX idx_users_role_createdAt ON users(role, createdAt)',
   'CREATE INDEX idx_notifications_userId ON notifications(userId)',
   'CREATE INDEX idx_notifications_isRead ON notifications(isRead)',
   'CREATE INDEX idx_notifications_type ON notifications(type)',
@@ -153,7 +169,8 @@ const INDEXES = [
   'CREATE INDEX idx_requirement_attachment_versions_attachment_id ON requirement_attachment_versions(attachmentId)',
   'CREATE UNIQUE INDEX idx_requirement_attachment_versions_no ON requirement_attachment_versions(attachmentId, versionNo)',
   'CREATE INDEX idx_comment_attachments_comment_id ON comment_attachments(commentId)',
-  'CREATE INDEX idx_comment_attachments_requirement_id ON comment_attachments(requirementId)'
+  'CREATE INDEX idx_comment_attachments_requirement_id ON comment_attachments(requirementId)',
+  'CREATE INDEX idx_system_settings_key ON system_settings(settingKey)'
 ];
 
 const SEED_DATA = [
@@ -236,6 +253,34 @@ async function syncPermissions(connection) {
   );
 }
 
+async function dedupeRolePermissions(connection) {
+  await connection.execute(`
+    DELETE FROM role_permissions
+    WHERE ROWID IN (
+      SELECT duplicateRowId
+      FROM (
+        SELECT ROWID AS duplicateRowId,
+               ROW_NUMBER() OVER (
+                 PARTITION BY roleId, permissionId
+                 ORDER BY createdAt, id
+               ) AS rn
+        FROM role_permissions
+      )
+      WHERE rn > 1
+    )
+  `);
+}
+
+async function ensureRolePermissionsUniqueIndex(connection) {
+  try {
+    await connection.execute('CREATE UNIQUE INDEX idx_role_permissions_unique ON role_permissions(roleId, permissionId)');
+  } catch (error) {
+    if (!isIgnorableIndexError(error)) {
+      throw error;
+    }
+  }
+}
+
 async function ensureAdminPermissions(connection) {
   for (const permission of PERMISSIONS) {
     const existing = await connection.execute(
@@ -246,11 +291,17 @@ async function ensureAdminPermissions(connection) {
     if (existing.rows[0][0] > 0) {
       continue;
     }
-    await connection.execute(
-      `INSERT INTO role_permissions (id, roleId, permissionId)
-       VALUES (:id, 'role-admin', :permissionId)`,
-      { id: `rp-admin-${permission.id}`, permissionId: permission.id }
-    );
+    try {
+      await connection.execute(
+        `INSERT INTO role_permissions (id, roleId, permissionId)
+         VALUES (:id, 'role-admin', :permissionId)`,
+        { id: `rp-admin-${permission.id}`, permissionId: permission.id }
+      );
+    } catch (error) {
+      if (!error.message.includes('ORA-00001')) {
+        throw error;
+      }
+    }
   }
 }
 
@@ -268,11 +319,17 @@ async function ensureRoleDefaultPermissions(connection, roleName) {
       continue;
     }
 
-    await connection.execute(
-      `INSERT INTO role_permissions (id, roleId, permissionId)
-       VALUES (:id, :roleId, :permissionId)`,
-      { id: `rp-${roleName}-${permissionId}`, roleId, permissionId }
-    );
+    try {
+      await connection.execute(
+        `INSERT INTO role_permissions (id, roleId, permissionId)
+         VALUES (:id, :roleId, :permissionId)`,
+        { id: `rp-${roleName}-${permissionId}`, roleId, permissionId }
+      );
+    } catch (error) {
+      if (!error.message.includes('ORA-00001')) {
+        throw error;
+      }
+    }
   }
 }
 
@@ -404,6 +461,30 @@ async function ensureRequirementPublishedAt(connection) {
   }
 }
 
+async function ensureEmailSettings(connection) {
+  const defaults = [
+    ['email.send_interval_minutes', '10'],
+    ['email.smtp_host', 'smtp.cmcc.cn'],
+    ['email.smtp_port', '465'],
+    ['email.smtp_secure', 'true'],
+    ['email.smtp_user', 'noreply@cmcc.cn'],
+    ['email.smtp_password', ''],
+    ['email.from_email', 'noreply@cmcc.cn'],
+    ['email.from_name', 'OneFlow']
+  ];
+
+  for (const [settingKey, settingValue] of defaults) {
+    await connection.execute(
+      `MERGE INTO system_settings s
+       USING (SELECT :settingKey AS settingKey, :settingValue AS settingValue FROM dual) src
+       ON (s.settingKey = src.settingKey)
+       WHEN NOT MATCHED THEN INSERT (id, settingKey, settingValue, createdAt, updatedAt)
+         VALUES (SYS_GUID(), src.settingKey, src.settingValue, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      { settingKey, settingValue }
+    );
+  }
+}
+
 function roleDefaultPermissionIds(roleName) {
   const codes = ROLE_DEFAULT_PERMISSION_CODES[roleName] || [];
   return codes
@@ -438,7 +519,7 @@ async function initialize() {
       try {
         await connection.execute(idxSql);
       } catch (e) {
-        if (!e.message.includes('ORA-00955') && !e.message.includes('ORA-00942')) {
+        if (!isIgnorableIndexError(e)) {
           console.warn(`  ⚠ 索引创建警告: ${e.message.substring(0, 50)}`);
         }
       }
@@ -457,11 +538,15 @@ async function initialize() {
 
     // 同步权限目录，确保旧库里的权限码也会被升级到当前规范
     await syncPermissions(connection);
+    await dedupeRolePermissions(connection);
     await ensureAdminPermissions(connection);
     await ensureRoleDefaultPermissions(connection, 'user');
     await ensureRoleDefaultPermissions(connection, 'developer');
+    await dedupeRolePermissions(connection);
+    await ensureRolePermissionsUniqueIndex(connection);
     await ensureRequirementPostDevAvgTime(connection);
     await ensureRequirementPublishedAt(connection);
+    await ensureEmailSettings(connection);
     await ensureDeveloperUserMapping(connection);
     await ensureWorkflowSeed(connection);
 
@@ -474,4 +559,4 @@ async function initialize() {
   }
 }
 
-module.exports = { initialize };
+module.exports = { initialize, isIgnorableIndexError };

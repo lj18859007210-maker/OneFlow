@@ -250,6 +250,24 @@
           </span>
           <span>流程配置</span>
         </router-link>
+        <router-link v-if="hasPermission(currentUser, 'email:settings:manage')" to="/email-settings" class="tech-nav-item" active-class="active">
+          <span class="tech-nav-icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+          </span>
+          <span>邮件设置</span>
+        </router-link>
       </nav>
     </aside>
     <main class="tech-main">
@@ -403,6 +421,7 @@ const pageTitle = computed(() => {
     "/permissions": "权限管理",
     "/user-roles": "用户角色管理",
     "/workflow": "流程配置",
+    "/email-settings": "邮件设置",
   };
   if (route.path.startsWith("/detail")) return "需求详情";
   return map[route.path] || "需求管理平台";

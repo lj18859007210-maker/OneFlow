@@ -144,7 +144,41 @@ async function parseRows(rows) {
   return Promise.all(rows.map(parseRow));
 }
 
+async function parseApprovalRow(row) {
+  const [desc, approvalComment] = await Promise.all([
+    readLobContent(row.DESCRIPTION),
+    readLobContent(row.APPROVALCOMMENT)
+  ]);
+
+  const consistentState = getConsistentRequirementState({
+    status: row.STATUS,
+    approvalStatus: row.APPROVALSTATUS
+  });
+
+  return {
+    id: row.ID,
+    title: row.TITLE || '',
+    description: desc || '',
+    submitter: row.SUBMITTER || '',
+    developer: row.DEVELOPER || '',
+    expectedDate: row.EXPECTEDDATE,
+    actualDate: row.ACTUALDATE,
+    priority: row.PRIORITY || '低',
+    status: consistentState.status,
+    approvalStatus: consistentState.approvalStatus || 'pending',
+    approvalComment: approvalComment || '',
+    createdAt: row.CREATEDAT,
+    updatedAt: row.UPDATEDAT
+  };
+}
+
+async function parseApprovalRows(rows = []) {
+  return Promise.all(rows.map(parseApprovalRow));
+}
+
 function parseGanttRow(row) {
+  const status = row.STATUS;
+
   return {
     id: row.ID,
     title: row.TITLE,
@@ -155,10 +189,11 @@ function parseGanttRow(row) {
     expectedDate: row.EXPECTEDDATE,
     actualDate: row.ACTUALDATE,
     priority: row.PRIORITY,
-    score: resolveStoredRequirementScore(row, consistentState.status),
-    status: row.STATUS,
+    score: resolveStoredRequirementScore(row, status),
+    status,
     approvalStatus: row.APPROVALSTATUS,
     publishedAt: row.PUBLISHEDAT,
+    approvedAt: row.APPROVEDAT,
     createdAt: row.CREATEDAT,
     updatedAt: row.UPDATEDAT
   };
@@ -306,6 +341,42 @@ function getAuditResourceId(log = {}) {
 
 function getAuditCreatedAt(log = {}) {
   return toDate(log.createdAt || log.CREATEDAT);
+}
+
+function buildRequirementLifecycleTiming({ requirement = {}, auditLogs = [] } = {}) {
+  const logs = (auditLogs || [])
+    .filter((log) => getAuditCreatedAt(log))
+    .sort((a, b) => getAuditCreatedAt(a) - getAuditCreatedAt(b));
+
+  const approvalLog = logs.find((log) => {
+    const body = getAuditBody(log);
+    return getAuditAction(log) === 'approve' && body.approved === true;
+  });
+  const testingLog = logs.find((log) => {
+    const body = getAuditBody(log);
+    return getAuditAction(log) === 'update_status' && body.status === STATUS.IN_TEST;
+  });
+  const releaseLog = logs.find((log) => {
+    const body = getAuditBody(log);
+    return getAuditAction(log) === 'update_status' && body.status === STATUS.RELEASED;
+  });
+
+  const approvedAt = getAuditCreatedAt(approvalLog);
+  const testingAt = getAuditCreatedAt(testingLog);
+  const releasedAt = getAuditCreatedAt(releaseLog) ||
+    (requirement.status === STATUS.RELEASED ? toDate(requirement.publishedAt) || toDate(requirement.updatedAt) : null);
+
+  return {
+    approvedAt,
+    testingAt,
+    releasedAt,
+    preDevelopmentHours: approvedAt && testingAt && testingAt >= approvedAt
+      ? (testingAt - approvedAt) / (1000 * 60 * 60)
+      : null,
+    postDevelopmentHours: testingAt && releasedAt && releasedAt >= testingAt
+      ? (releasedAt - testingAt) / (1000 * 60 * 60)
+      : null
+  };
 }
 
 async function parseDashboardAuditRows(rows = []) {
@@ -589,6 +660,34 @@ function buildRequirementListFilters(filters = {}) {
   };
 }
 
+function buildApprovalListFilters(filters = {}) {
+  const clauses = ['WHERE isDraft = 0'];
+  const params = {};
+
+  if (filters.approvalStatus && filters.approvalStatus !== 'all') {
+    clauses.push('AND approvalStatus = :approvalStatus');
+    params.approvalStatus = filters.approvalStatus;
+  }
+
+  if (filters.developer) {
+    clauses.push('AND developer = :developer');
+    params.developer = filters.developer;
+  }
+
+  if (filters.keyword) {
+    clauses.push(`AND (
+      LOWER(title) LIKE :keyword ESCAPE '\\'
+      OR LOWER(submitter) LIKE :keyword ESCAPE '\\'
+    )`);
+    params.keyword = '%' + escapeLikeKeyword(filters.keyword) + '%';
+  }
+
+  return {
+    whereClause: clauses.join(' '),
+    params
+  };
+}
+
 function buildSummaryQueryParts(filters = {}) {
   return buildRequirementListFilters(filters);
 }
@@ -769,7 +868,31 @@ async function getById(id) {
     );
     if (result.rows.length === 0) return null;
     const [row] = await reconcileRequirementStates(connection, result.rows);
-    return await parseRow(row);
+    const requirement = await parseRow(row);
+    let auditLogs = [];
+
+    try {
+      const auditResult = await connection.execute(
+        `SELECT action, resourceId, details, createdAt
+         FROM audit_logs
+         WHERE "resource" = 'requirement'
+           AND resourceId = :id
+           AND action IN ('approve', 'update_status')
+         ORDER BY createdAt ASC`,
+        { id },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      auditLogs = await parseDashboardAuditRows(auditResult.rows || []);
+    } catch (error) {
+      if (!String(error?.message || '').includes('ORA-00942')) {
+        throw error;
+      }
+    }
+
+    return {
+      ...requirement,
+      lifecycleTiming: buildRequirementLifecycleTiming({ requirement, auditLogs })
+    };
   } finally {
     if (connection) await connection.close();
   }
@@ -1014,7 +1137,7 @@ async function score(id, score) {
   }
 }
 
-async function getApprovalList(userId, userRole, permissions = [], page = 1, pageSize = 50) {
+async function getApprovalList(userId, userRole, permissions = [], page = 1, pageSize = 50, filters = {}) {
   let connection;
   try {
     connection = await db.getConnection();
@@ -1024,33 +1147,45 @@ async function getApprovalList(userId, userRole, permissions = [], page = 1, pag
       return { data: [], total: 0, page, pageSize };
     }
 
-    if (scope.type === 'all') {
-      return await getAll(page, pageSize);
+    const normalizedFilters = {
+      approvalStatus: filters.approvalStatus,
+      keyword: filters.keyword
+    };
+
+    if (scope.type === 'assigned') {
+      const userResult = await connection.execute(
+        `SELECT name FROM users WHERE id = :userId`,
+        { userId },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      if (userResult.rows.length === 0) return { data: [], total: 0, page, pageSize };
+      normalizedFilters.developer = userResult.rows[0].NAME;
     }
 
-    const userResult = await connection.execute(
-      `SELECT name FROM users WHERE id = :userId`,
-      { userId },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
-    );
-    if (userResult.rows.length === 0) return { data: [], total: 0, page, pageSize };
-
-    const developerName = userResult.rows[0].NAME;
+    const { whereClause, params } = buildApprovalListFilters(normalizedFilters);
     const offset = (page - 1) * pageSize;
     const result = await connection.execute(
-      `SELECT * FROM (
-        SELECT r.*, ROW_NUMBER() OVER (ORDER BY CREATEDAT DESC) as rn
-        FROM requirements r
-        WHERE isDraft = 0 AND developer = :developerName
+      `SELECT id, title, description, submitter, developer, expectedDate, actualDate,
+              priority, status, approvalStatus, approvalComment, createdAt, updatedAt
+       FROM (
+        SELECT r.id, r.title, r.description, r.submitter, r.developer, r.expectedDate, r.actualDate,
+               r.priority, r.status, r.approvalStatus, r.approvalComment, r.createdAt, r.updatedAt,
+               ROW_NUMBER() OVER (ORDER BY r.CREATEDAT DESC) as rn
+        FROM (
+          SELECT id, title, description, submitter, developer, expectedDate, actualDate,
+                 priority, status, approvalStatus, approvalComment, createdAt, updatedAt
+          FROM requirements
+          ${whereClause}
+        ) r
       ) WHERE rn > :offset AND rn <= :limit`,
-      { developerName, offset, limit: offset + pageSize },
+      { ...params, offset, limit: offset + pageSize },
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
-    const data = await parseRows(result.rows);
+    const data = await parseApprovalRows(await reconcileRequirementStates(connection, result.rows));
 
     const totalResult = await connection.execute(
-      `SELECT COUNT(*) FROM requirements WHERE isDraft = 0 AND developer = :developerName`,
-      { developerName }
+      `SELECT COUNT(*) FROM requirements ${whereClause}`,
+      params
     );
     const total = totalResult.rows[0][0];
 
@@ -1097,7 +1232,14 @@ async function getGanttData(filters = {}) {
     
     const result = await connection.execute(
       `SELECT id, title, submitter, developer, platform, capability, 
-              expectedDate, actualDate, priority, score, status, approvalStatus,
+              expectedDate, actualDate, priority, score, status, approvalStatus, publishedAt,
+              (
+                SELECT MIN(a.createdAt)
+                FROM audit_logs a
+                WHERE a.resourceId = requirements.id
+                  AND a.action = 'approve'
+                  AND DBMS_LOB.INSTR(a.details, '"approved":true') > 0
+              ) AS approvedAt,
               createdAt, updatedAt
        FROM requirements
        ${whereClause}
@@ -1387,6 +1529,7 @@ module.exports = {
   getDashboardMetrics,
   getAIContext,
   buildDashboardMetrics,
+  buildRequirementLifecycleTiming,
   parseDashboardAuditRows,
   resolveApprovalListScope,
   getConsistentRequirementState,
@@ -1396,5 +1539,6 @@ module.exports = {
   STATUS_ORDER,
   getNextStatuses,
   buildRequirementListFilters,
+  buildApprovalListFilters,
   buildSummaryQueryParts
 };

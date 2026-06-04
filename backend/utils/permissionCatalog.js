@@ -21,7 +21,8 @@ const PERMISSIONS = [
   { id: 'perm-020', code: 'attachment:download', name: '下载附件', module: 'attachment', description: '下载正式附件和评论附件' },
   { id: 'perm-021', code: 'attachment:delete', name: '删除附件', module: 'attachment', description: '删除正式附件或附件版本' },
   { id: 'perm-022', code: 'attachment:version:manage', name: '管理附件版本', module: 'attachment', description: '上传新版本并管理正式附件版本' },
-  { id: 'perm-023', code: 'attachment:promote', name: '归档评论附件', module: 'attachment', description: '将评论附件加入正式附件中心' }
+  { id: 'perm-023', code: 'attachment:promote', name: '归档评论附件', module: 'attachment', description: '将评论附件加入正式附件中心' },
+  { id: 'perm-024', code: 'email:settings:manage', name: '邮件设置管理', module: 'email', description: '配置自动邮件汇总发送间隔' }
 ];
 
 const ROLE_DEFAULT_PERMISSION_CODES = {

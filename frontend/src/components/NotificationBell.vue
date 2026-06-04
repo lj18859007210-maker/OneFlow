@@ -117,6 +117,7 @@ const loadNotifications = async (append = false) => {
       notifications.value = res.data.data
     }
     total.value = res.data.total
+    await loadUnreadCount()
   } catch (error) {
     console.error('加载通知失败:', error)
   } finally {
@@ -133,7 +134,7 @@ const loadUnreadCount = async () => {
 
   try {
     const res = await notificationApi.getUnreadCount()
-    unreadCount.value = res.data.count
+    unreadCount.value = Number(res.data?.data?.count ?? 0)
   } catch (error) {
     console.error('获取未读数量失败:', error)
   }
@@ -168,9 +169,13 @@ const handleNotificationClick = async (notif) => {
 
 const handleDelete = async (id) => {
   try {
+    const deletedNotification = notifications.value.find(n => n.id === id)
     await notificationApi.remove(id)
     notifications.value = notifications.value.filter(n => n.id !== id)
     total.value--
+    if (deletedNotification && !deletedNotification.isRead) {
+      unreadCount.value = Math.max(0, unreadCount.value - 1)
+    }
   } catch (error) {
     console.error('删除通知失败:', error)
   }
@@ -240,8 +245,9 @@ onBeforeUnmount(() => {
   color: var(--tech-blue);
 }
 
-.bell-icon.has-unread {
-  color: var(--tech-blue);
+.bell-icon.has-unread,
+.bell-icon.has-unread:hover {
+  color: #ef4444;
 }
 
 .bell-icon svg {

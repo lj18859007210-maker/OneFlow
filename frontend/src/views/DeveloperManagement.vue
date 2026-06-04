@@ -64,8 +64,9 @@
               </span>
             </td>
             <td>
-              <button v-if="canUpdateDeveloper" class="btn-action" @click="openDialog(dev)">编辑</button>
-              <button v-if="canDeleteDeveloper" class="btn-action btn-danger" @click="handleDelete(dev.id)">删除</button>
+              <button v-if="canManageDeveloperProfile(dev) && canUpdateDeveloper" class="btn-action" @click="openDialog(dev)">编辑</button>
+              <button v-if="canManageDeveloperProfile(dev) && canDeleteDeveloper" class="btn-action btn-danger" @click="handleDelete(dev.id)">删除</button>
+              <span v-if="!canManageDeveloperProfile(dev)" class="action-muted">角色管理维护</span>
             </td>
           </tr>
         </tbody>
@@ -159,6 +160,13 @@ const getLoadPercent = (dev) => {
   return Math.round((dev.currentLoad / dev.maxLoad) * 100)
 }
 
+const getLoadStat = (dev) => ({
+  ...dev,
+  loadPercent: getLoadPercent(dev)
+})
+
+const canManageDeveloperProfile = (dev) => dev.role !== 'admin' && dev.role !== 'role-admin'
+
 const getLoadClass = (percent) => {
   if (percent >= 80) return 'load-high'
   if (percent >= 50) return 'load-medium'
@@ -224,15 +232,12 @@ const handleDelete = async (id) => {
 
 const loadData = async () => {
   try {
-    const [devRes, statsRes, deptRes] = await Promise.all([
-      developerApi.getAll(),
-      developerApi.getLoadStats(),
-      developerApi.getDepartments()
-    ])
-    
-    developers.value = devRes.data.data
-    loadStats.value = statsRes.data.data
-    departments.value = deptRes.data.data
+    const devRes = await developerApi.getAssignable()
+    const list = devRes.data.data || []
+
+    developers.value = list
+    loadStats.value = list.map(getLoadStat).sort((a, b) => b.loadPercent - a.loadPercent)
+    departments.value = [...new Set(list.map(item => item.department).filter(Boolean))].sort()
   } catch (error) {
     console.error('加载数据失败:', error)
   }
@@ -421,6 +426,11 @@ onMounted(() => {
 .btn-danger:hover {
   background: #ef4444;
   color: #fff;
+}
+
+.action-muted {
+  font-size: 12px;
+  color: var(--tech-text-secondary);
 }
 
 .modal-overlay {

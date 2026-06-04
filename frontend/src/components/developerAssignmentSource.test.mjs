@@ -16,7 +16,8 @@ const formFiles = [
   resolve(__dirname, 'RequirementForm.vue'),
   resolve(__dirname, 'RequirementDialog.vue'),
   resolve(__dirname, '../views/Submit.vue'),
-  resolve(__dirname, '../views/Home.vue')
+  resolve(__dirname, '../views/Home.vue'),
+  resolve(__dirname, '../views/DeveloperManagement.vue')
 ];
 
 for (const file of formFiles) {

@@ -14,6 +14,8 @@ CREATE TABLE users (
 -- 创建索引
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_status ON users(status);
+CREATE INDEX idx_users_createdAt ON users(createdAt);
+CREATE INDEX idx_users_role_createdAt ON users(role, createdAt);
 
 -- 创建触发器，自动更新 updatedAt
 CREATE OR REPLACE TRIGGER trg_users_update

@@ -9,7 +9,9 @@ async function run() {
     assert.strictEqual(roleId, 'role-admin');
     return [
       { code: 'permission:manage' },
-      { code: 'developer:view' }
+      { code: 'developer:view' },
+      { code: 'developer:view' },
+      { code: 'permission:manage' }
     ];
   };
 

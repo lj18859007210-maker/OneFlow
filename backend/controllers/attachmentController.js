@@ -2,6 +2,7 @@ const fs = require('fs');
 const attachmentModel = require('../models/attachment');
 const { getAttachmentActions } = require('../utils/attachmentPolicy');
 const { resolveStoragePath, toStoredFileInfo } = require('../utils/attachmentStorage');
+const autoEmailService = require('../utils/autoEmailService');
 
 function hasPermission(user, permission) {
   return user?.role === 'admin'
@@ -86,6 +87,16 @@ async function uploadFormal(req, res) {
       createdBy: req.user?.id || req.user?.username || 'unknown',
       file: toStoredFileInfo('formal', req.file)
     });
+    try {
+      await autoEmailService.enqueueRequirementEvent({
+        requirementId: req.params.requirementId,
+        eventType: 'attachment_uploaded',
+        actorName: req.user?.name || req.user?.username,
+        summary: `上传附件：${attachment.originalName || req.file.originalname}`
+      });
+    } catch (emailError) {
+      console.error('queue formal attachment email error:', emailError.message);
+    }
     res.status(201).json({
       success: true,
       data: serializeAttachmentForUser(attachment, req.user?.permissions || [])
@@ -110,6 +121,16 @@ async function uploadComment(req, res) {
       createdBy: req.user?.id || req.user?.username || 'unknown',
       files: req.files.map(file => toStoredFileInfo('comment', file))
     });
+    try {
+      await autoEmailService.enqueueRequirementEvent({
+        requirementId: req.body.requirementId,
+        eventType: 'attachment_uploaded',
+        actorName: req.user?.name || req.user?.username,
+        summary: `上传评论附件：${attachments.map(item => item.originalName).join('、')}`
+      });
+    } catch (emailError) {
+      console.error('queue comment attachment email error:', emailError.message);
+    }
     res.status(201).json({ success: true, data: attachments });
   } catch (error) {
     console.error('upload comment attachment error:', error);
@@ -130,6 +151,16 @@ async function addVersion(req, res) {
     });
     if (!attachment) {
       return res.status(404).json({ success: false, message: 'attachment not found' });
+    }
+    try {
+      await autoEmailService.enqueueRequirementEvent({
+        requirementId: attachment.requirementId,
+        eventType: 'attachment_uploaded',
+        actorName: req.user?.name || req.user?.username,
+        summary: `上传附件新版本：${attachment.originalName || req.file.originalname}`
+      });
+    } catch (emailError) {
+      console.error('queue attachment version email error:', emailError.message);
     }
     res.json({
       success: true,
@@ -155,6 +186,16 @@ async function promoteCommentAttachment(req, res) {
     });
     if (!attachment) {
       return res.status(404).json({ success: false, message: 'comment attachment not found' });
+    }
+    try {
+      await autoEmailService.enqueueRequirementEvent({
+        requirementId,
+        eventType: 'attachment_uploaded',
+        actorName: req.user?.name || req.user?.username,
+        summary: `归档评论附件：${attachment.originalName}`
+      });
+    } catch (emailError) {
+      console.error('queue promoted attachment email error:', emailError.message);
     }
     res.status(201).json({
       success: true,

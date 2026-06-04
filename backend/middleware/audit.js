@@ -6,7 +6,7 @@ function auditMiddleware(action, resource) {
     const originalJson = res.json.bind(res);
     
     // 重写 res.json 以捕获响应
-    res.json = function(body) {
+    res.json = async function(body) {
       // 记录审计日志
       const logData = {
         userId: req.user?.id || null,
@@ -32,10 +32,11 @@ function auditMiddleware(action, resource) {
         status: body?.success !== false ? 'success' : 'failed'
       };
       
-      // 异步记录，不阻塞响应
-      auditLogModel.create(logData).catch(err => {
+      try {
+        await auditLogModel.create(logData);
+      } catch (err) {
         console.error('审计日志记录失败:', err.message);
-      });
+      }
       
       // 调用原始 res.json
       return originalJson(body);

@@ -36,7 +36,7 @@ export const requirementApi = {
     const hasFilters = Object.values(filters).some(value => value !== '' && value !== null && value !== undefined)
     return api.get('/requirements', { params: { page, pageSize, ...filters, ...(hasFilters ? { _t: Date.now() } : {}) } })
   },
-  getApprovalList: (page, pageSize) => api.get('/requirements/approval-list', { params: { page, pageSize } }),
+  getApprovalList: (page, pageSize, filters = {}) => api.get('/requirements/approval-list', { params: { page, pageSize, ...filters } }),
   getBySubmitter: (submitter, page, pageSize) => api.get('/requirements/my', { params: { submitter, page, pageSize } }),
   getDrafts: (submitter) => api.get('/requirements/drafts', { params: { submitter } }),
   getLatestDraft: (submitter) => api.get('/requirements/drafts/latest', { params: { submitter } }),
@@ -52,7 +52,9 @@ export const requirementApi = {
 }
 
 export const emailApi = {
-  send: (data) => api.post('/email/send', data)
+  send: (data) => api.post('/email/send', data),
+  getSettings: () => api.get('/email/settings'),
+  updateSettings: (data) => api.put('/email/settings', data)
 }
 
 export const developerApi = {
@@ -96,7 +98,7 @@ export const permissionApi = {
 }
 
 export const userApi = {
-  getAll: () => api.get('/users'),
+  getAll: (params = {}) => api.get('/users', { params: { ...params, _t: Date.now() } }),
   updateRole: (id, role) => api.put(`/users/${id}/role`, { role })
 }
 

@@ -21,43 +21,61 @@
               </div>
               <div class="view-info-item">
                 <label>开发人员</label>
-                <span>{{ data.developer || '-' }}</span>
+                <span>{{ data.developer || "-" }}</span>
               </div>
               <div class="view-info-item">
                 <label>对应平台</label>
-                <span>{{ data.platform || '-' }}</span>
+                <span>{{ data.platform || "-" }}</span>
               </div>
               <div class="view-info-item">
                 <label>能力</label>
-                <span>{{ data.capability || '-' }}</span>
+                <span>{{ data.capability || "-" }}</span>
               </div>
               <div class="view-info-item">
                 <label>期望日期</label>
-                <span>{{ data.expectedDate ? formatDate(data.expectedDate) : '未设置' }}</span>
+                <span>{{
+                  data.expectedDate ? formatDate(data.expectedDate) : "未设置"
+                }}</span>
               </div>
               <div class="view-info-item">
                 <label>实际时限</label>
-                <span>{{ data.actualDate ? formatDate(data.actualDate) : '审批同意后设置' }}</span>
+                <span>{{
+                  data.actualDate
+                    ? formatDate(data.actualDate)
+                    : "审批同意后设置"
+                }}</span>
               </div>
               <div class="view-info-item">
                 <label>开发前平均用时/次</label>
-                <span>{{ data.avgDevTime || '-' }}</span>
+                <span>{{ data.avgDevTime || "-" }}</span>
               </div>
               <div class="view-info-item">
-                <label>平均每月调用量/次</label>
-                <span>{{ data.avgMonthlyCalls || '-' }}</span>
+                <label>平均预计每月调用量/次</label>
+                <span>{{ data.avgMonthlyCalls || "-" }}</span>
               </div>
               <div class="view-info-item">
                 <label>开发后预计平均用时/次</label>
-                <span>{{ data.postDevAvgTime || '-' }}</span>
+                <span>{{ data.postDevAvgTime || "-" }}</span>
               </div>
               <div class="view-info-item">
                 <label>优先级</label>
-                <span><span class="tech-tag" :class="getPriorityClass(data.priority)">{{ data.priority || '-' }}</span></span>
+                <span
+                  ><span
+                    class="tech-tag"
+                    :class="getPriorityClass(data.priority)"
+                    >{{ data.priority || "-" }}</span
+                  ></span
+                >
               </div>
               <div class="view-info-item full-width">
                 <label>状态</label>
-                <span><span class="tech-tag" :class="getStatusClass(data.status)">{{ data.status }}</span></span>
+                <span
+                  ><span
+                    class="tech-tag"
+                    :class="getStatusClass(data.status)"
+                    >{{ data.status }}</span
+                  ></span
+                >
               </div>
             </div>
           </div>
@@ -65,10 +83,18 @@
             <div class="tech-detail-title">需求描述</div>
             <div class="view-description">{{ data.description }}</div>
           </div>
-          <div class="tech-detail-card" v-if="data.noteImages && data.noteImages.length">
+          <div
+            class="tech-detail-card"
+            v-if="data.noteImages && data.noteImages.length"
+          >
             <div class="tech-detail-title">备注图片</div>
             <div class="view-images">
-              <img v-for="(img, idx) in data.noteImages" :key="idx" :src="img.url" :alt="img.name" />
+              <img
+                v-for="(img, idx) in data.noteImages"
+                :key="idx"
+                :src="img.url"
+                :alt="img.name"
+              />
             </div>
           </div>
         </div>
@@ -80,8 +106,15 @@
             <form class="tech-form">
               <div class="tech-form-row">
                 <div class="tech-form-group">
-                  <label class="tech-form-label">需求标题<span class="required">*</span></label>
-                  <input v-model="editForm.title" class="tech-input" placeholder="请输入需求标题" required />
+                  <label class="tech-form-label"
+                    >需求标题<span class="required">*</span></label
+                  >
+                  <input
+                    v-model="editForm.title"
+                    class="tech-input"
+                    placeholder="请输入需求标题"
+                    required
+                  />
                 </div>
                 <div class="tech-form-group">
                   <label class="tech-form-label">提交人</label>
@@ -90,10 +123,18 @@
               </div>
               <div class="tech-form-row">
                 <div class="tech-form-group">
-                  <label class="tech-form-label">选择开发人员<span class="required">*</span></label>
-                  <select v-model="editForm.developer" class="tech-select" required>
+                  <label class="tech-form-label"
+                    >选择开发人员<span class="required">*</span></label
+                  >
+                  <select
+                    v-model="editForm.developer"
+                    class="tech-select"
+                    required
+                  >
                     <option value="">请选择开发人员</option>
-                    <option v-for="d in developers" :key="d.id" :value="d.name">{{ d.name }} · {{ d.department }}</option>
+                    <option v-for="d in developers" :key="d.id" :value="d.name">
+                      {{ d.name }} · {{ d.department }}
+                    </option>
                   </select>
                 </div>
                 <div class="tech-form-group">
@@ -121,23 +162,40 @@
                 </div>
                 <div class="tech-form-group">
                   <label class="tech-form-label">期望日期</label>
-                  <input v-model="editForm.expectedDate" type="date" class="tech-input" />
+                  <input
+                    v-model="editForm.expectedDate"
+                    type="date"
+                    class="tech-input"
+                  />
                 </div>
               </div>
               <div class="tech-form-row">
                 <div class="tech-form-group">
                   <label class="tech-form-label">开发前平均用时/次</label>
-                  <input v-model="editForm.avgDevTime" class="tech-input" placeholder="例：3 天" />
+                  <input
+                    v-model="editForm.avgDevTime"
+                    class="tech-input"
+                    placeholder="例：3 天"
+                  />
                 </div>
                 <div class="tech-form-group">
-                  <label class="tech-form-label">平均每月调用量/次</label>
-                  <input v-model="editForm.avgMonthlyCalls" class="tech-input" type="number" placeholder="例：500" />
+                  <label class="tech-form-label">平均预计每月调用量/次</label>
+                  <input
+                    v-model="editForm.avgMonthlyCalls"
+                    class="tech-input"
+                    type="number"
+                    placeholder="例：500"
+                  />
                 </div>
               </div>
               <div class="tech-form-row">
                 <div class="tech-form-group">
                   <label class="tech-form-label">开发后预计平均用时/次</label>
-                  <input v-model="editForm.postDevAvgTime" class="tech-input" placeholder="例：1 天" />
+                  <input
+                    v-model="editForm.postDevAvgTime"
+                    class="tech-input"
+                    placeholder="例：1 天"
+                  />
                 </div>
                 <div class="tech-form-group">
                   <label class="tech-form-label">优先级</label>
@@ -158,39 +216,114 @@
               <button class="reset-btn" @click="resetAll">重置所有内容</button>
             </div>
             <div class="gate-progress">
-              <div v-for="(s, i) in steps" :key="i" class="gate-step-bar" :class="{ active: s.state === 'active', done: s.state === 'done' }">
+              <div
+                v-for="(s, i) in steps"
+                :key="i"
+                class="gate-step-bar"
+                :class="{
+                  active: s.state === 'active',
+                  done: s.state === 'done',
+                }"
+              >
                 <div class="gate-step-fill"></div>
               </div>
             </div>
             <div class="gate-cards">
-              <div v-for="(s, i) in steps" :key="i" class="gate-card" :class="[s.state, { open: openStep === i }]">
+              <div
+                v-for="(s, i) in steps"
+                :key="i"
+                class="gate-card"
+                :class="[s.state, { open: openStep === i }]"
+              >
                 <div class="gate-card-head" @click="toggleStep(i)">
-                  <span class="gate-card-num">{{ s.state === "done" ? "✓" : i + 1 }}</span>
+                  <span class="gate-card-num">{{
+                    s.state === "done" ? "✓" : i + 1
+                  }}</span>
                   <span class="gate-card-label">{{ s.label }}</span>
-                  <span v-if="s.state === 'locked'" class="gate-card-lock">🔒</span>
-                  <button v-if="s.state !== 'locked' && s.answer.trim()" class="gate-skip-btn" :class="{ disabled: gateLoading || s.state === 'done' }" :disabled="gateLoading || s.state === 'done'" @click.stop="skipStep(i)" title="跳过 AI 检查，直接下一步">跳过 AI →</button>
+                  <span v-if="s.state === 'locked'" class="gate-card-lock"
+                    >🔒</span
+                  >
+                  <button
+                    v-if="s.state !== 'locked' && s.answer.trim()"
+                    class="gate-skip-btn"
+                    :class="{ disabled: gateLoading || s.state === 'done' }"
+                    :disabled="gateLoading || s.state === 'done'"
+                    @click.stop="skipStep(i)"
+                    title="跳过 AI 检查，直接下一步"
+                  >
+                    跳过 AI →
+                  </button>
                 </div>
-                <div v-if="s.state === 'done' && openStep !== i" class="gate-card-done" @click="toggleStep(i)">
+                <div
+                  v-if="s.state === 'done' && openStep !== i"
+                  class="gate-card-done"
+                  @click="toggleStep(i)"
+                >
                   <div class="gate-card-done-inner">
                     <p>{{ s.answer }}</p>
-                    <div v-if="s.images && s.images.length" class="gate-card-done-imgs">
-                      <img v-for="(img, idx) in s.images" :key="idx" :src="img.url" :alt="img.name" />
+                    <div
+                      v-if="s.images && s.images.length"
+                      class="gate-card-done-imgs"
+                    >
+                      <img
+                        v-for="(img, idx) in s.images"
+                        :key="idx"
+                        :src="img.url"
+                        :alt="img.name"
+                      />
                     </div>
                   </div>
                   <span class="gate-card-edit">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path
+                        d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                      />
+                      <path
+                        d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                      />
+                    </svg>
                     修改
                   </span>
                 </div>
-                <div v-if="openStep === i && s.state !== 'locked'" class="gate-card-body">
-                  <textarea v-model="s.answer" class="tech-textarea" :placeholder="s.placeholder" rows="3" @keydown.enter.ctrl="checkStep(i)"></textarea>
+                <div
+                  v-if="openStep === i && s.state !== 'locked'"
+                  class="gate-card-body"
+                >
+                  <textarea
+                    v-model="s.answer"
+                    class="tech-textarea"
+                    :placeholder="s.placeholder"
+                    rows="3"
+                    @keydown.enter.ctrl="checkStep(i)"
+                  ></textarea>
                   <div v-if="s.type === 'note'" class="note-images">
-                    <div v-for="(img, idx) in s.images" :key="idx" class="note-img">
+                    <div
+                      v-for="(img, idx) in s.images"
+                      :key="idx"
+                      class="note-img"
+                    >
                       <img :src="img.url" :alt="img.name" />
-                      <button class="note-img-del" @click="removeImage(i, idx)">×</button>
+                      <button class="note-img-del" @click="removeImage(i, idx)">
+                        ×
+                      </button>
                     </div>
                     <label class="note-img-upload" v-if="s.images.length < 5">
-                      <input type="file" accept="image/*" multiple hidden @change="uploadImages(i, $event)" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        hidden
+                        @change="uploadImages(i, $event)"
+                      />
                       <span>+</span>
                     </label>
                   </div>
@@ -200,14 +333,29 @@
                   </div>
                   <div class="gate-card-actions">
                     <span class="gate-hint">Ctrl+Enter 提交</span>
-                    <button v-if="s.type !== 'note'" class="tech-btn tech-btn-primary tech-btn-sm gate-next-btn" @click="checkStep(i)" :disabled="gateLoading || !s.answer.trim()">
+                    <button
+                      v-if="s.type !== 'note'"
+                      class="tech-btn tech-btn-primary tech-btn-sm gate-next-btn"
+                      @click="checkStep(i)"
+                      :disabled="gateLoading || !s.answer.trim()"
+                    >
                       <span v-if="gateLoading" class="gate-spinner"></span>
                       {{ gateLoading ? "AI 思考中..." : "下一步 →" }}
                     </button>
-                    <button v-else class="tech-btn tech-btn-primary tech-btn-sm gate-next-btn" @click="completeNote(i)">完成 ✓</button>
+                    <button
+                      v-else
+                      class="tech-btn tech-btn-primary tech-btn-sm gate-next-btn"
+                      @click="completeNote(i)"
+                    >
+                      完成 ✓
+                    </button>
                   </div>
                 </div>
-                <div v-if="s.state === 'active' && openStep !== i" class="gate-card-pending" @click="toggleStep(i)">
+                <div
+                  v-if="s.state === 'active' && openStep !== i"
+                  class="gate-card-pending"
+                  @click="toggleStep(i)"
+                >
                   <p>点击填写 →</p>
                 </div>
                 <div v-if="s.state === 'locked'" class="gate-card-locked">
@@ -217,17 +365,33 @@
             </div>
             <div v-if="completedSteps === steps.length" class="gate-final">
               <div class="tech-form-group">
-                <label class="tech-form-label">需求描述预览（AI 正在结构化整理...）</label>
-                <textarea v-model="editForm.description" class="tech-textarea" readonly rows="10"></textarea>
+                <label class="tech-form-label"
+                  >需求描述预览（AI 正在结构化整理...）</label
+                >
+                <textarea
+                  v-model="editForm.description"
+                  class="tech-textarea"
+                  readonly
+                  rows="10"
+                ></textarea>
               </div>
             </div>
           </div>
           <div class="modal-footer">
             <button class="tech-btn" @click="close">取消</button>
-            <button class="tech-btn tech-btn-primary" @click="saveEdit" :disabled="saving">
+            <button
+              class="tech-btn tech-btn-primary"
+              @click="saveEdit"
+              :disabled="saving"
+            >
               {{ saving ? "保存中..." : "保存修改" }}
             </button>
-            <button v-if="completedSteps === steps.length" class="tech-btn tech-btn-success" @click="submitRequirement" :disabled="saving">
+            <button
+              v-if="completedSteps === steps.length"
+              class="tech-btn tech-btn-success"
+              @click="submitRequirement"
+              :disabled="saving"
+            >
               {{ saving ? "提交中..." : "提交需求" }}
             </button>
           </div>
@@ -238,133 +402,172 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { requirementApi, developerApi } from '../api'
+import { ref, computed, onMounted, watch } from "vue";
+import { requirementApi, developerApi } from "../api";
 
 const props = defineProps({
-  mode: { type: String, default: 'view' },
+  mode: { type: String, default: "view" },
   data: { type: Object, required: true },
-  title: { type: String, default: '需求详情' }
-})
+  title: { type: String, default: "需求详情" },
+});
 
-const emit = defineEmits(['close', 'success'])
+const emit = defineEmits(["close", "success"]);
 
-const developers = ref([])
-const gateLoading = ref(false)
-const saving = ref(false)
-const openStep = ref(-1)
+const developers = ref([]);
+const gateLoading = ref(false);
+const saving = ref(false);
+const openStep = ref(-1);
 
 const editForm = ref({
-  title: '',
-  developer: '',
-  platform: '',
-  capability: '',
-  expectedDate: '',
-  avgDevTime: '',
-  postDevAvgTime: '',
-  avgMonthlyCalls: '',
-  priority: '中',
-  description: ''
-})
+  title: "",
+  developer: "",
+  platform: "",
+  capability: "",
+  expectedDate: "",
+  avgDevTime: "",
+  postDevAvgTime: "",
+  avgMonthlyCalls: "",
+  priority: "中",
+  description: "",
+});
 
-const steps = ref([])
+const steps = ref([]);
 const defaultSteps = [
-  { label: "这个需求要解决什么问题？", placeholder: "请具体描述业务痛点，比如「客户投诉工单分派慢，客服需要手动从 3 个系统里查数据，每次耗时 5 分钟」", answer: "", nudge: "", state: "active" },
-  { label: "目标用户是谁？使用场景是什么？", placeholder: "哪些部门、角色在什么情况下会使用？比如「一线客服在处理投诉时需要、分公司运营每月做报表时需要」", answer: "", nudge: "", state: "locked" },
-  { label: "期望实现哪些核心功能？", placeholder: "列出 1-3 个核心功能点，具体到操作层面，比如「支持按投诉类型自动分派给对应部门，超时 1 小时自动升级至主管」", answer: "", nudge: "", state: "locked" },
-  { label: "目前的替代方案是什么？", placeholder: "现在没有这个功能时，你们是怎么凑合解决的？比如「只能先把数据导出 Excel 手工算，每天浪费 2 小时」或者「目前没有替代方案，只能等」", answer: "", nudge: "", state: "locked" },
-  { label: "备注", placeholder: "如有补充说明、参考截图请在此填写", answer: "", nudge: "", state: "locked", type: "note", images: [] }
-]
+  {
+    label: "这个需求要解决什么问题？",
+    placeholder:
+      "请具体描述业务痛点，比如「客户投诉工单分派慢，客服需要手动从 3 个系统里查数据，每次耗时 5 分钟」",
+    answer: "",
+    nudge: "",
+    state: "active",
+  },
+  {
+    label: "目标用户是谁？使用场景是什么？",
+    placeholder:
+      "哪些部门、角色在什么情况下会使用？比如「一线客服在处理投诉时需要、分公司运营每月做报表时需要」",
+    answer: "",
+    nudge: "",
+    state: "locked",
+  },
+  {
+    label: "期望实现哪些核心功能？",
+    placeholder:
+      "列出 1-3 个核心功能点，具体到操作层面，比如「支持按投诉类型自动分派给对应部门，超时 1 小时自动升级至主管」",
+    answer: "",
+    nudge: "",
+    state: "locked",
+  },
+  {
+    label: "目前的替代方案是什么？",
+    placeholder:
+      "现在没有这个功能时，你们是怎么凑合解决的？比如「只能先把数据导出 Excel 手工算，每天浪费 2 小时」或者「目前没有替代方案，只能等」",
+    answer: "",
+    nudge: "",
+    state: "locked",
+  },
+  {
+    label: "备注",
+    placeholder: "如有补充说明、参考截图请在此填写",
+    answer: "",
+    nudge: "",
+    state: "locked",
+    type: "note",
+    images: [],
+  },
+];
 
-const completedSteps = computed(() => steps.value.filter(s => s.state === 'done').length)
+const completedSteps = computed(
+  () => steps.value.filter((s) => s.state === "done").length,
+);
 
 function initEditForm() {
-  const d = props.data
+  const d = props.data;
   editForm.value = {
-    title: d.title || '',
-    developer: d.developer || '',
-    platform: d.platform || '',
-    capability: d.capability || '',
-    expectedDate: d.expectedDate || '',
-    avgDevTime: d.avgDevTime || '',
-    postDevAvgTime: d.postDevAvgTime || '',
-    avgMonthlyCalls: d.avgMonthlyCalls || '',
-    priority: d.priority || '中',
-    description: d.description || ''
-  }
+    title: d.title || "",
+    developer: d.developer || "",
+    platform: d.platform || "",
+    capability: d.capability || "",
+    expectedDate: d.expectedDate || "",
+    avgDevTime: d.avgDevTime || "",
+    postDevAvgTime: d.postDevAvgTime || "",
+    avgMonthlyCalls: d.avgMonthlyCalls || "",
+    priority: d.priority || "中",
+    description: d.description || "",
+  };
   if (d.steps && d.steps.length) {
-    steps.value = d.steps.map(s => ({
+    steps.value = d.steps.map((s) => ({
       label: s.label,
-      placeholder: defaultSteps.find(ds => ds.label === s.label)?.placeholder || '',
-      answer: s.answer || '',
-      nudge: s.nudge || '',
-      state: s.state || 'locked',
+      placeholder:
+        defaultSteps.find((ds) => ds.label === s.label)?.placeholder || "",
+      answer: s.answer || "",
+      nudge: s.nudge || "",
+      state: s.state || "locked",
       images: s.images || [],
-      type: s.type
-    }))
+      type: s.type,
+    }));
   } else {
-    steps.value = JSON.parse(JSON.stringify(defaultSteps))
-    steps.value[0].state = 'active'
+    steps.value = JSON.parse(JSON.stringify(defaultSteps));
+    steps.value[0].state = "active";
   }
-  const firstActive = steps.value.findIndex(s => s.state === 'active')
-  openStep.value = firstActive !== -1 ? firstActive : -1
+  const firstActive = steps.value.findIndex((s) => s.state === "active");
+  openStep.value = firstActive !== -1 ? firstActive : -1;
 }
 
 function toggleStep(i) {
-  if (steps.value[i].state === 'locked') return
-  openStep.value = openStep.value === i ? -1 : i
+  if (steps.value[i].state === "locked") return;
+  openStep.value = openStep.value === i ? -1 : i;
 }
 
 function skipStep(i) {
-  const step = steps.value[i]
-  if (!step.answer.trim()) return
-  step.state = 'done'
-  step.nudge = ''
-  openStep.value = -1
-  if (i + 1 < steps.value.length && steps.value[i + 1].state === 'locked') {
-    steps.value[i + 1].state = 'active'
-    openStep.value = i + 1
+  const step = steps.value[i];
+  if (!step.answer.trim()) return;
+  step.state = "done";
+  step.nudge = "";
+  openStep.value = -1;
+  if (i + 1 < steps.value.length && steps.value[i + 1].state === "locked") {
+    steps.value[i + 1].state = "active";
+    openStep.value = i + 1;
   }
-  if (completedSteps.value >= steps.value.length) finalSummary()
+  if (completedSteps.value >= steps.value.length) finalSummary();
 }
 
 function resetAll() {
-  if (!confirm('确定要重置所有内容吗？')) return
-  editForm.value.description = ''
-  steps.value = JSON.parse(JSON.stringify(defaultSteps))
-  steps.value[0].state = 'active'
-  openStep.value = 0
-  showToast('已重置所有内容')
+  if (!confirm("确定要重置所有内容吗？")) return;
+  editForm.value.description = "";
+  steps.value = JSON.parse(JSON.stringify(defaultSteps));
+  steps.value[0].state = "active";
+  openStep.value = 0;
+  showToast("已重置所有内容");
 }
 
 async function completeNote(i) {
-  const step = steps.value[i]
-  step.state = 'done'
-  step.nudge = ''
-  openStep.value = -1
-  if (i + 1 < steps.value.length && steps.value[i + 1].state === 'locked') {
-    steps.value[i + 1].state = 'active'
-    openStep.value = i + 1
+  const step = steps.value[i];
+  step.state = "done";
+  step.nudge = "";
+  openStep.value = -1;
+  if (i + 1 < steps.value.length && steps.value[i + 1].state === "locked") {
+    steps.value[i + 1].state = "active";
+    openStep.value = i + 1;
   }
-  if (completedSteps.value >= steps.value.length) await finalSummary()
+  if (completedSteps.value >= steps.value.length) await finalSummary();
 }
 
 async function checkStep(i) {
-  const step = steps.value[i]
-  if (!step.answer.trim()) return
-  if (step.state === 'done') {
-    step.state = 'done'
-    step.nudge = ''
-    openStep.value = -1
-    if (i + 1 < steps.value.length && steps.value[i + 1].state === 'locked') {
-      steps.value[i + 1].state = 'active'
-      openStep.value = i + 1
+  const step = steps.value[i];
+  if (!step.answer.trim()) return;
+  if (step.state === "done") {
+    step.state = "done";
+    step.nudge = "";
+    openStep.value = -1;
+    if (i + 1 < steps.value.length && steps.value[i + 1].state === "locked") {
+      steps.value[i + 1].state = "active";
+      openStep.value = i + 1;
     }
-    if (completedSteps.value >= steps.value.length) await finalSummary()
-    return
+    if (completedSteps.value >= steps.value.length) await finalSummary();
+    return;
   }
-  gateLoading.value = true
-  step.nudge = ''
+  gateLoading.value = true;
+  step.nudge = "";
   try {
     const qualityCheckPrompt = `你是一个耐心、专业的产品经理。用户正在填写需求表单的第${i + 1}个环节「${step.label}」，ta 的回答如下：
 
@@ -374,67 +577,69 @@ async function checkStep(i) {
 - 如果回答太简短（少于 15 个字）、太情绪化（如"太卡了""不好看""很难用"）、没有具体场景或细节 → 返回 JSON: {"pass":false,"nudge":"你给出的启发式追问，要结合用户上下文，语气友好"}
 - 如果回答够具体、包含实质内容（场景/痛点/数据） → 返回 JSON: {"pass":true,"nudge":""}
 
-只返回 JSON，不要其他内容。`
-    const res = await fetch('/api/ai/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: qualityCheckPrompt })
-    })
-    const json = await res.json()
-    if (!json.success) throw new Error(json.message)
-    const result = JSON.parse(json.data)
+只返回 JSON，不要其他内容。`;
+    const res = await fetch("/api/ai/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: qualityCheckPrompt }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message);
+    const result = JSON.parse(json.data);
     if (result.pass) {
-      step.state = 'done'
-      step.nudge = ''
-      openStep.value = -1
-      if (i + 1 < steps.value.length && steps.value[i + 1].state === 'locked') {
-        steps.value[i + 1].state = 'active'
-        openStep.value = i + 1
+      step.state = "done";
+      step.nudge = "";
+      openStep.value = -1;
+      if (i + 1 < steps.value.length && steps.value[i + 1].state === "locked") {
+        steps.value[i + 1].state = "active";
+        openStep.value = i + 1;
       }
-      if (completedSteps.value >= steps.value.length) await finalSummary()
+      if (completedSteps.value >= steps.value.length) await finalSummary();
     } else {
-      step.nudge = result.nudge
+      step.nudge = result.nudge;
     }
   } catch (e) {
-    step.state = 'done'
-    step.nudge = ''
-    openStep.value = -1
-    if (i + 1 < steps.value.length && steps.value[i + 1].state === 'locked') {
-      steps.value[i + 1].state = 'active'
-      openStep.value = i + 1
+    step.state = "done";
+    step.nudge = "";
+    openStep.value = -1;
+    if (i + 1 < steps.value.length && steps.value[i + 1].state === "locked") {
+      steps.value[i + 1].state = "active";
+      openStep.value = i + 1;
     }
-    if (completedSteps.value >= steps.value.length) await finalSummary()
+    if (completedSteps.value >= steps.value.length) await finalSummary();
   } finally {
-    gateLoading.value = false
+    gateLoading.value = false;
   }
 }
 
 async function uploadImages(si, e) {
-  const files = e.target.files
-  if (!files.length) return
-  const step = steps.value[si]
-  const formData = new FormData()
-  for (const f of files) formData.append('files', f)
+  const files = e.target.files;
+  if (!files.length) return;
+  const step = steps.value[si];
+  const formData = new FormData();
+  for (const f of files) formData.append("files", f);
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: formData })
-    const json = await res.json()
-    if (!json.success) throw new Error(json.message)
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message);
     json.data.forEach((url, idx) => {
-      step.images.push({ name: files[idx].name, url: url })
-    })
+      step.images.push({ name: files[idx].name, url: url });
+    });
   } catch (err) {
-    showToast('图片上传失败：' + err.message)
+    showToast("图片上传失败：" + err.message);
   }
-  e.target.value = ''
+  e.target.value = "";
 }
 
 function removeImage(si, idx) {
-  steps.value[si].images.splice(idx, 1)
+  steps.value[si].images.splice(idx, 1);
 }
 
 async function finalSummary() {
   try {
-    const qa = steps.value.map((s, i) => `Q${i + 1}: ${s.label}\nA: ${s.answer}`).join('\n\n')
+    const qa = steps.value
+      .map((s, i) => `Q${i + 1}: ${s.label}\nA: ${s.answer}`)
+      .join("\n\n");
     const prompt = `你是中国移动需求分析专家。请将以下需求问答整理成一份标准需求文档，格式如下：
 
 【需求背景】
@@ -452,132 +657,144 @@ async function finalSummary() {
 需求问答：
 ${qa}
 
-请直接输出需求文档，不要多余说明。`
-    const noteStep = steps.value.find(s => s.type === 'note')
-    const noteText = noteStep && noteStep.answer ? `\n\n【补充备注】\n${noteStep.answer}` : ''
-    const imgInfo = noteStep && noteStep.images && noteStep.images.length ? `\n\n【附带图片】\n${noteStep.images.map(img => img.url).join('\n')}` : ''
-    const res = await fetch('/api/ai/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt + noteText + imgInfo })
-    })
-    const json = await res.json()
-    if (!json.success) throw new Error(json.message)
-    editForm.value.description = json.data
+请直接输出需求文档，不要多余说明。`;
+    const noteStep = steps.value.find((s) => s.type === "note");
+    const noteText =
+      noteStep && noteStep.answer ? `\n\n【补充备注】\n${noteStep.answer}` : "";
+    const imgInfo =
+      noteStep && noteStep.images && noteStep.images.length
+        ? `\n\n【附带图片】\n${noteStep.images.map((img) => img.url).join("\n")}`
+        : "";
+    const res = await fetch("/api/ai/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: prompt + noteText + imgInfo }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message);
+    editForm.value.description = json.data;
   } catch (e) {
-    editForm.value.description = steps.value.map(s => s.answer).join('\n\n')
+    editForm.value.description = steps.value.map((s) => s.answer).join("\n\n");
   }
 }
 
 async function saveEdit() {
   if (!editForm.value.title || !editForm.value.developer) {
-    showToast('请填写需求标题和选择开发人员')
-    return
+    showToast("请填写需求标题和选择开发人员");
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
-    const noteStep = steps.value.find(s => s.type === 'note')
-    const noteImages = (noteStep && noteStep.images) || []
+    const noteStep = steps.value.find((s) => s.type === "note");
+    const noteImages = (noteStep && noteStep.images) || [];
     await requirementApi.update(props.data.id, {
       ...editForm.value,
-      steps: steps.value.map(s => ({
+      steps: steps.value.map((s) => ({
         label: s.label,
         answer: s.answer,
         state: s.state,
         nudge: s.nudge,
         images: s.images || [],
-        type: s.type
+        type: s.type,
       })),
-      noteImages
-    })
-    showToast('保存成功')
-    emit('success')
+      noteImages,
+    });
+    showToast("保存成功");
+    emit("success");
   } catch (e) {
-    showToast('保存失败：' + (e.response?.data?.message || e.message))
+    showToast("保存失败：" + (e.response?.data?.message || e.message));
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 async function submitRequirement() {
   if (!editForm.value.title || !editForm.value.developer) {
-    showToast('请填写需求标题和选择开发人员')
-    return
+    showToast("请填写需求标题和选择开发人员");
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
-    const noteStep = steps.value.find(s => s.type === 'note')
-    const noteImages = (noteStep && noteStep.images) || []
+    const noteStep = steps.value.find((s) => s.type === "note");
+    const noteImages = (noteStep && noteStep.images) || [];
     await requirementApi.update(props.data.id, {
       ...editForm.value,
-      status: '待审批',
-      steps: steps.value.map(s => ({
+      status: "待审批",
+      steps: steps.value.map((s) => ({
         label: s.label,
         answer: s.answer,
         state: s.state,
         nudge: s.nudge,
         images: s.images || [],
-        type: s.type
+        type: s.type,
       })),
-      noteImages
-    })
-    showToast('需求已提交')
-    emit('success')
+      noteImages,
+    });
+    showToast("需求已提交");
+    emit("success");
   } catch (e) {
-    showToast('提交失败：' + (e.response?.data?.message || e.message))
+    showToast("提交失败：" + (e.response?.data?.message || e.message));
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 function close() {
-  emit('close')
+  emit("close");
 }
 
 function showToast(msg) {
-  const t = document.createElement('div')
-  t.className = 'tech-toast'
-  t.textContent = msg
-  document.body.appendChild(t)
-  setTimeout(() => t.remove(), 2200)
+  const t = document.createElement("div");
+  t.className = "tech-toast";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
 }
 
 function getPriorityClass(priority) {
-  const map = { '高': 'tech-tag-high', '中': 'tech-tag-medium', '低': 'tech-tag-low' }
-  return map[priority] || ''
+  const map = {
+    高: "tech-tag-high",
+    中: "tech-tag-medium",
+    低: "tech-tag-low",
+  };
+  return map[priority] || "";
 }
 
 function formatDate(date) {
-  if (!date) return ''
-  const d = new Date(date)
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}年${month}月${day}日`
+  if (!date) return "";
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}年${month}月${day}日`;
 }
 
 function getStatusClass(status) {
   const map = {
-    '待审批': 'tech-tag-pending',
-    '待评审': 'tech-tag-pending',
-    '待开发': 'tech-tag-dev',
-    '开发中': 'tech-tag-dev',
-    '测试中': 'tech-tag-testing',
-    '已发布': 'tech-tag-released'
-  }
-  return map[status] || ''
+    待审批: "tech-tag-pending",
+    待评审: "tech-tag-pending",
+    待开发: "tech-tag-dev",
+    开发中: "tech-tag-dev",
+    测试中: "tech-tag-testing",
+    已发布: "tech-tag-released",
+  };
+  return map[status] || "";
 }
 
-watch(() => props.data, () => {
-  if (props.mode === 'edit') initEditForm()
-}, { immediate: true })
+watch(
+  () => props.data,
+  () => {
+    if (props.mode === "edit") initEditForm();
+  },
+  { immediate: true },
+);
 
 onMounted(async () => {
   try {
-    const r = await developerApi.getAssignable()
-    developers.value = r.data.data
+    const r = await developerApi.getAssignable();
+    developers.value = r.data.data;
   } catch (e) {}
-})
+});
 </script>
 
 <style scoped>
@@ -1045,7 +1262,9 @@ onMounted(async () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .gate-final {
