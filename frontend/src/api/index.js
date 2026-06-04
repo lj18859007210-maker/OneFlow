@@ -27,8 +27,10 @@ api.interceptors.response.use(
 
 export const authApi = {
   getPublicKey: () => api.get('/auth/public-key'),
-  login: (username, encryptedPassword) => api.post('/auth/login', { username, encryptedPassword }),
-  me: () => api.get('/auth/me')
+  getCaptcha: () => api.get('/auth/captcha', { params: { _t: Date.now() } }),
+  login: (username, encryptedPassword, captchaId, captchaCode) => api.post('/auth/login', { username, encryptedPassword, captchaId, captchaCode }),
+  me: () => api.get('/auth/me'),
+  updateEmail: (email) => api.put('/auth/me/email', { email })
 }
 
 export const requirementApi = {
@@ -55,6 +57,11 @@ export const emailApi = {
   send: (data) => api.post('/email/send', data),
   getSettings: () => api.get('/email/settings'),
   updateSettings: (data) => api.put('/email/settings', data)
+}
+
+export const platformApi = {
+  getAll: () => api.get('/platforms'),
+  updateAll: (platforms) => api.put('/platforms', { platforms })
 }
 
 export const developerApi = {

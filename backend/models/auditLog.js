@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const oracledb = require('oracledb');
 const db = require('../db/oracle');
 const logger = require('../utils/logger');
+const { enrichAuditLog, getActionLabel } = require('../utils/auditLogPresenter');
 
 async function readLobContent(lob) {
   if (!lob) return null;
@@ -24,7 +25,8 @@ async function create(data) {
       { id, userId: data.userId || null, userName: data.userName || 'anonymous', userRole: data.userRole || null, action: data.action, res: data.resource || null, resourceId: data.resourceId || null, details: data.details ? JSON.stringify(data.details) : null, ipAddress: data.ipAddress || null, userAgent: data.userAgent || null, status: data.status || 'success' }
     );
     await connection.commit();
-    logger.audit(`${data.userName} 执行 ${data.action}`, { action: data.action, resource: data.resource, userId: data.userId, status: data.status });
+    const enrichedLog = enrichAuditLog(data);
+    logger.audit(enrichedLog.summary, { action: data.action, resource: data.resource, userId: data.userId, status: data.status });
     return { id, ...data };
   } catch (e) {
     if (e.message && e.message.includes('ORA-00942')) { console.warn('audit_logs table not found, skipping'); return null; }
@@ -49,7 +51,10 @@ async function getList(filters = {}) {
     const offset = (page - 1) * pageSize;
     const result = await connection.execute(`SELECT * FROM (SELECT a.*, ROW_NUMBER() OVER (ORDER BY createdAt DESC) as rn FROM audit_logs a ${whereClause}) WHERE rn > :offset AND rn <= :limit`, { ...params, offset, limit: offset + pageSize }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
     const logs = [];
-    for (const row of result.rows) { const details = await readLobContent(row.DETAILS); logs.push({ id: row.ID, userId: row.USERID, userName: row.USERNAME, userRole: row.USERROLE, action: row.ACTION, resource: row.RESOURCE, resourceId: row.RESOURCEID, details: details ? JSON.parse(details) : null, ipAddress: row.IPADDRESS, userAgent: row.USERAGENT, status: row.STATUS, createdAt: row.CREATEDAT }); }
+    for (const row of result.rows) {
+      const details = await readLobContent(row.DETAILS);
+      logs.push(enrichAuditLog({ id: row.ID, userId: row.USERID, userName: row.USERNAME, userRole: row.USERROLE, action: row.ACTION, resource: row.RESOURCE, resourceId: row.RESOURCEID, details: details ? JSON.parse(details) : null, ipAddress: row.IPADDRESS, userAgent: row.USERAGENT, status: row.STATUS, createdAt: row.CREATEDAT }));
+    }
     const totalResult = await connection.execute(`SELECT COUNT(*) FROM audit_logs a ${whereClause}`, params);
     return { data: logs, total: totalResult.rows[0][0], page, pageSize };
   } catch (e) {
@@ -63,7 +68,7 @@ async function getActions() {
   try {
     connection = await db.getConnection();
     const result = await connection.execute(`SELECT DISTINCT action FROM audit_logs ORDER BY action`);
-    return result.rows.map(row => row[0]);
+    return result.rows.map(row => ({ value: row[0], label: getActionLabel(row[0]) }));
   } catch (e) {
     if (e.message && e.message.includes('ORA-00942')) { return []; }
     throw e;

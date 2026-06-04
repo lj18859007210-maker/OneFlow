@@ -13,6 +13,26 @@ const requiredFields = [
 
 const normalizeText = (value) => String(value ?? "").trim();
 
+export function normalizeDeveloperNames(value) {
+  const values = Array.isArray(value) ? value : [value];
+  const names = [];
+
+  values.forEach((item) => {
+    if (item === undefined || item === null) return;
+    String(item)
+      .split(/[,;，；]+/)
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .forEach((name) => {
+        if (!names.includes(name)) {
+          names.push(name);
+        }
+      });
+  });
+
+  return names;
+}
+
 export function isDecimalNumberText(value) {
   return /^\d+(?:\.\d+)?$/.test(normalizeText(value));
 }
@@ -72,7 +92,12 @@ export function allowIntegerNumberInput(event) {
 
 export function validateRequirementForm(form = {}) {
   const missing = requiredFields
-    .filter((field) => !normalizeText(form[field.key]))
+    .filter((field) => {
+      if (field.key === "developer") {
+        return normalizeDeveloperNames(form.developer).length === 0;
+      }
+      return !normalizeText(form[field.key]);
+    })
     .map((field) => field.label);
 
   if (missing.length) {

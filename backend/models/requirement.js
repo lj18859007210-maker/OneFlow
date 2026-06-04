@@ -591,6 +591,39 @@ function escapeLikeKeyword(value) {
   return String(value).trim().toLowerCase().replace(/[\\%_]/g, (match) => '\\' + match);
 }
 
+function normalizeDeveloperNames(value) {
+  const values = Array.isArray(value) ? value : [value];
+  const names = [];
+
+  values.forEach((item) => {
+    if (item === undefined || item === null) return;
+    String(item)
+      .split(/[,;，；]+/)
+      .map(name => name.trim())
+      .filter(Boolean)
+      .forEach((name) => {
+        if (!names.includes(name)) {
+          names.push(name);
+        }
+      });
+  });
+
+  return names;
+}
+
+function serializeDeveloperNames(value) {
+  return normalizeDeveloperNames(value).join(', ');
+}
+
+function appendDeveloperFilter(clauses, params, developer, paramKey = 'developerPattern') {
+  const [developerName] = normalizeDeveloperNames(developer);
+  if (!developerName) return;
+  clauses.push(`AND (',' || REPLACE(developer, ' ', '') || ',') LIKE :${paramKey}`);
+  params[paramKey] = `%,${
+    developerName.replace(/\s+/g, '')
+  },%`;
+}
+
 function buildRequirementListFilters(filters = {}) {
   const clauses = ['WHERE isDraft = 0'];
   const params = {};
@@ -603,10 +636,7 @@ function buildRequirementListFilters(filters = {}) {
     clauses.push('AND platform = :platform');
     params.platform = filters.platform;
   }
-  if (filters.developer) {
-    clauses.push('AND developer = :developer');
-    params.developer = filters.developer;
-  }
+  appendDeveloperFilter(clauses, params, filters.developer);
   if (filters.keyword) {
     clauses.push(`AND (
       LOWER(title) LIKE :keyword ESCAPE '\\'
@@ -669,10 +699,7 @@ function buildApprovalListFilters(filters = {}) {
     params.approvalStatus = filters.approvalStatus;
   }
 
-  if (filters.developer) {
-    clauses.push('AND developer = :developer');
-    params.developer = filters.developer;
-  }
+  appendDeveloperFilter(clauses, params, filters.developer);
 
   if (filters.keyword) {
     clauses.push(`AND (
@@ -903,6 +930,7 @@ async function create(data) {
   try {
     connection = await db.getConnection();
     const id = uuidv4();
+    const developer = serializeDeveloperNames(data.developer);
     
     await connection.execute(
       `INSERT INTO requirements (
@@ -921,7 +949,7 @@ async function create(data) {
         title: data.title,
         description: data.description || null,
         submitter: data.submitter,
-        developer: data.developer,
+        developer,
         platform: data.platform,
         capability: data.capability,
         expectedDate: data.expectedDate ? (data.expectedDate instanceof Date ? data.expectedDate : new Date(data.expectedDate)) : null,
@@ -967,6 +995,7 @@ async function update(id, data) {
     const ccEmails = data.ccEmails !== undefined ? JSON.stringify(data.ccEmails) : await readLobContent(row.CCEMAILS);
     const steps = data.steps !== undefined ? JSON.stringify(data.steps) : await readLobContent(row.STEPS);
     const noteImages = data.noteImages !== undefined ? JSON.stringify(data.noteImages) : await readLobContent(row.NOTEIMAGES);
+    const developer = data.developer !== undefined ? serializeDeveloperNames(data.developer) : null;
     
     await connection.execute(
       `UPDATE requirements SET 
@@ -997,7 +1026,7 @@ async function update(id, data) {
         title: data.title || null,
         description: data.description || null,
         submitter: data.submitter || null,
-        developer: data.developer || null,
+        developer,
         platform: data.platform || null,
         capability: data.capability || null,
         avgDevTime: data.avgDevTime || null,
@@ -1211,9 +1240,9 @@ async function getGanttData(filters = {}) {
       );
       if (userResult.rows.length > 0) {
         const userName = userResult.rows[0].NAME;
-        whereClause += ' AND (submitter = :submitter OR developer = :developer)';
+        whereClause += ` AND (submitter = :submitter OR (',' || REPLACE(developer, ' ', '') || ',') LIKE :developerPattern)`;
         params.submitter = userName;
-        params.developer = userName;
+        params.developerPattern = `%,${String(userName || '').replace(/\s+/g, '')},%`;
       }
     }
     
@@ -1226,8 +1255,11 @@ async function getGanttData(filters = {}) {
       params.status = filters.status;
     }
     if (filters.developer) {
-      whereClause += ' AND developer = :developer';
-      params.developer = filters.developer;
+      const [developerName] = normalizeDeveloperNames(filters.developer);
+      if (developerName) {
+        whereClause += ` AND (',' || REPLACE(developer, ' ', '') || ',') LIKE :filterDeveloperPattern`;
+        params.filterDeveloperPattern = `%,${developerName.replace(/\s+/g, '')},%`;
+      }
     }
     
     const result = await connection.execute(
@@ -1533,6 +1565,8 @@ module.exports = {
   parseDashboardAuditRows,
   resolveApprovalListScope,
   getConsistentRequirementState,
+  normalizeDeveloperNames,
+  serializeDeveloperNames,
   resolveStoredRequirementScore,
   resolveRequirementScore,
   STATUS,

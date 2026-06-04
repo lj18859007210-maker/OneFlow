@@ -144,7 +144,7 @@
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
 import { useRoute } from 'vue-router'
-import { requirementApi, emailApi } from '../api'
+import { requirementApi } from '../api'
 import { hasPermission } from '../utils/access'
 import Pagination from '../components/Pagination.vue'
 
@@ -310,16 +310,9 @@ const handleApprove = async (id, approved) => {
     const comment = comments.value[id] || (approved ? '同意开发' : '需要修改')
     const actualDate = approved ? selectedActualDate.value : null
     
-    const res = await requirementApi.approve(id, approved, comment, actualDate)
+    await requirementApi.approve(id, approved, comment, actualDate)
 
-    emailApi.send({
-      to: 'submitter@cmcc.cn',
-      cc: res.data.data.ccEmails || [],
-      subject: `需求审批${approved ? '通过' : '拒绝'}: ${res.data.data.title}`,
-      body: `您的需求 "${res.data.data.title}" 已${approved ? '通过审批' : '被拒绝'}。\n审批意见: ${comment}`
-    }).catch(() => {})
-
-    showToast(approved ? '审批通过，邮件发送中' : '审批拒绝，邮件发送中')
+    showToast(approved ? '审批通过' : '审批拒绝')
     closeDeadlineDialog()
     await loadRequirements()
   } catch (error) {

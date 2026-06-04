@@ -35,9 +35,22 @@ async function getSettings() {
   };
 }
 
+async function getDeliverySettings() {
+  const [publicSettings, smtpPassword] = await Promise.all([
+    getSettings(),
+    systemSettingModel.getValue(EMAIL_ACCOUNT_SETTING_KEYS.smtpPassword, config.smtp.password)
+  ]);
+  return {
+    ...publicSettings,
+    smtpPassword,
+    passwordConfigured: !!smtpPassword
+  };
+}
+
 async function updateSettings(data) {
   const sendIntervalMinutes = normalizeEmailIntervalMinutes(data?.sendIntervalMinutes);
   const account = normalizeEmailAccountSettings(data || {});
+  const existingPassword = await systemSettingModel.getValue(EMAIL_ACCOUNT_SETTING_KEYS.smtpPassword, config.smtp.password);
   await systemSettingModel.setValue(EMAIL_INTERVAL_KEY, sendIntervalMinutes);
   await Promise.all([
     systemSettingModel.setValue(EMAIL_ACCOUNT_SETTING_KEYS.smtpHost, account.smtpHost),
@@ -50,6 +63,7 @@ async function updateSettings(data) {
   if (Object.prototype.hasOwnProperty.call(account, 'smtpPassword') && account.smtpPassword) {
     await systemSettingModel.setValue(EMAIL_ACCOUNT_SETTING_KEYS.smtpPassword, account.smtpPassword);
   }
+  const passwordConfigured = !!(account.smtpPassword || existingPassword);
   return {
     sendIntervalMinutes,
     smtpHost: account.smtpHost,
@@ -58,12 +72,13 @@ async function updateSettings(data) {
     smtpUser: account.smtpUser,
     fromEmail: account.fromEmail,
     fromName: account.fromName,
-    passwordConfigured: true
+    passwordConfigured
   };
 }
 
 module.exports = {
   EMAIL_INTERVAL_KEY,
   getSettings,
+  getDeliverySettings,
   updateSettings
 };

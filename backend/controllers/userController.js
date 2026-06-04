@@ -1,4 +1,5 @@
 const userModel = require('../models/userModel');
+const { toOracleResourceResponse } = require('../utils/oracleErrors');
 
 const VALID_ROLE_FILTERS = new Set(['admin', 'user', 'developer', 'role-admin', 'role-user', 'role-developer']);
 
@@ -25,6 +26,10 @@ async function getAll(req, res) {
     });
   } catch (error) {
     console.error('getAll users error:', error);
+    const oracleResponse = toOracleResourceResponse(error);
+    if (oracleResponse) {
+      return res.status(oracleResponse.status).json(oracleResponse.body);
+    }
     res.status(500).json({ success: false, message: String(error.message || error) });
   }
 }
@@ -48,6 +53,10 @@ async function updateRole(req, res) {
     console.error('updateRole error:', error);
     if (String(error.message || '').includes('Invalid role')) {
       return res.status(400).json({ success: false, message: 'invalid role' });
+    }
+    const oracleResponse = toOracleResourceResponse(error);
+    if (oracleResponse) {
+      return res.status(oracleResponse.status).json(oracleResponse.body);
     }
     res.status(500).json({ success: false, message: String(error.message || error) });
   }

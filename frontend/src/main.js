@@ -14,6 +14,7 @@ import PermissionManagement from './views/PermissionManagement.vue'
 import UserRoleManagement from './views/UserRoleManagement.vue'
 import WorkflowManagement from './views/WorkflowManagement.vue'
 import EmailSettings from './views/EmailSettings.vue'
+import PlatformSettings from './views/PlatformSettings.vue'
 import { hasPermission } from './utils/access'
 import { clearStoredSession, refreshCurrentUserIfStale, getStoredCurrentUser } from './utils/session'
 
@@ -30,7 +31,8 @@ const routes = [
   { path: '/user-roles', component: UserRoleManagement, meta: { requiresAuth: true, permission: 'user:role:manage' } },
   { path: '/permissions', component: PermissionManagement, meta: { requiresAuth: true, permission: 'permission:manage' } },
   { path: '/workflow', component: WorkflowManagement, meta: { requiresAuth: true, permission: 'workflow:manage' } },
-  { path: '/email-settings', component: EmailSettings, meta: { requiresAuth: true, permission: 'email:settings:manage' } }
+  { path: '/email-settings', component: EmailSettings, meta: { requiresAuth: true, permission: 'email:settings:manage' } },
+  { path: '/platforms', component: PlatformSettings, meta: { requiresAuth: true, permission: 'platform:manage' } }
 ]
 
 const router = createRouter({

@@ -119,6 +119,48 @@ async function resolveAssignableDeveloper(developerName) {
   }
 }
 
+async function resolveAssignableDevelopers(developerValue) {
+  const names = requirementModel.normalizeDeveloperNames(developerValue);
+  if (!names.length) return [];
+
+  let connection;
+  try {
+    connection = await db.getConnection();
+    const binds = {};
+    const placeholders = names.map((name, index) => {
+      const key = `devName${index}`;
+      binds[key] = name;
+      return `:${key}`;
+    });
+    const devResult = await connection.execute(
+      `SELECT id, name
+       FROM users
+       WHERE name IN (${placeholders.join(', ')})
+         AND role IN ('developer', 'role-developer', 'admin', 'role-admin')
+         AND status = 1`,
+      binds,
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+
+    const developerByName = new Map();
+    (devResult.rows || []).forEach((row) => {
+      const name = String(row.NAME || '').trim();
+      if (name && !developerByName.has(name)) {
+        developerByName.set(name, { id: row.ID, name });
+      }
+    });
+
+    const developers = names.map(name => developerByName.get(name)).filter(Boolean);
+    if (developers.length !== names.length) {
+      throw new Error(ASSIGNABLE_DEVELOPER_MESSAGE);
+    }
+
+    return developers;
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
 async function getApprovalList(req, res) {
   try {
     const page = parseInt(req.query.page, 10) || 1;
@@ -210,10 +252,21 @@ async function getById(req, res) {
 
 async function create(req, res) {
   try {
-    const developer = await resolveAssignableDeveloper(req.body.developer);
+    const developers = await resolveAssignableDevelopers(req.body.developer);
     const requirement = await requirementModel.create(req.body);
-    if (developer) {
+    for (const developer of developers) {
       await notificationService.notifyAssignDev(developer, requirement);
+    }
+    if (!req.body.isDraft) {
+      try {
+        await autoEmailService.enqueueRequirementCreatedEvent({
+          requirement,
+          actorName: req.user.name || req.user.username || requirement.submitter,
+          summary: `新需求已提交：${requirement.title}`
+        });
+      } catch (emailError) {
+        console.error('queue requirement created email error:', emailError.message);
+      }
     }
     res.status(201).json({ success: true, data: requirement, message: 'requirement created' });
   } catch (error) {
@@ -224,10 +277,12 @@ async function create(req, res) {
 
 async function update(req, res) {
   try {
-    const developer = await resolveAssignableDeveloper(req.body.developer);
+    const developers = req.body.developer !== undefined
+      ? await resolveAssignableDevelopers(req.body.developer)
+      : [];
     const requirement = await requirementModel.update(req.params.id, req.body);
     if (!requirement) return res.status(404).json({ success: false, message: 'requirement not found' });
-    if (developer) {
+    for (const developer of developers) {
       await notificationService.notifyAssignDev(developer, requirement);
     }
     res.json({ success: true, data: requirement, message: 'requirement updated' });
@@ -343,6 +398,17 @@ async function approve(req, res) {
       }
     }
 
+    try {
+      await autoEmailService.enqueueRequirementEvent({
+        requirement,
+        eventType: 'approval_updated',
+        actorName: req.user.name || req.user.username,
+        summary: `审批${approved ? '通过' : '拒绝'}${comment ? `：${comment}` : ''}`
+      });
+    } catch (emailError) {
+      console.error('queue approval email error:', emailError.message);
+    }
+
     res.json({ success: true, data: requirement, message: approved ? 'approved' : 'rejected' });
   } catch (error) {
     if (error.message && (error.message.startsWith('该需求已审批过') || error.message.startsWith('非法状态流转'))) {
@@ -393,6 +459,7 @@ async function getDashboard(req, res) {
 module.exports = {
   parseRequirementListQuery,
   resolveAssignableDeveloper,
+  resolveAssignableDevelopers,
   getAll,
   getApprovalList,
   getBySubmitter,

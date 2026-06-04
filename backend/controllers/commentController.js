@@ -3,6 +3,14 @@ const notificationService = require('../utils/notificationService');
 const autoEmailService = require('../utils/autoEmailService');
 const db = require('../db/oracle');
 const oracledb = require('oracledb');
+const { normalizeDeveloperNames } = require('../models/requirement');
+
+function uniqueNames(values) {
+  return [...new Set((Array.isArray(values) ? values : [values])
+    .filter(Boolean)
+    .map(value => String(value).trim())
+    .filter(Boolean))];
+}
 
 async function create(req, res) {
   try {
@@ -42,30 +50,29 @@ async function create(req, res) {
           developer: reqResult.rows[0].DEVELOPER
         };
 
-        if (requirement.submitter && requirement.submitter !== userName) {
-          const submitterResult = await connection.execute(
-            `SELECT id, name FROM users WHERE name = :submitter`,
-            { submitter: requirement.submitter },
-            { outFormat: oracledb.OUT_FORMAT_OBJECT }
-          );
-          if (submitterResult.rows.length > 0) {
-            await notificationService.notifyNewComment(
-              { id: submitterResult.rows[0].ID, name: submitterResult.rows[0].NAME },
-              requirement,
-              comment
-            );
-          }
-        }
+        const recipientNames = uniqueNames([
+          requirement.submitter,
+          ...normalizeDeveloperNames(requirement.developer)
+        ]).filter(name => name !== userName);
 
-        if (requirement.developer && requirement.developer !== userName && requirement.developer !== requirement.submitter) {
-          const devResult = await connection.execute(
-            `SELECT id, name FROM users WHERE name = :devName`,
-            { devName: requirement.developer },
+        if (recipientNames.length) {
+          const binds = {};
+          const placeholders = recipientNames.map((name, index) => {
+            const key = `name${index}`;
+            binds[key] = name;
+            return `:${key}`;
+          });
+          const usersResult = await connection.execute(
+            `SELECT id, name FROM users WHERE name IN (${placeholders.join(', ')})`,
+            binds,
             { outFormat: oracledb.OUT_FORMAT_OBJECT }
           );
-          if (devResult.rows.length > 0) {
+
+          const recipientNameSet = new Set(recipientNames);
+          for (const user of usersResult.rows || []) {
+            if (!recipientNameSet.has(String(user.NAME || '').trim())) continue;
             await notificationService.notifyNewComment(
-              { id: devResult.rows[0].ID, name: devResult.rows[0].NAME },
+              { id: user.ID, name: user.NAME },
               requirement,
               comment
             );

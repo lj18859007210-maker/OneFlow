@@ -70,7 +70,8 @@ function run() {
   assert.match(built.whereClause, /WHERE isDraft = 0/);
   assert.match(built.whereClause, /status = :status/);
   assert.match(built.whereClause, /platform = :platform/);
-  assert.match(built.whereClause, /developer = :developer/);
+  assert.match(built.whereClause, /REPLACE\(developer, ' ', ''\)/);
+  assert.match(built.whereClause, /LIKE :developerPattern/);
   assert.match(built.whereClause, /priority = :priority/);
   assert.match(built.whereClause, /createdAt >= :dateStart/);
   assert.match(built.whereClause, /createdAt < :dateEndExclusive/);
@@ -84,6 +85,7 @@ function run() {
   assert.match(built.whereClause, /LOWER\(developer\) LIKE :keyword/);
   assert.match(built.whereClause, /LOWER\(status\) LIKE :keyword/);
   assert.strictEqual(built.params.keyword, '%oneflow%');
+  assert.strictEqual(built.params.developerPattern, '%,张三,%');
   assert.strictEqual(built.params.releasedStatus, '已发布');
 
   const notOverdue = requirementModel.buildRequirementListFilters({ isOverdue: 'false' });

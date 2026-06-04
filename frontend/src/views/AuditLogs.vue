@@ -8,7 +8,7 @@
       <div class="header-actions">
         <select v-model="actionFilter" class="filter-select">
           <option value="">全部操作</option>
-          <option v-for="action in actions" :key="action" :value="action">{{ action }}</option>
+          <option v-for="action in actions" :key="action.value" :value="action.value">{{ action.label }}</option>
         </select>
         <button class="btn-primary" @click="loadLogs(1)" :disabled="loading">刷新</button>
       </div>
@@ -36,8 +36,8 @@
           <tr>
             <th>用户</th>
             <th>角色</th>
-            <th>操作</th>
-            <th>资源</th>
+            <th>操作内容</th>
+            <th>原始信息</th>
             <th>状态</th>
             <th>时间</th>
           </tr>
@@ -46,14 +46,19 @@
           <tr v-for="log in logs" :key="log.id">
             <td>{{ log.userName || '-' }}</td>
             <td>{{ log.userRole || '-' }}</td>
-            <td>{{ log.action }}</td>
             <td>
-              <div>{{ log.resource || '-' }}</div>
-              <div class="resource-meta" v-if="log.resourceId">{{ log.resourceId }}</div>
+              <div class="audit-summary">{{ log.summary || log.actionLabel || log.action }}</div>
+              <div class="resource-meta">{{ log.actionLabel || log.action || '-' }}</div>
+            </td>
+            <td>
+              <div>{{ log.resourceLabel || log.resource || '-' }}</div>
+              <div class="resource-meta" v-if="log.raw?.resourceId || log.resourceId">
+                {{ log.raw?.resourceId || log.resourceId }}
+              </div>
             </td>
             <td>
               <span class="tech-tag" :class="log.status === 'success' ? 'tech-tag-released' : 'tech-tag-rejected'">
-                {{ log.status }}
+                {{ log.resultLabel || log.status }}
               </span>
             </td>
             <td>{{ formatDateTime(log.createdAt) }}</td>
@@ -93,7 +98,7 @@ function formatDateTime(value) {
 async function loadActions() {
   try {
     const res = await auditLogApi.getActions()
-    actions.value = Array.isArray(res.data.data) ? res.data.data : []
+    actions.value = normalizeActions(res.data.data)
   } catch (error) {
     console.error('加载审计操作类型失败:', error)
   }
@@ -129,6 +134,14 @@ watch(actionFilter, () => {
 onMounted(async () => {
   await Promise.all([loadActions(), loadLogs(1)])
 })
+
+function normalizeActions(items) {
+  if (!Array.isArray(items)) return []
+  return items.map(item => {
+    if (item && typeof item === 'object') return item
+    return { value: item, label: item }
+  })
+}
 </script>
 
 <style scoped>
@@ -199,6 +212,11 @@ onMounted(async () => {
   margin-top: 4px;
   font-size: 12px;
   color: var(--tech-text-secondary);
+}
+
+.audit-summary {
+  font-weight: 600;
+  color: var(--tech-text-primary);
 }
 
 .tech-loading {

@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function toPositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
@@ -122,6 +123,22 @@ module.exports = {
     }
   },
 
+  async getById(userId) {
+    const connection = await db.getConnection();
+    try {
+      const result = await connection.execute(
+        `SELECT id, username, name, email, role, status, createdAt, updatedAt
+         FROM users
+         WHERE id = :id`,
+        { id: userId },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      return result.rows?.[0] || null;
+    } finally {
+      connection.close();
+    }
+  },
+
   async updateRole(userId, role) {
     const normalizedRole = normalizeRoleName(role);
     if (!normalizedRole) {
@@ -189,6 +206,76 @@ module.exports = {
           }
         } else if (!mappingErrorText.includes('ORA-00942')) {
           throw mappingError;
+        }
+      }
+
+      await connection.commit();
+
+      const result = await connection.execute(
+        `SELECT id, username, name, email, role, status, createdAt, updatedAt
+         FROM users
+         WHERE id = :id`,
+        { id: userId },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      return result.rows?.[0] || null;
+    } finally {
+      connection.close();
+    }
+  },
+
+  async updateEmail(userId, email) {
+    const nextEmail = typeof email === 'string' ? email.trim() : '';
+    if (!EMAIL_PATTERN.test(nextEmail)) {
+      throw new Error('Invalid email');
+    }
+
+    const connection = await db.getConnection();
+    try {
+      const existing = await connection.execute(
+        `SELECT id, name, email FROM users WHERE id = :id`,
+        { id: userId },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      const user = existing.rows?.[0];
+      if (!user) {
+        return null;
+      }
+
+      await connection.execute(
+        `UPDATE users SET email = :email, updatedAt = CURRENT_TIMESTAMP WHERE id = :id`,
+        { id: userId, email: nextEmail }
+      );
+
+      try {
+        await connection.execute(
+          `UPDATE developers
+           SET email = :email, updatedAt = CURRENT_TIMESTAMP
+           WHERE userId = :id OR email = :previousEmail OR name = :name`,
+          {
+            id: userId,
+            email: nextEmail,
+            previousEmail: user.EMAIL,
+            name: user.NAME
+          }
+        );
+      } catch (mappingError) {
+        const mappingErrorText = String(mappingError.message || '');
+        if (!mappingErrorText.includes('ORA-00904') && !mappingErrorText.includes('ORA-00942')) {
+          throw mappingError;
+        }
+
+        if (mappingErrorText.includes('ORA-00904')) {
+          await connection.execute(
+            `UPDATE developers
+             SET email = :email, updatedAt = CURRENT_TIMESTAMP
+             WHERE email = :previousEmail OR name = :name`,
+            {
+              email: nextEmail,
+              previousEmail: user.EMAIL,
+              name: user.NAME
+            }
+          );
         }
       }
 

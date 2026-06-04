@@ -37,18 +37,26 @@
         <div class="ops-summary-item">
           <span>计划日期</span
           ><strong>{{
-            requirement.expectedDate
-              ? formatDate(requirement.expectedDate)
+            requirement.actualDate
+              ? formatDate(requirement.actualDate)
               : "未设置"
           }}</strong>
         </div>
         <div class="ops-summary-item">
           <span>开发前用时</span
-          ><strong>{{ requirement.avgDevTime || "-" }}</strong>
+          ><strong>{{
+            formatDurationAsDaysHours(
+              requirement.lifecycleTiming?.preDevelopmentHours,
+            )
+          }}</strong>
         </div>
         <div class="ops-summary-item">
           <span>开发后用时</span
-          ><strong>{{ requirement.postDevAvgTime || "-" }}</strong>
+          ><strong>{{
+            formatDurationAsDaysHours(
+              requirement.lifecycleTiming?.postDevelopmentHours,
+            )
+          }}</strong>
         </div>
         <div class="ops-summary-item">
           <span>预计月调用量</span
@@ -436,6 +444,7 @@ import { useRoute, useRouter } from "vue-router";
 import AttachmentCenter from "../components/AttachmentCenter.vue";
 import { attachmentApi, commentApi, requirementApi, workflowApi } from "../api";
 import { hasPermission } from "../utils/access";
+import { formatDurationAsDaysHours } from "../utils/durationFormat";
 
 const route = useRoute();
 const router = useRouter();
@@ -691,9 +700,9 @@ async function loadRequirement() {
 async function updateStatus() {
   try {
     await requirementApi.updateStatus(requirement.value.id, newStatus.value);
-    requirement.value.status = newStatus.value;
     newStatus.value = "";
     showToast("状态更新成功");
+    await loadRequirement();
     await loadComments();
   } catch (error) {
     showToast(error.response?.data?.message || "状态更新失败");
@@ -1650,5 +1659,197 @@ onBeforeUnmount(() => {
 .ops-tabs span.active {
   border-bottom-color: var(--ops-blue);
   color: var(--ops-blue);
+}
+
+.detail-ops-page {
+  gap: 10px;
+  padding: 12px;
+  background:
+    radial-gradient(circle at 18% 0, rgba(72, 141, 215, 0.16), transparent 28%),
+    linear-gradient(180deg, #e7f0f8 0%, #f6f9fc 48%, #f1f5f9 100%);
+}
+
+.ops-hero-card {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(13, 39, 67, 0.98), rgba(14, 87, 143, 0.95) 58%, rgba(22, 119, 206, 0.92));
+  box-shadow: 0 18px 46px rgba(17, 56, 96, 0.2);
+}
+
+.ops-hero-card::before {
+  content: "";
+  position: absolute;
+  top: -86px;
+  right: -54px;
+  width: 250px;
+  height: 250px;
+  border: 38px solid rgba(255, 255, 255, 0.07);
+  border-radius: 50%;
+}
+
+.ops-hero-card::after {
+  content: "";
+  position: absolute;
+  inset: auto 22% -90px auto;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: rgba(66, 183, 230, 0.12);
+  filter: blur(8px);
+}
+
+.ops-hero-card .ops-topbar,
+.ops-hero-card .ops-summary-strip {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ops-hero-card .ops-topbar {
+  min-height: 48px;
+  padding: 0;
+}
+
+.ops-hero-card .ops-title-wrap {
+  gap: 12px;
+}
+
+.ops-title-copy {
+  min-width: 0;
+}
+
+.ops-hero-card .ops-breadcrumb {
+  color: rgba(221, 237, 250, 0.78);
+}
+
+.ops-hero-card .ops-title {
+  color: #fff;
+  font-size: 22px;
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.14);
+}
+
+.ops-hero-card .ops-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-color: rgba(255, 255, 255, 0.22);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.ops-hero-card .ops-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ops-hero-card .ops-btn-primary {
+  height: 32px;
+  border-color: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  background: #fff;
+  color: #10578d;
+  box-shadow: 0 10px 24px rgba(6, 29, 55, 0.18);
+}
+
+.ops-hero-card .ops-summary-strip {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+  padding: 0;
+}
+
+.ops-hero-card .ops-summary-item {
+  min-height: 74px;
+  padding: 12px;
+  border-color: rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12px);
+}
+
+.ops-hero-card .ops-summary-item span {
+  color: rgba(229, 241, 251, 0.74);
+  font-size: 12px;
+}
+
+.ops-hero-card .ops-summary-item strong {
+  margin-top: 7px;
+  color: #fff;
+  font-size: 16px;
+}
+
+.ops-hero-card .score-card {
+  border-color: rgba(255, 211, 122, 0.42);
+  background: linear-gradient(180deg, rgba(255, 218, 137, 0.22), rgba(255, 255, 255, 0.12));
+}
+
+.ops-hero-card .score-card strong {
+  color: #ffe3a5;
+  font-size: 20px;
+}
+
+.ops-hero-card .tone-high strong {
+  color: #ffc8c8;
+}
+
+.ops-hero-card .tone-medium strong,
+.ops-hero-card .tone-pending strong {
+  color: #ffd792;
+}
+
+.ops-hero-card .tone-low strong,
+.ops-hero-card .tone-released strong {
+  color: #a9f3ca;
+}
+
+.ops-hero-card .tone-dev strong {
+  color: #adddff;
+}
+
+.ops-hero-card .tone-testing strong {
+  color: #9ff0e5;
+}
+
+@media (max-width: 1320px) {
+  .ops-hero-card .ops-summary-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .detail-ops-page {
+    padding: 8px;
+  }
+
+  .ops-hero-card {
+    padding: 14px;
+  }
+
+  .ops-hero-card .ops-topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ops-hero-card .ops-title {
+    font-size: 18px;
+    white-space: normal;
+  }
+
+  .ops-hero-card .ops-summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-hero-card .ops-summary-item strong {
+    white-space: normal;
+    word-break: break-word;
+  }
 }
 </style>

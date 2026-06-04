@@ -33,26 +33,16 @@
             <label class="tech-form-label"
               >选择开发人员<span class="required">*</span></label
             >
-            <select v-model="form.developer" class="tech-select" required>
-              <option value="">请选择开发人员</option>
-              <option v-for="d in developers" :key="d.id" :value="d.name">
-                {{ d.name }} · {{ d.department }}
-              </option>
-            </select>
+            <DeveloperMultiSelect
+              v-model="form.developer"
+              :developers="developers"
+            />
           </div>
           <div class="tech-form-group">
             <label class="tech-form-label"
               >对应平台<span class="required">*</span></label
             >
-            <select v-model="form.platform" class="tech-select" required>
-              <option value="">请选择平台</option>
-              <option value="CRM 系统">CRM 系统</option>
-              <option value="BOSS 系统">BOSS 系统</option>
-              <option value="OA 办公系统">OA 办公系统</option>
-              <option value="网管支撑平台">网管支撑平台</option>
-              <option value="大数据分析平台">大数据分析平台</option>
-              <option value="掌上移动 APP">掌上移动 APP</option>
-            </select>
+            <PlatformPicker v-model="form.platform" :options="platformOptions" />
           </div>
         </div>
         <div class="tech-form-row">
@@ -332,9 +322,9 @@
           <button
             class="tech-btn tech-btn-primary"
             @click="doSubmit"
-            :disabled="submitting"
+            :disabled="submitting || summaryLoading"
           >
-            {{ submitting ? "提交中..." : "提交需求" }}
+            {{ submitting ? "提交中..." : summaryLoading ? "整理中..." : "提交需求" }}
           </button>
         </div>
       </div>
@@ -344,12 +334,16 @@
 
 <script setup>
 import { ref, computed, onMounted, inject, watch } from "vue";
-import { requirementApi, emailApi, developerApi } from "../api";
+import { requirementApi, developerApi } from "../api";
+import DeveloperMultiSelect from "./DeveloperMultiSelect.vue";
+import PlatformPicker from "./PlatformPicker.vue";
+import { DEFAULT_PLATFORMS, loadPlatformOptions } from "../utils/platformOptions";
 import {
   allowDecimalNumberInput,
   allowIntegerNumberInput,
   sanitizeDecimalNumberText,
   sanitizeIntegerNumberText,
+  normalizeDeveloperNames,
   validateRequirementForm,
 } from "../utils/requirementFormValidation";
 
@@ -363,6 +357,7 @@ const props = defineProps({
 });
 
 const developers = ref([]);
+const platformOptions = ref([...DEFAULT_PLATFORMS]);
 const currentUser = inject("currentUser");
 const saveDraftState = inject("saveDraftState", null);
 const currentDraftId = ref(null); // 记录当前草稿的ID
@@ -372,7 +367,7 @@ const getSubmitterName = () => currentUser?.value?.name || "管理员";
 const form = ref({
   title: "",
   submitter: getSubmitterName(),
-  developer: "",
+  developer: [],
   platform: "",
   capability: "",
   expectedDate: "",
@@ -384,6 +379,7 @@ const form = ref({
 });
 
 const gateLoading = ref(false);
+const summaryLoading = ref(false);
 const submitting = ref(false);
 const savingDraft = ref(false);
 const openStep = ref(0);
@@ -461,7 +457,7 @@ function resetAll() {
   form.value = {
     title: "",
     submitter: getSubmitterName(),
-    developer: "",
+    developer: [],
     platform: "",
     capability: "",
     expectedDate: "",
@@ -629,6 +625,7 @@ function removeImage(si, idx) {
 }
 
 async function finalSummary() {
+  summaryLoading.value = true;
   try {
     const qa = steps.value
       .map((s, i) => `Q${i + 1}: ${s.label}\nA: ${s.answer}`)
@@ -673,6 +670,8 @@ ${qa}
     form.value.description = json.data;
   } catch (e) {
     form.value.description = steps.value.map((s) => s.answer).join("\n\n");
+  } finally {
+    summaryLoading.value = false;
   }
 }
 
@@ -699,23 +698,7 @@ async function doSubmit() {
       await requirementApi.create({ ...form.value, noteImages });
     }
 
-    try {
-      await emailApi.send({
-        to: "admin@cmcc.cn",
-        cc: [],
-        subject: "新需求：" + form.value.title,
-        body:
-          form.value.description +
-          (noteImages.length
-            ? "\n\n图片附件:\n" +
-              noteImages.map((img) => location.origin + img.url).join("\n")
-            : ""),
-      });
-      showToast("需求提交成功，邮件已发送");
-    } catch (emailErr) {
-      console.warn("邮件发送失败，但需求已提交:", emailErr);
-      showToast("需求提交成功，邮件发送失败");
-    }
+    showToast("需求提交成功");
 
     currentDraftId.value = null; // 提交成功后清除草稿ID
     emit("submit-success");
@@ -791,7 +774,7 @@ async function loadLatestDraft() {
       form.value = {
         title: draft.title || "",
         submitter: draft.submitter || form.value.submitter,
-        developer: draft.developer || "",
+        developer: normalizeDeveloperNames(draft.developer),
         platform: draft.platform || "",
         capability: draft.capability || "",
         expectedDate: draft.expectedDate || "",
@@ -836,8 +819,12 @@ function showToast(msg) {
 
 onMounted(async () => {
   try {
-    const r = await developerApi.getAssignable();
+    const [r, platforms] = await Promise.all([
+      developerApi.getAssignable(),
+      loadPlatformOptions(),
+    ]);
     developers.value = r.data.data;
+    platformOptions.value = platforms;
   } catch (e) {}
 
   // 如果有草稿数据，加载它
@@ -852,7 +839,7 @@ function loadDraftData(draft) {
   form.value = {
     title: draft.title || "",
     submitter: draft.submitter || getSubmitterName(),
-    developer: draft.developer || "",
+    developer: normalizeDeveloperNames(draft.developer),
     platform: draft.platform || "",
     capability: draft.capability || "",
     expectedDate: draft.expectedDate || "",
@@ -909,6 +896,7 @@ if (import.meta.env.DEV) {
   gap: 6px;
   margin-bottom: 20px;
 }
+
 .gate-step-bar {
   flex: 1;
   height: 4px;

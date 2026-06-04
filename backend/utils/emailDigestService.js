@@ -1,4 +1,6 @@
 const EVENT_LABELS = {
+  approval_updated: '审批结果',
+  requirement_created: '新需求提交',
   status_updated: '流转更新',
   comment_created: '发布评论',
   attachment_uploaded: '附件上传'
@@ -51,18 +53,44 @@ function createEmailDigestService({
     const timer = setTimeout(fn, delayMs);
     return { cancel: () => clearTimeout(timer) };
   },
-  now = () => new Date()
+  now = () => new Date(),
+  maxRetryAttempts = 3,
+  retryDelayMs = 60 * 1000
 }) {
   const groups = new Map();
+
+  function scheduleFlush(key, delayMs) {
+    return scheduler(() => {
+      Promise.resolve(flushGroup(key)).catch(error => {
+        console.error('flush email digest error:', error.message);
+      });
+    }, delayMs);
+  }
 
   async function flushGroup(key) {
     const group = groups.get(key);
     if (!group) return null;
 
-    groups.delete(key);
     const email = formatDigestEmail(group);
-    if (!email.to.length) return null;
-    return sendEmail(email);
+    if (!email.to.length) {
+      groups.delete(key);
+      return null;
+    }
+
+    try {
+      const result = await sendEmail(email);
+      groups.delete(key);
+      return result;
+    } catch (error) {
+      group.attempts = (group.attempts || 0) + 1;
+      group.lastError = String(error.message || error);
+      if (group.attempts >= maxRetryAttempts) {
+        groups.delete(key);
+      } else {
+        group.timer = scheduleFlush(key, retryDelayMs);
+      }
+      throw error;
+    }
   }
 
   async function enqueue(event) {
@@ -78,9 +106,10 @@ function createEmailDigestService({
         to,
         cc,
         events: [],
+        attempts: 0,
         timer: null
       };
-      group.timer = scheduler(() => flushGroup(key), intervalMinutes * 60 * 1000);
+      group.timer = scheduleFlush(key, intervalMinutes * 60 * 1000);
       groups.set(key, group);
     }
 

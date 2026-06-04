@@ -1,6 +1,16 @@
-const permissionModel = require('../models/permission');
+﻿const permissionModel = require('../models/permission');
 const logger = require('../utils/logger');
 const { normalizeRoleId, normalizeRoleName } = require('../utils/roleAccess');
+const { toOracleResourceResponse } = require('../utils/oracleErrors');
+
+function sendPermissionCheckError(res, error) {
+  const oracleResponse = toOracleResourceResponse(error);
+  if (oracleResponse) {
+    return res.status(oracleResponse.status).json(oracleResponse.body);
+  }
+
+  return res.status(500).json({ success: false, message: 'permission check failed' });
+}
 
 function requirePermission(permissionCode) {
   return async (req, res, next) => {
@@ -8,14 +18,13 @@ function requirePermission(permissionCode) {
     const normalizedRoleId = normalizeRoleId(userRole);
 
     if (!normalizedRoleId) {
-      logger.warn(`权限不足: ${req.user?.name || 'unknown'} (${userRole || 'unknown'}) 尝试访问 ${permissionCode}`);
+      logger.warn(`Permission denied: ${req.user?.name || 'unknown'} (${userRole || 'unknown'}) tried to access ${permissionCode}`);
       return res.status(403).json({
         success: false,
-        message: `权限不足：需要 ${permissionCode} 权限`
+        message: `Permission denied: ${permissionCode} is required`
       });
     }
 
-    // admin 角色拥有全部权限
     if (normalizedRoleId === 'role-admin') {
       return next();
     }
@@ -23,16 +32,17 @@ function requirePermission(permissionCode) {
     try {
       const hasPermission = await permissionModel.checkPermission(normalizedRoleId, permissionCode);
       if (!hasPermission) {
-        logger.warn(`权限不足: ${req.user?.name || 'unknown'} (${userRole}) 尝试访问 ${permissionCode}`);
+        logger.warn(`Permission denied: ${req.user?.name || 'unknown'} (${userRole}) tried to access ${permissionCode}`);
         return res.status(403).json({
           success: false,
-          message: `权限不足：需要 ${permissionCode} 权限`
+          message: `Permission denied: ${permissionCode} is required`
         });
       }
-      next();
+
+      return next();
     } catch (error) {
-      logger.error(`权限检查失败: ${error.message}`);
-      res.status(500).json({ success: false, message: '权限检查失败' });
+      logger.error(`Permission check failed: ${error.message}`);
+      return sendPermissionCheckError(res, error);
     }
   };
 }
@@ -43,10 +53,10 @@ function requireAnyPermission(...permissionCodes) {
     const normalizedRoleId = normalizeRoleId(userRole);
 
     if (!normalizedRoleId) {
-      logger.warn(`权限不足: ${req.user?.name || 'unknown'} (${userRole || 'unknown'}) 尝试访问 ${permissionCodes.join(' 或 ')}`);
+      logger.warn(`Permission denied: ${req.user?.name || 'unknown'} (${userRole || 'unknown'}) tried to access ${permissionCodes.join(' or ')}`);
       return res.status(403).json({
         success: false,
-        message: `权限不足：需要 ${permissionCodes.join(' 或 ')} 权限`
+        message: `Permission denied: one of ${permissionCodes.join(', ')} is required`
       });
     }
 
@@ -62,14 +72,14 @@ function requireAnyPermission(...permissionCodes) {
         }
       }
 
-      logger.warn(`权限不足: ${req.user?.name || 'unknown'} (${userRole}) 尝试访问 ${permissionCodes.join(' 或 ')}`);
+      logger.warn(`Permission denied: ${req.user?.name || 'unknown'} (${userRole}) tried to access ${permissionCodes.join(' or ')}`);
       return res.status(403).json({
         success: false,
-        message: `权限不足：需要 ${permissionCodes.join(' 或 ')} 权限`
+        message: `Permission denied: one of ${permissionCodes.join(', ')} is required`
       });
     } catch (error) {
-      logger.error(`权限检查失败: ${error.message}`);
-      res.status(500).json({ success: false, message: '权限检查失败' });
+      logger.error(`Permission check failed: ${error.message}`);
+      return sendPermissionCheckError(res, error);
     }
   };
 }
@@ -80,14 +90,14 @@ function requireRole(...roles) {
     const normalizedRoleName = normalizeRoleName(userRole) || userRole;
 
     if (!roles.includes(normalizedRoleName)) {
-      logger.warn(`角色不足: ${req.user?.name || 'unknown'} (${userRole || 'unknown'}) 尝试访问需要 [${roles.join(', ')}] 的资源`);
+      logger.warn(`Role denied: ${req.user?.name || 'unknown'} (${userRole || 'unknown'}) tried to access role-gated resource [${roles.join(', ')}]`);
       return res.status(403).json({
         success: false,
-        message: `权限不足：需要 ${roles.join(' 或 ')} 角色`
+        message: `Permission denied: one of roles ${roles.join(', ')} is required`
       });
     }
 
-    next();
+    return next();
   };
 }
 

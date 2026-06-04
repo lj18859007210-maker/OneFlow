@@ -1,6 +1,7 @@
 const db = require('./oracle');
 const { PERMISSIONS, ROLE_DEFAULT_PERMISSION_CODES, buildPermissionInsertSql } = require('../utils/permissionCatalog');
 const { FLOW_KEY_REQUIREMENT, DEFAULT_STATUSES, DEFAULT_TRANSITIONS } = require('../utils/workflowDefaults');
+const { isOracleResourceExhaustedError } = require('../utils/oracleErrors');
 
 const TABLES = {
   notifications: `
@@ -141,6 +142,10 @@ const TABLES = {
 function isIgnorableIndexError(error) {
   const message = error && error.message ? error.message : '';
   return message.includes('ORA-00955') || message.includes('ORA-00942') || message.includes('ORA-01408');
+}
+
+function shouldAbortMigration(error) {
+  return isOracleResourceExhaustedError(error);
 }
 
 const INDEXES = [
@@ -519,6 +524,9 @@ async function initialize() {
       try {
         await connection.execute(idxSql);
       } catch (e) {
+        if (shouldAbortMigration(e)) {
+          throw e;
+        }
         if (!isIgnorableIndexError(e)) {
           console.warn(`  ⚠ 索引创建警告: ${e.message.substring(0, 50)}`);
         }
@@ -530,6 +538,9 @@ async function initialize() {
       try {
         await connection.execute(seed);
       } catch (e) {
+        if (shouldAbortMigration(e)) {
+          throw e;
+        }
         if (!e.message.includes('ORA-00001')) {
           console.warn(`  ⚠ 数据插入警告: ${e.message.substring(0, 50)}`);
         }
@@ -559,4 +570,4 @@ async function initialize() {
   }
 }
 
-module.exports = { initialize, isIgnorableIndexError };
+module.exports = { initialize, isIgnorableIndexError, shouldAbortMigration };

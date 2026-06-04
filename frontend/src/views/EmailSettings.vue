@@ -151,6 +151,30 @@
             <li>附件中心上传、版本上传和归档</li>
           </ul>
         </section>
+
+        <section class="panel test-panel">
+          <div class="panel-head tight">
+            <div>
+              <h2>测试发送</h2>
+              <p>使用已保存的 SMTP 配置发送一封测试邮件。</p>
+            </div>
+          </div>
+
+          <label class="field">
+            <span class="field-label">测试收件人</span>
+            <input
+              v-model.trim="testEmail.to"
+              class="field-input"
+              type="email"
+              placeholder="recipient@example.com"
+              autocomplete="off"
+            />
+          </label>
+
+          <button class="secondary-btn full-btn" type="button" :disabled="testing || loading" @click="sendTestEmail">
+            {{ testing ? '发送中...' : '发送测试邮件' }}
+          </button>
+        </section>
       </aside>
 
       <div class="save-bar">
@@ -173,6 +197,7 @@ import { showToast } from '../utils/toastService'
 
 const loading = ref(false)
 const saving = ref(false)
+const testing = ref(false)
 const showPassword = ref(false)
 const form = reactive({
   sendIntervalMinutes: 10,
@@ -184,6 +209,9 @@ const form = reactive({
   fromEmail: '',
   fromName: 'OneFlow',
   passwordConfigured: false
+})
+const testEmail = reactive({
+  to: ''
 })
 
 function normalizeInterval(value) {
@@ -259,6 +287,28 @@ async function saveSettings() {
     showToast(error.response?.data?.message || error.message, { type: 'error', title: '保存失败' })
   } finally {
     saving.value = false
+  }
+}
+
+async function sendTestEmail() {
+  if (!testEmail.to) {
+    showToast('请填写测试收件人', { type: 'warning', title: '校验失败' })
+    return
+  }
+
+  testing.value = true
+  try {
+    await emailApi.send({
+      to: testEmail.to,
+      cc: [],
+      subject: 'OneFlow 测试邮件',
+      body: `这是一封来自 OneFlow 邮件设置页的测试邮件。\n发送时间：${new Date().toLocaleString('zh-CN')}`
+    })
+    showToast('测试邮件发送成功', { type: 'success' })
+  } catch (error) {
+    showToast(error.response?.data?.message || error.message, { type: 'error', title: '测试发送失败' })
+  } finally {
+    testing.value = false
   }
 }
 
@@ -394,7 +444,8 @@ onMounted(loadSettings)
 }
 
 .compact-panel,
-.note-panel {
+.note-panel,
+.test-panel {
   padding: 20px;
 }
 
@@ -659,6 +710,32 @@ onMounted(loadSettings)
   cursor: pointer;
   box-shadow: 0 10px 22px rgba(47, 143, 123, 0.2);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.secondary-btn {
+  min-height: 42px;
+  border: 1px solid rgba(47, 143, 123, 0.34);
+  border-radius: 8px;
+  background: #f7fcfa;
+  color: #247363;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.secondary-btn:hover {
+  border-color: #2f8f7b;
+  background: #eef8f5;
+}
+
+.secondary-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.full-btn {
+  width: 100%;
+  margin-top: 14px;
 }
 
 .primary-btn:hover {

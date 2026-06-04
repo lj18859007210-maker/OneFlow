@@ -278,6 +278,7 @@
 import { computed, inject, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { developerApi, requirementApi } from "../api";
+import { normalizeDeveloperNames } from "../utils/requirementFormValidation";
 import Pagination from "../components/Pagination.vue";
 import ChartsPanel from "../components/ChartsPanel.vue";
 import { hasPermission } from "../utils/access";
@@ -454,7 +455,7 @@ function canViewDetail(req) {
   const user = currentUser.value;
   if (!user || user.name === "未登录") return false;
   if (user.role === "admin") return true;
-  return req.submitter === user.name || req.developer === user.name;
+  return req.submitter === user.name || normalizeDeveloperNames(req.developer).includes(user.name);
 }
 
 onMounted(async () => {

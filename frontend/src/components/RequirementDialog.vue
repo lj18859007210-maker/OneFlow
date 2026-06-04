@@ -133,34 +133,16 @@
                   <label class="tech-form-label"
                     >选择开发人员<span class="required">*</span></label
                   >
-                  <select
+                  <DeveloperMultiSelect
                     v-model="editForm.developer"
-                    class="tech-select"
-                    required
-                  >
-                    <option value="">请选择开发人员</option>
-                    <option v-for="d in developers" :key="d.id" :value="d.name">
-                      {{ d.name }} · {{ d.department }}
-                    </option>
-                  </select>
+                    :developers="developers"
+                  />
                 </div>
                 <div class="tech-form-group">
                   <label class="tech-form-label"
                     >对应平台<span class="required">*</span></label
                   >
-                  <select
-                    v-model="editForm.platform"
-                    class="tech-select"
-                    required
-                  >
-                    <option value="">请选择平台</option>
-                    <option value="CRM 系统">CRM 系统</option>
-                    <option value="BOSS 系统">BOSS 系统</option>
-                    <option value="OA 办公系统">OA 办公系统</option>
-                    <option value="网管支撑平台">网管支撑平台</option>
-                    <option value="大数据分析平台">大数据分析平台</option>
-                    <option value="掌上移动 APP">掌上移动 APP</option>
-                  </select>
+                  <PlatformPicker v-model="editForm.platform" :options="platformOptions" />
                 </div>
               </div>
               <div class="tech-form-row">
@@ -462,9 +444,9 @@
               v-if="completedSteps === steps.length"
               class="tech-btn tech-btn-success"
               @click="submitRequirement"
-              :disabled="saving"
+              :disabled="saving || summaryLoading"
             >
-              {{ saving ? "提交中..." : "提交需求" }}
+              {{ saving ? "提交中..." : summaryLoading ? "整理中..." : "提交需求" }}
             </button>
           </div>
         </div>
@@ -476,11 +458,15 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { requirementApi, developerApi } from "../api";
+import DeveloperMultiSelect from "./DeveloperMultiSelect.vue";
+import PlatformPicker from "./PlatformPicker.vue";
+import { DEFAULT_PLATFORMS, loadPlatformOptions } from "../utils/platformOptions";
 import {
   allowDecimalNumberInput,
   allowIntegerNumberInput,
   sanitizeDecimalNumberText,
   sanitizeIntegerNumberText,
+  normalizeDeveloperNames,
   validateRequirementForm,
 } from "../utils/requirementFormValidation";
 
@@ -493,13 +479,15 @@ const props = defineProps({
 const emit = defineEmits(["close", "success"]);
 
 const developers = ref([]);
+const platformOptions = ref([...DEFAULT_PLATFORMS]);
 const gateLoading = ref(false);
+const summaryLoading = ref(false);
 const saving = ref(false);
 const openStep = ref(-1);
 
 const editForm = ref({
   title: "",
-  developer: "",
+  developer: [],
   platform: "",
   capability: "",
   expectedDate: "",
@@ -563,7 +551,7 @@ function initEditForm() {
   const d = props.data;
   editForm.value = {
     title: d.title || "",
-    developer: d.developer || "",
+    developer: normalizeDeveloperNames(d.developer),
     platform: d.platform || "",
     capability: d.capability || "",
     expectedDate: d.expectedDate || "",
@@ -715,6 +703,7 @@ function removeImage(si, idx) {
 }
 
 async function finalSummary() {
+  summaryLoading.value = true;
   try {
     const qa = steps.value
       .map((s, i) => `Q${i + 1}: ${s.label}\nA: ${s.answer}`)
@@ -754,6 +743,8 @@ ${qa}
     editForm.value.description = json.data;
   } catch (e) {
     editForm.value.description = steps.value.map((s) => s.answer).join("\n\n");
+  } finally {
+    summaryLoading.value = false;
   }
 }
 
@@ -878,8 +869,12 @@ watch(
 
 onMounted(async () => {
   try {
-    const r = await developerApi.getAssignable();
+    const [r, platforms] = await Promise.all([
+      developerApi.getAssignable(),
+      loadPlatformOptions(),
+    ]);
     developers.value = r.data.data;
+    platformOptions.value = platforms;
   } catch (e) {}
 });
 </script>

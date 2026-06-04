@@ -10,14 +10,16 @@ router.use(authMiddleware);
 router.get('/settings', requirePermission('email:settings:manage'), emailSettingsController.getSettings);
 router.put('/settings', requirePermission('email:settings:manage'), emailSettingsController.updateSettings);
 
-router.post('/send', async (req, res) => {
+router.post('/send', requirePermission('email:settings:manage'), async (req, res) => {
   try {
     const { to, cc, subject, body } = req.body;
     const result = await sendEmail({ to, cc, subject, body });
     res.json(result);
   } catch (error) {
     console.error('send email error:', error);
-    res.status(500).json({ success: false, message: String(error.message || error) });
+    const message = String(error.message || error);
+    const status = /required|invalid/i.test(message) ? 400 : 500;
+    res.status(status).json({ success: false, message });
   }
 });
 

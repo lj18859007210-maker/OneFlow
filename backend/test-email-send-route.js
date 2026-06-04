@@ -63,7 +63,7 @@ async function run() {
     }
   };
 
-  await sendHandlers[0](req, res);
+  await sendHandlers[sendHandlers.length - 1](req, res);
 
   assert.strictEqual(res.statusCode, 500);
   assert.deepStrictEqual(res.body, { success: false, message: 'smtp unavailable' });

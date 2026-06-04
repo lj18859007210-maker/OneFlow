@@ -239,6 +239,7 @@ import {
   getRequirementDevelopmentStatus
 } from '../utils/ganttExport'
 import { showToast } from '../utils/toastService'
+import { normalizeDeveloperNames } from '../utils/requirementFormValidation'
 
 const router = useRouter()
 const currentUser = inject('currentUser', ref({ name: '未登录', role: 'user' }))
@@ -357,7 +358,7 @@ const applyActiveFilters = (items) => {
     filtered = filtered.filter(r => r.status === selectedStatus.value)
   }
   if (selectedDeveloper.value) {
-    filtered = filtered.filter(r => r.developer === selectedDeveloper.value)
+    filtered = filtered.filter(r => normalizeDeveloperNames(r.developer).includes(selectedDeveloper.value))
   }
   if (selectedDevelopmentStatus.value) {
     filtered = filtered.filter(r => getRequirementDevelopmentStatus(r) === selectedDevelopmentStatus.value)
@@ -503,7 +504,7 @@ const canViewDetail = (req) => {
   const user = currentUser.value
   if (!user || user.name === '未登录') return false
   if (user.role === 'admin') return true
-  return req.submitter === user.name || req.developer === user.name
+  return req.submitter === user.name || normalizeDeveloperNames(req.developer).includes(user.name)
 }
 
 const viewRequirement = (req) => {
@@ -530,7 +531,7 @@ const loadData = async () => {
       const developerSet = new Set()
       requirements.value.forEach(req => {
         if (req.platform) platformSet.add(req.platform)
-        if (req.developer) developerSet.add(req.developer)
+        normalizeDeveloperNames(req.developer).forEach(developer => developerSet.add(developer))
       })
       platforms.value = Array.from(platformSet).sort()
       developers.value = Array.from(developerSet).sort()

@@ -250,6 +250,26 @@
           </span>
           <span>流程配置</span>
         </router-link>
+        <router-link v-if="hasPermission(currentUser, 'platform:manage')" to="/platforms" class="tech-nav-item" active-class="active">
+          <span class="tech-nav-icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M7 8h10" />
+              <path d="M7 12h6" />
+              <path d="M7 16h8" />
+            </svg>
+          </span>
+          <span>平台配置</span>
+        </router-link>
         <router-link v-if="hasPermission(currentUser, 'email:settings:manage')" to="/email-settings" class="tech-nav-item" active-class="active">
           <span class="tech-nav-icon">
             <svg
@@ -275,7 +295,12 @@
         <div class="tech-header-title">{{ pageTitle }}</div>
         <div class="tech-header-actions">
           <NotificationBell />
-          <div class="tech-header-user">
+          <button
+            class="tech-header-user"
+            type="button"
+            title="修改邮箱"
+            @click="openEmailDialog"
+          >
             <svg
               width="18"
               height="18"
@@ -289,9 +314,9 @@
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
-            <span>{{ currentUser.name }}</span>
+            <span class="tech-user-name">{{ currentUser.name }}</span>
             <span class="tech-user-meta">{{ currentRoleLabel }} | {{ permissionCount }}项权限</span>
-          </div>
+          </button>
           <button
             class="tech-logout-btn"
             @click="handleLogout"
@@ -319,6 +344,36 @@
       </div>
     </main>
     <AIChat v-if="!isLoginPage" />
+    <div v-if="showEmailDialog" class="tech-dialog-overlay" @click="closeEmailDialog">
+      <form class="tech-dialog profile-email-dialog" @submit.prevent="saveEmail" @click.stop>
+        <div class="tech-dialog-header">
+          <div class="tech-dialog-title">修改邮箱</div>
+          <button class="tech-dialog-close" type="button" @click="closeEmailDialog">×</button>
+        </div>
+        <div class="tech-dialog-body profile-email-body">
+          <label class="profile-email-field">
+            <span>邮箱地址</span>
+            <input
+              v-model.trim="emailDraft"
+              class="profile-email-input"
+              type="email"
+              placeholder="name@example.com"
+              autocomplete="email"
+              :disabled="savingEmail"
+            />
+          </label>
+          <p v-if="emailError" class="profile-email-error">{{ emailError }}</p>
+        </div>
+        <div class="tech-dialog-footer">
+          <button class="tech-btn tech-btn-outline tech-btn-sm" type="button" :disabled="savingEmail" @click="closeEmailDialog">
+            取消
+          </button>
+          <button class="tech-btn tech-btn-primary tech-btn-sm" type="submit" :disabled="savingEmail">
+            {{ savingEmail ? "保存中..." : "保存" }}
+          </button>
+        </div>
+      </form>
+    </div>
     <TechToast
       :visible="toastState.visible.value"
       :message="toastState.message.value"
@@ -331,12 +386,14 @@
 <script setup>
 import { computed, provide, ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import api from "./api";
+import { authApi } from "./api";
 import AIChat from "./components/AIChat.vue";
 import NotificationBell from "./components/NotificationBell.vue";
 import TechToast from "./components/TechToast.vue";
 import { hasPermission } from "./utils/access";
-import { toastState } from "./utils/toastService";
+import { setStoredCurrentUser } from "./utils/session";
+import { validateEmail } from "./utils/security";
+import { showToast, toastState } from "./utils/toastService";
 
 const route = useRoute();
 const router = useRouter();
@@ -344,6 +401,10 @@ const router = useRouter();
 const isLoginPage = computed(() => route.path === "/login");
 
 const currentUser = ref({ name: "未登录", email: "", role: "user", permissions: [] });
+const showEmailDialog = ref(false);
+const emailDraft = ref("");
+const emailError = ref("");
+const savingEmail = ref(false);
 const roleLabelMap = {
   admin: "管理员",
   user: "普通用户",
@@ -409,6 +470,51 @@ function handleLogout() {
   router.push("/login");
 }
 
+function openEmailDialog() {
+  if (!currentUser.value?.id) return;
+  emailDraft.value = currentUser.value.email || "";
+  emailError.value = "";
+  showEmailDialog.value = true;
+}
+
+function closeEmailDialog() {
+  if (savingEmail.value) return;
+  showEmailDialog.value = false;
+  emailError.value = "";
+}
+
+async function saveEmail() {
+  const nextEmail = emailDraft.value.trim();
+  if (!nextEmail) {
+    emailError.value = "请输入邮箱地址";
+    return;
+  }
+  if (!validateEmail(nextEmail)) {
+    emailError.value = "请输入有效的邮箱地址";
+    return;
+  }
+
+  try {
+    savingEmail.value = true;
+    emailError.value = "";
+    const res = await authApi.updateEmail(nextEmail);
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "邮箱更新失败");
+    }
+    const updatedUser = {
+      ...res.data.data,
+      permissions: res.data.data?.permissions || []
+    };
+    setStoredCurrentUser(updatedUser);
+    showEmailDialog.value = false;
+    showToast("邮箱已更新", { type: "success", title: "更新成功" });
+  } catch (error) {
+    emailError.value = error.response?.data?.message || error.message || "邮箱更新失败";
+  } finally {
+    savingEmail.value = false;
+  }
+}
+
 const pageTitle = computed(() => {
   const map = {
     "/": "需求列表",
@@ -422,6 +528,7 @@ const pageTitle = computed(() => {
     "/user-roles": "用户角色管理",
     "/workflow": "流程配置",
     "/email-settings": "邮件设置",
+    "/platforms": "平台配置",
   };
   if (route.path.startsWith("/detail")) return "需求详情";
   return map[route.path] || "需求管理平台";
@@ -436,6 +543,65 @@ const permissionCount = computed(() => Array.isArray(currentUser.value?.permissi
   margin-left: 8px;
   font-size: 12px;
   color: var(--tech-text-secondary);
+}
+
+.tech-header-user {
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tech-header-user:hover {
+  border-color: rgba(74, 144, 226, 0.24);
+  background: rgba(74, 144, 226, 0.14);
+  box-shadow: 0 8px 22px rgba(74, 144, 226, 0.12);
+}
+
+.tech-user-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-email-dialog {
+  width: 460px;
+}
+
+.profile-email-body {
+  padding-bottom: 10px;
+}
+
+.profile-email-field {
+  display: grid;
+  gap: 10px;
+  color: var(--tech-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profile-email-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 2px solid var(--tech-border);
+  border-radius: 8px;
+  background: var(--tech-card);
+  color: var(--tech-text);
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.profile-email-input:focus {
+  border-color: var(--tech-blue);
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.15);
+}
+
+.profile-email-error {
+  margin: 10px 0 0;
+  color: var(--tech-danger);
+  font-size: 13px;
 }
 </style>
 

@@ -37,7 +37,7 @@ export function formatDurationAsDaysHours(value) {
   const hours = parseDurationToHours(value);
   if (hours === null || hours < 0) return '-';
 
-  const totalHours = Math.round(hours);
+  const totalHours = hours > 0 && hours < 1 ? 1 : Math.round(hours);
   const days = Math.floor(totalHours / 24);
   const remainingHours = totalHours % 24;
   return `${days}天${remainingHours}小时`;
