@@ -3,53 +3,20 @@
   <div v-else class="tech-layout">
     <aside class="tech-sidebar">
       <div class="tech-logo-wrap">
-        <div class="tech-logo-icon">
-          <svg
-            viewBox="0 0 48 48"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <rect
-              x="4"
-              y="4"
-              width="16"
-              height="16"
-              rx="3"
-              fill="currentColor"
-              opacity="0.9"
-            />
-            <rect
-              x="24"
-              y="4"
-              width="16"
-              height="16"
-              rx="3"
-              fill="currentColor"
-              opacity="0.6"
-            />
-            <rect
-              x="4"
-              y="24"
-              width="16"
-              height="16"
-              rx="3"
-              fill="currentColor"
-              opacity="0.75"
-            />
-            <rect
-              x="24"
-              y="24"
-              width="16"
-              height="16"
-              rx="3"
-              fill="currentColor"
-              opacity="0.45"
-            />
-          </svg>
+        <div class="tech-logo-visual" aria-hidden="true">
+          <span class="tech-logo-orbit"></span>
+          <span class="tech-logo-chart chart-a"></span>
+          <span class="tech-logo-chart chart-b"></span>
+          <span class="tech-logo-chart chart-c"></span>
+          <span class="tech-logo-spark spark-a"></span>
+          <span class="tech-logo-spark spark-b"></span>
         </div>
-        <div>
-          <div class="tech-logo-text">需求一体化支撑平台</div>
-          <div class="tech-logo-sub">One Flow</div>
+        <div class="tech-logo-brand-row">
+          <div class="tech-logo-mark" aria-hidden="true"></div>
+          <div>
+            <div class="tech-logo-text">需求一体化支撑平台</div>
+            <div class="tech-logo-sub">One Flow</div>
+          </div>
         </div>
       </div>
       <nav class="tech-nav">

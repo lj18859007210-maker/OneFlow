@@ -53,44 +53,177 @@ body {
 }
 
 .tech-logo-wrap {
-  padding: 28px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: linear-gradient(135deg, var(--tech-blue-light) 0%, var(--tech-blue) 100%);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.84);
   margin: 16px;
-  border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(74, 144, 226, 0.3);
+  border: 1px solid rgba(74, 144, 226, 0.18);
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(74, 144, 226, 0.16);
+  backdrop-filter: blur(10px);
 }
 
-.tech-logo-icon {
-  width: 48px;
-  height: 48px;
-  background: rgba(255, 255, 255, 0.95);
+.tech-logo-visual {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  min-height: 96px;
+  overflow: hidden;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 78% 18%, rgba(122, 214, 255, 0.85), transparent 26%),
+    radial-gradient(circle at 14% 16%, rgba(255, 255, 255, 0.42), transparent 24%),
+    linear-gradient(135deg, rgba(25, 92, 168, 0.18), transparent 48%),
+    linear-gradient(135deg, #5eb2ff 0%, #216dc5 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.tech-logo-visual::before {
+  content: "";
+  position: absolute;
+  inset: 12px 12px 18px;
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.32) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px);
+  background-size: 24px 20px;
+  opacity: 0.7;
 }
 
-.tech-logo-icon svg {
-  width: 36px;
+.tech-logo-visual::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  height: 34px;
+  border-radius: 12px 12px 8px 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08));
+  transform: skewX(-9deg);
+  transform-origin: left bottom;
+}
+
+.tech-logo-orbit {
+  position: absolute;
+  right: -26px;
+  top: -30px;
+  width: 116px;
+  height: 116px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 999px;
+}
+
+.tech-logo-orbit::before,
+.tech-logo-orbit::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.tech-logo-orbit::before {
+  width: 7px;
+  height: 7px;
+  left: 17px;
+  top: 57px;
+}
+
+.tech-logo-orbit::after {
+  width: 5px;
+  height: 5px;
+  right: 28px;
+  bottom: 20px;
+}
+
+.tech-logo-chart {
+  position: absolute;
+  bottom: 22px;
+  width: 12px;
+  border-radius: 5px 5px 3px 3px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 8px 18px rgba(18, 78, 151, 0.18);
+}
+
+.tech-logo-chart.chart-a {
+  left: 28px;
+  height: 28px;
+}
+
+.tech-logo-chart.chart-b {
+  left: 48px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.tech-logo-chart.chart-c {
+  left: 68px;
   height: 36px;
 }
 
+.tech-logo-spark {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.tech-logo-spark.spark-a {
+  width: 42px;
+  height: 2px;
+  left: 104px;
+  top: 34px;
+  transform: rotate(-16deg);
+}
+
+.tech-logo-spark.spark-b {
+  width: 30px;
+  height: 2px;
+  left: 118px;
+  top: 54px;
+  opacity: 0.62;
+  transform: rotate(-16deg);
+}
+
+.tech-logo-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tech-logo-mark {
+  width: 42px;
+  height: 42px;
+  position: relative;
+  flex: 0 0 auto;
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--tech-blue-light) 0%, var(--tech-blue-dark) 100%);
+  box-shadow: 0 10px 22px rgba(46, 106, 179, 0.24);
+}
+
+.tech-logo-mark::before {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: 7px;
+  background:
+    linear-gradient(90deg, #ffffff 0 42%, transparent 42% 58%, rgba(255, 255, 255, 0.72) 58% 100%),
+    linear-gradient(180deg, transparent 0 42%, rgba(255, 255, 255, 0.28) 42% 58%, transparent 58%);
+}
+
 .tech-logo-text {
-  color: #FFFFFF;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 2px;
+  color: var(--tech-text);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.3px;
 }
 
 .tech-logo-sub {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 11px;
+  color: var(--tech-text-secondary);
+  font-size: 12px;
   margin-top: 4px;
-  letter-spacing: 1px;
+  letter-spacing: 0.7px;
 }
 
 .tech-nav {
