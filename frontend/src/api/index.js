@@ -29,6 +29,7 @@ export const authApi = {
   getPublicKey: () => api.get('/auth/public-key'),
   getCaptcha: () => api.get('/auth/captcha', { params: { _t: Date.now() } }),
   login: (username, encryptedPassword, captchaId, captchaCode) => api.post('/auth/login', { username, encryptedPassword, captchaId, captchaCode }),
+  sso: () => api.post('/auth/sso'),
   me: () => api.get('/auth/me'),
   updateEmail: (email) => api.put('/auth/me/email', { email })
 }

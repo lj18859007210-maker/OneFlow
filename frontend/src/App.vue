@@ -1,5 +1,5 @@
 ﻿<template>
-  <router-view v-if="isLoginPage" />
+  <router-view v-if="isStandalonePage" />
   <div v-else class="tech-layout">
     <aside class="tech-sidebar">
       <div class="tech-logo-wrap">
@@ -310,7 +310,7 @@
         <router-view />
       </div>
     </main>
-    <AIChat v-if="!isLoginPage" />
+    <AIChat v-if="!isStandalonePage" />
     <div v-if="showEmailDialog" class="tech-dialog-overlay" @click="closeEmailDialog">
       <form class="tech-dialog profile-email-dialog" @submit.prevent="saveEmail" @click.stop>
         <div class="tech-dialog-header">
@@ -365,7 +365,7 @@ import { showToast, toastState } from "./utils/toastService";
 const route = useRoute();
 const router = useRouter();
 
-const isLoginPage = computed(() => route.path === "/login");
+const isStandalonePage = computed(() => route.path === "/login" || route.path === "/sso");
 
 const currentUser = ref({ name: "未登录", email: "", role: "user", permissions: [] });
 const showEmailDialog = ref(false);
@@ -418,7 +418,7 @@ function handleCurrentUserUpdated() {
 }
 
 onMounted(async () => {
-  if (!isLoginPage.value && !localStorage.getItem("token")) {
+  if (!isStandalonePage.value && !localStorage.getItem("token")) {
     router.push("/login");
     return;
   }

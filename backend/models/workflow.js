@@ -9,7 +9,13 @@ const {
 } = require('../utils/workflowDefaults');
 
 const cache = new Map();
+const loadingFlows = new Map();
 const VALID_ROLES = new Set(['admin', 'developer', 'user']);
+
+function isUniqueConstraintError(error) {
+  const message = String(error?.message || error || '');
+  return message.includes('-6602') || message.includes('唯一性约束');
+}
 
 function normalizeApprovalOutcomeValue(value) {
   if (typeof value !== 'string') return null;
@@ -194,11 +200,25 @@ async function insertDefaultStatuses(connection, flowKey) {
         params
       );
     } else {
-      await connection.execute(
-        `INSERT INTO workflow_statuses (id, flowKey, statusCode, statusName, sortOrder, isTerminal, enabled, createdAt, updatedAt)
-         VALUES (:id, :flowKey, :statusCode, :statusName, :sortOrder, :isTerminal, :enabled, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        { id: uuidv4(), ...params }
-      );
+      try {
+        await connection.execute(
+          `INSERT INTO workflow_statuses (id, flowKey, statusCode, statusName, sortOrder, isTerminal, enabled, createdAt, updatedAt)
+           VALUES (:id, :flowKey, :statusCode, :statusName, :sortOrder, :isTerminal, :enabled, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          { id: uuidv4(), ...params }
+        );
+      } catch (error) {
+        if (!isUniqueConstraintError(error)) throw error;
+        await connection.execute(
+          `UPDATE workflow_statuses
+           SET statusName = :statusName,
+               sortOrder = :sortOrder,
+               isTerminal = :isTerminal,
+               enabled = :enabled,
+               updatedAt = CURRENT_TIMESTAMP
+           WHERE flowKey = :flowKey AND statusCode = :statusCode`,
+          params
+        );
+      }
     }
   }
 }
@@ -272,10 +292,7 @@ async function ensureDefaultFlowData(connection, flowKey, flow) {
   return queryFlow(flowKey, connection);
 }
 
-async function getFlow(flowKey = FLOW_KEY_REQUIREMENT, options = {}) {
-  if (!options.forceRefresh && cache.has(flowKey)) {
-    return cache.get(flowKey);
-  }
+async function loadFlow(flowKey) {
   let connection;
   try {
     connection = await db.getConnection();
@@ -286,6 +303,22 @@ async function getFlow(flowKey = FLOW_KEY_REQUIREMENT, options = {}) {
   } finally {
     if (connection) await connection.close();
   }
+}
+
+async function getFlow(flowKey = FLOW_KEY_REQUIREMENT, options = {}) {
+  if (!options.forceRefresh && cache.has(flowKey)) {
+    return cache.get(flowKey);
+  }
+
+  if (loadingFlows.has(flowKey)) {
+    return loadingFlows.get(flowKey);
+  }
+
+  const loading = loadFlow(flowKey).finally(() => {
+    loadingFlows.delete(flowKey);
+  });
+  loadingFlows.set(flowKey, loading);
+  return loading;
 }
 
 function findTransition(flow, fromStatus, toStatus, approvalOutcome = 'none') {

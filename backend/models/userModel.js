@@ -146,6 +146,54 @@ module.exports = {
     }
   },
 
+  async ensureSsoUser(username) {
+    const normalizedUsername = typeof username === 'string' ? username.trim() : '';
+    if (!normalizedUsername) {
+      throw new Error('username is required');
+    }
+
+    const connection = await db.getConnection();
+    try {
+      const existing = await connection.execute(
+        `SELECT id, username, name, email, role, status, createdAt, updatedAt
+         FROM users
+         WHERE username = :username AND status = 1`,
+        { username: normalizedUsername },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      if (existing.rows?.[0]) {
+        return existing.rows[0];
+      }
+
+      const userId = uuidv4();
+      const passwordHash = await bcrypt.hash(uuidv4(), 10);
+      await connection.execute(
+        `INSERT INTO users (id, username, password, name, email, role, status)
+         VALUES (:id, :username, :password, :name, :email, :role, 1)`,
+        {
+          id: userId,
+          username: normalizedUsername,
+          password: passwordHash,
+          name: normalizedUsername,
+          email: null,
+          role: 'user'
+        }
+      );
+      await connection.commit();
+
+      const created = await connection.execute(
+        `SELECT id, username, name, email, role, status, createdAt, updatedAt
+         FROM users
+         WHERE id = :id`,
+        { id: userId },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      return created.rows?.[0] || null;
+    } finally {
+      connection.close();
+    }
+  },
+
   async updateRole(userId, role) {
     const normalizedRole = normalizeRoleName(role);
     if (!normalizedRole) {

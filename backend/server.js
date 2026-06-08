@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const config = require('./config');
 const db = require('./db/oracle');
+const { seedPermissions } = require('./db/permission-seed');
 const logger = require('./utils/logger');
 const requestLogger = require('./middleware/requestLogger');
 const { helmetMiddleware, limiter, xssProtection, securityHeaders, corsConfig } = require('./middleware/security');
@@ -69,6 +70,13 @@ async function startServer() {
   try {
     await db.initialize();
     if (config.dbType === 'dm') {
+      const connection = await db.getConnection();
+      try {
+        await seedPermissions(connection);
+        console.log('DM permission seed completed');
+      } finally {
+        await connection.close();
+      }
       console.log('达梦数据库模式：跳过 Oracle 自动迁移，请使用 backend/db/oneflow-dm-create-tables-oneflow-schema.sql 初始化表结构');
     } else {
       await autoMigrate.initialize();

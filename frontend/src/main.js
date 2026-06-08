@@ -15,11 +15,13 @@ import UserRoleManagement from './views/UserRoleManagement.vue'
 import WorkflowManagement from './views/WorkflowManagement.vue'
 import EmailSettings from './views/EmailSettings.vue'
 import PlatformSettings from './views/PlatformSettings.vue'
+import SsoLogin from './views/SsoLogin.vue'
 import { hasPermission } from './utils/access'
 import { clearStoredSession, refreshCurrentUserIfStale, getStoredCurrentUser } from './utils/session'
 
 const routes = [
   { path: '/login', component: Login, meta: { requiresAuth: false } },
+  { path: '/sso', component: SsoLogin, meta: { requiresAuth: false } },
   { path: '/', component: Home, meta: { requiresAuth: true, permission: 'requirement:view' } },
   { path: '/my-requirements', component: MyRequirements, meta: { requiresAuth: true, permission: 'requirement:view' } },
   { path: '/detail/:id', component: Detail, meta: { requiresAuth: true, permission: 'requirement:view' } },

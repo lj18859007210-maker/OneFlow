@@ -10,6 +10,8 @@ const authMiddleware = require('../middleware/auth');
 const { buildCurrentUser } = require('../utils/sessionUser');
 const { createCaptcha, verifyCaptcha } = require('../utils/captchaStore');
 
+const JKSTORE_TOKEN_SECRET = process.env.JKSTORE_TOKEN_SECRET || 'cx_swx';
+
 function getUpdateTime() {
   const now = new Date();
   const formatter = new Intl.DateTimeFormat('zh-CN', {
@@ -55,6 +57,39 @@ function createLoginLogger(username) {
 function sendJson(res, payload) {
   if (!res.headersSent) {
     res.json(payload);
+  }
+}
+
+function parseCookies(cookieHeader) {
+  if (!cookieHeader) return {};
+
+  return cookieHeader.split(';').reduce((cookies, part) => {
+    const index = part.indexOf('=');
+    if (index === -1) return cookies;
+
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (!key) return cookies;
+
+    try {
+      cookies[key] = decodeURIComponent(value);
+    } catch (error) {
+      cookies[key] = value;
+    }
+    return cookies;
+  }, {});
+}
+
+function getJkstoreUsernameFromRequest(req) {
+  const cookies = parseCookies(req.headers.cookie || '');
+  const sourceToken = cookies.token;
+  if (!sourceToken) return null;
+
+  try {
+    const decoded = jwt.verify(sourceToken, JKSTORE_TOKEN_SECRET);
+    return decoded?.name || cookies.username || null;
+  } catch (error) {
+    return null;
   }
 }
 
@@ -145,6 +180,74 @@ router.post('/login', strictLimiter, async (req, res) => {
     })(), config.security.loginTimeoutMs, `登录超时：后端连接达梦或查询用户表超过 ${config.security.loginTimeoutMs}ms，请看后端控制台 [Login] 日志定位卡点`);
   } catch (error) {
     sendJson(res, { updatetime, code: 500, data: error.message });
+  }
+});
+
+router.post('/sso', async (req, res) => {
+  const updatetime = getUpdateTime();
+  const username = getJkstoreUsernameFromRequest(req);
+
+  if (!username) {
+    return res.status(401).json({
+      updatetime,
+      code: 401,
+      success: false,
+      message: '主平台登录态无效或已过期'
+    });
+  }
+
+  try {
+    const user = await userModel.ensureSsoUser(username);
+    if (!user) {
+      return res.status(401).json({
+        updatetime,
+        code: 401,
+        success: false,
+        message: '无法创建或读取 OneFlow 用户'
+      });
+    }
+
+    const sessionUser = await buildCurrentUser({
+      id: user.ID,
+      username: user.USERNAME,
+      name: user.NAME,
+      email: user.EMAIL,
+      role: user.ROLE
+    });
+
+    const token = jwt.sign(
+      sessionUser,
+      config.jwt.secret,
+      { expiresIn: config.jwt.expiresIn }
+    );
+
+    auditLogModel.create({
+      userId: user.ID,
+      userName: user.NAME,
+      userRole: user.ROLE,
+      action: 'sso_login',
+      resource: 'auth',
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent'),
+      status: 'success'
+    }).catch(() => {});
+
+    res.json({
+      updatetime,
+      code: 0,
+      success: true,
+      data: {
+        user: sessionUser,
+        token
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      updatetime,
+      code: 500,
+      success: false,
+      message: error.message || '自动登录失败'
+    });
   }
 });
 
