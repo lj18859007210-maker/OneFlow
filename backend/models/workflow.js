@@ -169,39 +169,87 @@ async function queryFlow(flowKey, connection) {
 
 async function insertDefaultStatuses(connection, flowKey) {
   for (const status of DEFAULT_STATUSES) {
-    await connection.execute(
-      `INSERT INTO workflow_statuses (id, flowKey, statusCode, statusName, sortOrder, isTerminal, enabled, createdAt, updatedAt)
-       VALUES (:id, :flowKey, :statusCode, :statusName, :sortOrder, :isTerminal, :enabled, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      {
-        id: uuidv4(),
-        flowKey,
-        statusCode: status.statusCode,
-        statusName: status.statusName,
-        sortOrder: status.sortOrder,
-        isTerminal: status.isTerminal,
-        enabled: status.enabled
-      }
+    const params = {
+      flowKey,
+      statusCode: status.statusCode,
+      statusName: status.statusName,
+      sortOrder: status.sortOrder,
+      isTerminal: status.isTerminal,
+      enabled: status.enabled
+    };
+    const existing = await connection.execute(
+      `SELECT id FROM workflow_statuses WHERE flowKey = :flowKey AND statusCode = :statusCode`,
+      { flowKey, statusCode: status.statusCode },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
+    if (existing.rows.length) {
+      await connection.execute(
+        `UPDATE workflow_statuses
+         SET statusName = :statusName,
+             sortOrder = :sortOrder,
+             isTerminal = :isTerminal,
+             enabled = :enabled,
+             updatedAt = CURRENT_TIMESTAMP
+         WHERE flowKey = :flowKey AND statusCode = :statusCode`,
+        params
+      );
+    } else {
+      await connection.execute(
+        `INSERT INTO workflow_statuses (id, flowKey, statusCode, statusName, sortOrder, isTerminal, enabled, createdAt, updatedAt)
+         VALUES (:id, :flowKey, :statusCode, :statusName, :sortOrder, :isTerminal, :enabled, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        { id: uuidv4(), ...params }
+      );
+    }
   }
 }
 
 async function insertDefaultTransitions(connection, flowKey) {
   for (const transition of DEFAULT_TRANSITIONS) {
-    await connection.execute(
-      `INSERT INTO workflow_transitions (id, flowKey, fromStatus, toStatus, allowedRoles, requireApproval, notifyEnabled, enabled, approvalOutcome, createdAt, updatedAt)
-       VALUES (:id, :flowKey, :fromStatus, :toStatus, :allowedRoles, :requireApproval, :notifyEnabled, :enabled, :approvalOutcome, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    const params = {
+      flowKey,
+      fromStatus: transition.fromStatus,
+      toStatus: transition.toStatus,
+      allowedRoles: JSON.stringify(transition.allowedRoles),
+      requireApproval: transition.requireApproval,
+      notifyEnabled: transition.notifyEnabled,
+      enabled: transition.enabled,
+      approvalOutcome: transition.approvalOutcome
+    };
+    const existing = await connection.execute(
+      `SELECT id FROM workflow_transitions
+       WHERE flowKey = :flowKey
+         AND fromStatus = :fromStatus
+         AND toStatus = :toStatus
+         AND approvalOutcome = :approvalOutcome`,
       {
-        id: uuidv4(),
         flowKey,
         fromStatus: transition.fromStatus,
         toStatus: transition.toStatus,
-        allowedRoles: JSON.stringify(transition.allowedRoles),
-        requireApproval: transition.requireApproval,
-        notifyEnabled: transition.notifyEnabled,
-        enabled: transition.enabled,
         approvalOutcome: transition.approvalOutcome
-      }
+      },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
+    if (existing.rows.length) {
+      await connection.execute(
+        `UPDATE workflow_transitions
+         SET allowedRoles = :allowedRoles,
+             requireApproval = :requireApproval,
+             notifyEnabled = :notifyEnabled,
+             enabled = :enabled,
+             updatedAt = CURRENT_TIMESTAMP
+         WHERE flowKey = :flowKey
+           AND fromStatus = :fromStatus
+           AND toStatus = :toStatus
+           AND approvalOutcome = :approvalOutcome`,
+        params
+      );
+    } else {
+      await connection.execute(
+        `INSERT INTO workflow_transitions (id, flowKey, fromStatus, toStatus, allowedRoles, requireApproval, notifyEnabled, enabled, approvalOutcome, createdAt, updatedAt)
+         VALUES (:id, :flowKey, :fromStatus, :toStatus, :allowedRoles, :requireApproval, :notifyEnabled, :enabled, :approvalOutcome, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        { id: uuidv4(), ...params }
+      );
+    }
   }
 }
 

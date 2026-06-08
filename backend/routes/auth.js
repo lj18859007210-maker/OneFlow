@@ -36,6 +36,28 @@ function recordLoginFailure(req, username, reason) {
   }).catch(() => {});
 }
 
+function withTimeout(promise, timeoutMs, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function createLoginLogger(username) {
+  const startedAt = Date.now();
+  return (stage) => {
+    console.log(`[Login] ${stage} username=${username || 'unknown'} elapsed=${Date.now() - startedAt}ms`);
+  };
+}
+
+function sendJson(res, payload) {
+  if (!res.headersSent) {
+    res.json(payload);
+  }
+}
+
 router.get('/public-key', (req, res) => {
   res.json({ code: 0, data: getPublicKey() });
 });
@@ -56,22 +78,31 @@ router.post('/login', strictLimiter, async (req, res) => {
   const updatetime = getUpdateTime();
 
   try {
+    await withTimeout((async () => {
     const { username, encryptedPassword, captchaId, captchaCode } = req.body;
+    const logLogin = createLoginLogger(username);
+    logLogin('request-start');
+
     if (!username || !encryptedPassword) {
       recordLoginFailure(req, username, 'empty_credentials');
-      return res.json({ updatetime, code: 500, data: '\u8d26\u53f7\u548c\u5bc6\u7801\u4e0d\u80fd\u4e3a\u7a7a' });
+      return sendJson(res, { updatetime, code: 500, data: '\u8d26\u53f7\u548c\u5bc6\u7801\u4e0d\u80fd\u4e3a\u7a7a' });
     }
 
     if (!verifyCaptcha(captchaId, captchaCode)) {
       recordLoginFailure(req, username, 'invalid_captcha');
-      return res.json({ updatetime, code: 500, data: '\u9a8c\u8bc1\u7801\u9519\u8bef\u6216\u5df2\u8fc7\u671f' });
+      return sendJson(res, { updatetime, code: 500, data: '\u9a8c\u8bc1\u7801\u9519\u8bef\u6216\u5df2\u8fc7\u671f' });
     }
+    logLogin('captcha-ok');
 
     const password = decryptPassword(encryptedPassword);
+    logLogin('password-decrypted');
+
     const user = await userModel.login(username, password);
+    logLogin('user-query-finished');
+
     if (!user) {
       recordLoginFailure(req, username, 'invalid_credentials');
-      return res.json({ updatetime, code: 500, data: '\u8d26\u53f7\u6216\u5bc6\u7801\u9519\u8bef' });
+      return sendJson(res, { updatetime, code: 500, data: '\u8d26\u53f7\u6216\u5bc6\u7801\u9519\u8bef' });
     }
 
     const sessionUser = await buildCurrentUser({
@@ -81,6 +112,7 @@ router.post('/login', strictLimiter, async (req, res) => {
       email: user.EMAIL,
       role: user.ROLE
     });
+    logLogin('permissions-query-finished');
 
     const token = jwt.sign(
       sessionUser,
@@ -98,8 +130,9 @@ router.post('/login', strictLimiter, async (req, res) => {
       userAgent: req.get('User-Agent'),
       status: 'success'
     }).catch(() => {});
+    logLogin('response-success');
 
-    res.json({
+    sendJson(res, {
       updatetime,
       code: 0,
       data: {
@@ -109,8 +142,9 @@ router.post('/login', strictLimiter, async (req, res) => {
         token
       }
     });
+    })(), config.security.loginTimeoutMs, `登录超时：后端连接达梦或查询用户表超过 ${config.security.loginTimeoutMs}ms，请看后端控制台 [Login] 日志定位卡点`);
   } catch (error) {
-    res.json({ updatetime, code: 500, data: error.message });
+    sendJson(res, { updatetime, code: 500, data: error.message });
   }
 });
 

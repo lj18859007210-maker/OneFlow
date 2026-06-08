@@ -147,7 +147,6 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { authApi } from "../api";
-import { JSEncrypt } from "jsencrypt";
 
 const router = useRouter();
 const username = ref("");
@@ -167,6 +166,44 @@ const modules = [
   { title: "审计日志", desc: "登录与操作留痕", color: "#1e4d86" },
   { title: "权限配置", desc: "角色与访问控制", color: "#5968c9" },
 ];
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return window.btoa(binary);
+}
+
+function pemToArrayBuffer(pem) {
+  const base64 = pem
+    .replace(/-----BEGIN PUBLIC KEY-----/g, "")
+    .replace(/-----END PUBLIC KEY-----/g, "")
+    .replace(/\s/g, "");
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+async function encryptPasswordByPublicKey(plainText, publicKeyPem) {
+  const publicKey = await window.crypto.subtle.importKey(
+    "spki",
+    pemToArrayBuffer(publicKeyPem),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["encrypt"],
+  );
+  const encrypted = await window.crypto.subtle.encrypt(
+    { name: "RSA-OAEP" },
+    publicKey,
+    new TextEncoder().encode(plainText),
+  );
+  return arrayBufferToBase64(encrypted);
+}
 
 async function loadCaptcha() {
   captchaLoading.value = true;
@@ -201,9 +238,7 @@ async function handleLogin() {
       errorMsg.value = "获取加密密钥失败";
       return;
     }
-    const encrypt = new JSEncrypt();
-    encrypt.setPublicKey(keyRes.data.data);
-    const encryptedPassword = encrypt.encrypt(password.value);
+    const encryptedPassword = await encryptPasswordByPublicKey(password.value, keyRes.data.data);
 
     const res = await authApi.login(
       username.value,
@@ -232,7 +267,11 @@ async function handleLogin() {
       await loadCaptcha();
     }
   } catch (error) {
-    errorMsg.value = "登录失败，请稍后重试";
+    errorMsg.value =
+      error.response?.data?.data ||
+      error.response?.data?.message ||
+      error.message ||
+      "登录失败，请稍后重试";
     await loadCaptcha();
   } finally {
     loading.value = false;

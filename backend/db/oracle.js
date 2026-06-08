@@ -7,6 +7,20 @@ if (driver.OUT_FORMAT_OBJECT && !driver.OBJECT) {
   driver.OBJECT = driver.OUT_FORMAT_OBJECT;
 }
 
+function buildDmConnectString() {
+  const params = new URLSearchParams({
+    schema: config.dm.schema,
+    compatibleMode: 'oracle',
+    columnNameCase: 'upper',
+    autoCommit: 'false',
+    connectTimeout: String(config.dm.connectTimeoutMs),
+    socketTimeout: String(config.dm.socketTimeoutMs),
+    sessionTimeout: String(config.dm.sessionTimeoutSec)
+  });
+
+  return `dm://${encodeURIComponent(config.dm.user)}:${encodeURIComponent(config.dm.password)}@${config.dm.host}:${config.dm.port}?${params.toString()}`;
+}
+
 const dbConfig = isDm
   ? {
       user: config.dm.user,
@@ -15,7 +29,10 @@ const dbConfig = isDm
       schema: config.dm.schema,
       autoCommit: false,
       compatibleMode: 'oracle',
-      columnNameCase: 'upper'
+      columnNameCase: 'upper',
+      connectTimeout: config.dm.connectTimeoutMs,
+      socketTimeout: config.dm.socketTimeoutMs,
+      sessionTimeout: config.dm.sessionTimeoutSec
     }
   : {
       user: config.oracle.user,
@@ -26,16 +43,24 @@ const dbConfig = isDm
 let pool = null;
 let useDirectConnection = false;
 
+async function validateConnection(connection) {
+  await connection.execute('SELECT 1 FROM DUAL');
+}
+
 async function initialize() {
   if (pool) return;
-  
+
   try {
     const poolOptions = isDm
       ? {
-          connectString: `dm://${encodeURIComponent(config.dm.user)}:${encodeURIComponent(config.dm.password)}@${config.dm.host}:${config.dm.port}?schema=${encodeURIComponent(config.dm.schema)}&compatibleMode=oracle&columnNameCase=upper&autoCommit=false`,
+          connectString: buildDmConnectString(),
           poolMin: config.dm.poolMin,
           poolMax: config.dm.poolMax,
-          poolIncrement: config.dm.poolIncrement
+          poolIncrement: config.dm.poolIncrement,
+          queueTimeout: config.dm.queueTimeoutMs,
+          queueMax: config.dm.queueMax,
+          testOnBorrow: true,
+          validationQuery: 'SELECT 1 FROM DUAL'
         }
       : {
           user: dbConfig.user,
@@ -47,10 +72,19 @@ async function initialize() {
         };
 
     pool = await driver.createPool(poolOptions);
-    console.log(`${isDm ? '达梦' : 'Oracle'} 数据库连接池初始化成功`);
+
+    let connection;
+    try {
+      connection = await pool.getConnection();
+      await validateConnection(connection);
+    } finally {
+      if (connection) await connection.close();
+    }
+
+    console.log(`${isDm ? 'DM' : 'Oracle'} database pool initialized and validated`);
   } catch (error) {
-    console.error(`${isDm ? '达梦' : 'Oracle'} 数据库连接池初始化失败:`, error.message);
-    console.log('尝试使用直接连接方式...');
+    console.error(`${isDm ? 'DM' : 'Oracle'} database pool initialization failed:`, error.message);
+    console.log('Falling back to direct database connections...');
     useDirectConnection = true;
   }
 }
@@ -59,11 +93,11 @@ async function getConnection() {
   if (!pool) {
     await initialize();
   }
-  
+
   if (useDirectConnection) {
     return await driver.getConnection(dbConfig);
   }
-  
+
   return await pool.getConnection();
 }
 
@@ -82,8 +116,7 @@ module.exports = {
   config,
   driver,
   isDm,
-  
-  // Helper: read LOB content as string
+
   async readLob(lob) {
     if (!lob) return null;
     if (typeof lob === 'string') return lob;

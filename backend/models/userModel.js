@@ -56,14 +56,19 @@ function buildUserListFilters(filters = {}) {
 
 module.exports = {
   async login(username, password) {
+    const startedAt = Date.now();
+    console.log(`[Login] userModel.login getConnection-start username=${username}`);
     const connection = await db.getConnection();
+    console.log(`[Login] userModel.login getConnection-done username=${username} elapsed=${Date.now() - startedAt}ms`);
     try {
+      console.log(`[Login] userModel.login query-users-start username=${username} elapsed=${Date.now() - startedAt}ms`);
       const result = await connection.execute(
         `SELECT id, username, password, name, email, role FROM users 
          WHERE username = :username AND status = 1`,
         { username },
         { outFormat: oracledb.OBJECT }
       );
+      console.log(`[Login] userModel.login query-users-done username=${username} elapsed=${Date.now() - startedAt}ms`);
       const user = result.rows[0];
       if (!user) {
         console.log('[Login] User not found:', username);
@@ -80,7 +85,9 @@ module.exports = {
       
       return user;
     } finally {
-      connection.close();
+      console.log(`[Login] userModel.login close-start username=${username} elapsed=${Date.now() - startedAt}ms`);
+      await connection.close();
+      console.log(`[Login] userModel.login close-done username=${username} elapsed=${Date.now() - startedAt}ms`);
     }
   },
 

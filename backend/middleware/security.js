@@ -56,6 +56,15 @@ const strictLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (req, res) => {
+    logger.warn(`严格请求频率限制: ${req.ip} ${req.originalUrl}`);
+    res.status(429).json({
+      code: 500,
+      data: "请求过于频繁，请稍后再试，或重启后端服务后再登录",
+      success: false,
+      message: "请求过于频繁，请稍后再试，或重启后端服务后再登录",
+    });
+  },
 });
 
 // XSS 防护中间件

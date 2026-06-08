@@ -4,8 +4,8 @@
   "description": "需求管理平台后端",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node --openssl-legacy-provider server.js",
+    "dev": "nodemon --exec \"node --openssl-legacy-provider\" server.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -42,7 +42,12 @@ const config = {
     schema: process.env.DM_SCHEMA || process.env.DM_USER || process.env.ORACLE_USER || 'ONEFLOW',
     poolMin: envInt('DM_POOL_MIN', 0),
     poolMax: envInt('DM_POOL_MAX', 3),
-    poolIncrement: envInt('DM_POOL_INCREMENT', 1)
+    poolIncrement: envInt('DM_POOL_INCREMENT', 1),
+    connectTimeoutMs: envInt('DM_CONNECT_TIMEOUT_MS', 5000),
+    socketTimeoutMs: envInt('DM_SOCKET_TIMEOUT_MS', 8000),
+    sessionTimeoutSec: envInt('DM_SESSION_TIMEOUT_SEC', 8),
+    queueMax: envInt('DM_QUEUE_MAX', 500),
+    queueTimeoutMs: envInt('DM_QUEUE_TIMEOUT_MS', 8000)
   },
 
   // AI 服务配置
@@ -82,6 +87,7 @@ const config = {
       windowMs: envInt('STRICT_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
       maxRequests: envInt('STRICT_RATE_LIMIT_MAX_REQUESTS', 100)
     },
+    loginTimeoutMs: envInt('LOGIN_TIMEOUT_MS', 8000),
     bcryptRounds: envInt('BCRYPT_ROUNDS', 10)
   }
 };
