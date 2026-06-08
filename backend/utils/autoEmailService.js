@@ -1,5 +1,5 @@
-const db = require('../db/oracle');
-const oracledb = require('oracledb');
+﻿const db = require('../db/oracle');
+const { driver: oracledb } = require('../db/oracle');
 const emailSettingModel = require('../models/emailSetting');
 const { createEmailDigestService, uniqueEmails } = require('./emailDigestService');
 const { sendEmail } = require('./emailSender');

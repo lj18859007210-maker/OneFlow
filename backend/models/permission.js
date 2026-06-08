@@ -1,5 +1,5 @@
-const { v4: uuidv4 } = require('uuid');
-const oracledb = require('oracledb');
+﻿const { v4: uuidv4 } = require('uuid');
+const { driver: oracledb } = require('../db/oracle');
 const db = require('../db/oracle');
 const { normalizeRoleId } = require('../utils/roleAccess');
 

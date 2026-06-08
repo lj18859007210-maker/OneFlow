@@ -1,8 +1,8 @@
-const commentModel = require('../models/comment');
+﻿const commentModel = require('../models/comment');
 const notificationService = require('../utils/notificationService');
 const autoEmailService = require('../utils/autoEmailService');
 const db = require('../db/oracle');
-const oracledb = require('oracledb');
+const { driver: oracledb } = require('../db/oracle');
 const { normalizeDeveloperNames } = require('../models/requirement');
 
 function uniqueNames(values) {

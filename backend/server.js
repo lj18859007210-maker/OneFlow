@@ -68,7 +68,11 @@ app.get('/api/health', (req, res) => {
 async function startServer() {
   try {
     await db.initialize();
-    await autoMigrate.initialize();
+    if (config.dbType === 'dm') {
+      console.log('达梦数据库模式：跳过 Oracle 自动迁移，请使用 backend/db/oneflow-dm-create-tables-oneflow-schema.sql 初始化表结构');
+    } else {
+      await autoMigrate.initialize();
+    }
     app.listen(PORT, () => {
       console.log(`后端服务运行在 http://localhost:${PORT}`);
       console.log(`环境: ${config.nodeEnv}`);

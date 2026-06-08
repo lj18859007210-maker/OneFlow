@@ -1,8 +1,18 @@
 require('dotenv').config({ quiet: true });
 
+function envInt(name, fallback) {
+  const value = process.env[name];
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 const config = {
+  // 数据库类型：oracle 或 dm
+  dbType: (process.env.DB_TYPE || 'oracle').toLowerCase(),
+
   // 服务器配置
-  port: parseInt(process.env.PORT, 10) || 3000,
+  port: envInt('PORT', 3000),
   nodeEnv: process.env.NODE_ENV || 'development',
 
   // JWT 配置
@@ -14,13 +24,25 @@ const config = {
   // Oracle 数据库配置
   oracle: {
     host: process.env.ORACLE_HOST || 'localhost',
-    port: parseInt(process.env.ORACLE_PORT, 10) || 1521,
+    port: envInt('ORACLE_PORT', 1521),
     serviceName: process.env.ORACLE_SERVICE_NAME || 'ORCL',
     user: process.env.ORACLE_USER || 'system',
     password: process.env.ORACLE_PASSWORD || 'oracle',
-    poolMin: 2,
-    poolMax: 10,
-    poolIncrement: 2
+    poolMin: envInt('ORACLE_POOL_MIN', 1),
+    poolMax: envInt('ORACLE_POOL_MAX', 3),
+    poolIncrement: envInt('ORACLE_POOL_INCREMENT', 1)
+  },
+
+  // 达梦数据库配置
+  dm: {
+    host: process.env.DM_HOST || process.env.ORACLE_HOST || 'localhost',
+    port: envInt('DM_PORT', envInt('ORACLE_PORT', 5236)),
+    user: process.env.DM_USER || process.env.ORACLE_USER || 'ONEFLOW',
+    password: process.env.DM_PASSWORD || process.env.ORACLE_PASSWORD || '',
+    schema: process.env.DM_SCHEMA || process.env.DM_USER || process.env.ORACLE_USER || 'ONEFLOW',
+    poolMin: envInt('DM_POOL_MIN', 0),
+    poolMax: envInt('DM_POOL_MAX', 3),
+    poolIncrement: envInt('DM_POOL_INCREMENT', 1)
   },
 
   // AI 服务配置
@@ -32,7 +54,7 @@ const config = {
   // 邮件配置
   smtp: {
     host: process.env.SMTP_HOST || 'smtp.cmcc.cn',
-    port: parseInt(process.env.SMTP_PORT, 10) || 465,
+    port: envInt('SMTP_PORT', 465),
     user: process.env.SMTP_USER || 'noreply@cmcc.cn',
     password: process.env.SMTP_PASSWORD || '',
     from: process.env.SMTP_FROM || 'noreply@cmcc.cn'
@@ -40,7 +62,7 @@ const config = {
 
   // 文件上传配置
   upload: {
-    maxFileSize: parseInt(process.env.UPLOAD_MAX_SIZE, 10) || 10 * 1024 * 1024,
+    maxFileSize: envInt('UPLOAD_MAX_SIZE', 10 * 1024 * 1024),
     dir: process.env.UPLOAD_DIR || './uploads'
   },
 
@@ -53,19 +75,21 @@ const config = {
   // 安全配置
   security: {
     rateLimit: {
-      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000,
-      maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 500
+      windowMs: envInt('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
+      maxRequests: envInt('RATE_LIMIT_MAX_REQUESTS', 500)
     },
     strictRateLimit: {
-      windowMs: parseInt(process.env.STRICT_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000,
-      maxRequests: parseInt(process.env.STRICT_RATE_LIMIT_MAX_REQUESTS, 10) || 100
+      windowMs: envInt('STRICT_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
+      maxRequests: envInt('STRICT_RATE_LIMIT_MAX_REQUESTS', 100)
     },
-    bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS, 10) || 10
+    bcryptRounds: envInt('BCRYPT_ROUNDS', 10)
   }
 };
 
 // 验证必要配置
-const requiredEnvVars = ['JWT_SECRET', 'ORACLE_USER', 'ORACLE_PASSWORD'];
+const requiredEnvVars = config.dbType === 'dm'
+  ? ['JWT_SECRET', 'DM_USER', 'DM_PASSWORD']
+  : ['JWT_SECRET', 'ORACLE_USER', 'ORACLE_PASSWORD'];
 const missingVars = requiredEnvVars.filter(v => !process.env[v]);
 if (missingVars.length > 0) {
   console.warn(`⚠️  缺少必要环境变量: ${missingVars.join(', ')}`);

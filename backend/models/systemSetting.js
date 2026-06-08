@@ -1,4 +1,4 @@
-const oracledb = require('oracledb');
+﻿const { driver: oracledb } = require('../db/oracle');
 const db = require('../db/oracle');
 
 async function getValue(key, defaultValue = null) {

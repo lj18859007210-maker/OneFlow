@@ -1,9 +1,9 @@
-const requirementModel = require('../models/requirement');
+﻿const requirementModel = require('../models/requirement');
 const commentModel = require('../models/comment');
 const notificationService = require('../utils/notificationService');
 const autoEmailService = require('../utils/autoEmailService');
 const db = require('../db/oracle');
-const oracledb = require('oracledb');
+const { driver: oracledb } = require('../db/oracle');
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;

@@ -1,4 +1,4 @@
-const oracledb = require('oracledb');
+﻿const { driver: oracledb } = require('../db/oracle');
 const db = require('../db/oracle');
 const bcrypt = require('bcryptjs');
 const { ROLE_ID_MAP, normalizeRoleName } = require('../utils/roleAccess');
