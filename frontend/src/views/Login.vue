@@ -250,14 +250,37 @@ function getQueryValue(value) {
   return value || "";
 }
 
+function getCookieValue(name) {
+  const prefix = `${name}=`;
+  const cookies = (document.cookie || "").split(";");
+  for (const cookie of cookies) {
+    const item = cookie.trim();
+    if (item.startsWith(prefix)) {
+      const value = item.slice(prefix.length);
+      try {
+        return decodeURIComponent(value);
+      } catch (error) {
+        return value;
+      }
+    }
+  }
+  return "";
+}
+
 function getSsoPayloadFromRoute() {
   const params = new URLSearchParams(window.location.search || "");
   return {
-    jkToken: getQueryValue(route.query.jkToken) || params.get("jkToken") || params.get("token") || "",
+    jkToken:
+      getQueryValue(route.query.jkToken) ||
+      params.get("jkToken") ||
+      params.get("token") ||
+      getCookieValue("token") ||
+      "",
     jkUsername:
       getQueryValue(route.query.jkUsername) ||
       params.get("jkUsername") ||
       params.get("username") ||
+      getCookieValue("username") ||
       "",
     forceSso: getQueryValue(route.query.forceSso) || params.get("forceSso") || "",
     manualLogout: getQueryValue(route.query.manualLogout) || params.get("manualLogout") || "",

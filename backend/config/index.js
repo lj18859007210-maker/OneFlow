@@ -16,7 +16,7 @@ const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
 
   apiProxy: {
-    target: process.env.API_PROXY_TARGET || 'http://10.45.104.71:8887',
+    target: process.env.API_PROXY_TARGET || '',
     timeoutMs: envInt('API_PROXY_TIMEOUT_MS', 30000)
   },
 

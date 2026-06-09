@@ -24,48 +24,31 @@ const userRoutes = require('./routes/users');
 const workflowRoutes = require('./routes/workflows');
 const attachmentRoutes = require('./routes/attachments');
 const platformRoutes = require('./routes/platforms');
-
 const app = express();
 const PORT = config.port;
 const apiProxy = config.apiProxy?.target ? createApiProxy(config.apiProxy) : null;
-
 function isLoopbackProxyTarget(target, port) {
   const targetUrl = new URL(target);
   const targetPort = Number(targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80));
   return ['localhost', '127.0.0.1', '::1'].includes(targetUrl.hostname) && targetPort === port;
 }
-
 if (apiProxy && isLoopbackProxyTarget(config.apiProxy.target, PORT)) {
   throw new Error(`API_PROXY_TARGET cannot point back to localhost:${PORT}`);
 }
-
-// 安全中间件
 app.use(helmetMiddleware);
 app.use(corsConfig);
 if (!apiProxy) {
   app.use(limiter);
 }
 app.use(securityHeaders);
-
-// 请求日志中间件
 app.use(requestLogger);
-
-if (apiProxy) {
-  app.use('/api', apiProxy);
-  app.use('/uploads', apiProxy);
-}
-
 app.use(xssProtection);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
-// 静态资源缓存
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '1d',
   etag: true
 }));
-
-// 路由（GET 请求添加缓存）
 app.use('/api/requirements', cacheMiddleware(30), requirementRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/developers', developerRoutes);
@@ -80,22 +63,15 @@ app.use('/api/users', userRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/attachments', attachmentRoutes);
 app.use('/api/platforms', platformRoutes);
-
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: '需求管理平台运行中' });
+  res.json({ status: 'ok', message: 'OneFlow backend is running' });
 });
-
+if (apiProxy) {
+  app.use('/api/proxy', apiProxy);
+  app.use('/proxy/uploads', apiProxy);
+}
 async function startServer() {
   try {
-    if (apiProxy) {
-      app.listen(PORT, () => {
-        console.log(`后端代理服务运行在 http://localhost:${PORT}`);
-        console.log(`API 代理目标: ${config.apiProxy.target}`);
-        console.log(`环境: ${config.nodeEnv}`);
-      });
-      return;
-    }
-
     await db.initialize();
     if (config.dbType === 'dm') {
       const connection = await db.getConnection();
@@ -105,18 +81,17 @@ async function startServer() {
       } finally {
         await connection.close();
       }
-      console.log('达梦数据库模式：跳过 Oracle 自动迁移，请使用 backend/db/oneflow-dm-create-tables-oneflow-schema.sql 初始化表结构');
+      console.log('DM database mode: skipped Oracle migration. Initialize tables with backend/db/oneflow-dm-create-tables-oneflow-schema.sql');
     } else {
       await autoMigrate.initialize();
     }
     app.listen(PORT, () => {
-      console.log(`后端服务运行在 http://localhost:${PORT}`);
-      console.log(`环境: ${config.nodeEnv}`);
+      console.log(`Backend service running at http://localhost:${PORT}`);
+      console.log(`Environment: ${config.nodeEnv}`);
     });
   } catch (error) {
-    console.error('无法启动服务器:', error);
+    console.error('Failed to start server:', error);
     process.exit(1);
   }
 }
-
 startServer();

@@ -100,6 +100,11 @@ function getBearerToken(authHeader) {
   return header.slice(7).trim();
 }
 
+function getUsernameFromDecodedToken(decoded) {
+  if (!decoded || typeof decoded !== 'object') return '';
+  return getFirstString(decoded.username, decoded.name, decoded.sub);
+}
+
 function addTokenCandidate(tokens, value) {
   const token = getFirstString(value);
   if (token && !tokens.includes(token)) {
@@ -119,19 +124,44 @@ function getJkstoreTokenCandidates(req, cookies) {
   return tokens;
 }
 
-function getJkstoreUsernameFromRequest(req) {
-  const cookies = parseCookies(req.headers.cookie || '');
+function getRequestUsername(req, cookies) {
+  return getFirstString(
+    req.body?.jkUsername,
+    req.body?.username,
+    req.query?.jkUsername,
+    req.query?.username,
+    req.headers['x-jk-username'],
+    req.headers['x-username'],
+    cookies.username
+  );
+}
 
-  for (const sourceToken of getJkstoreTokenCandidates(req, cookies)) {
+function resolveJkstoreLogin(req) {
+  const cookies = parseCookies(req.headers.cookie || '');
+  const tokens = getJkstoreTokenCandidates(req, cookies);
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  const requestUsername = getRequestUsername(req, cookies);
+  if (requestUsername) {
+    return { username: requestUsername, source: 'request' };
+  }
+
+  let decodedUsername = '';
+  for (const sourceToken of tokens) {
     try {
       const decoded = jwt.verify(sourceToken, JKSTORE_TOKEN_SECRET);
-      if (decoded?.name) return decoded.name;
+      const username = getUsernameFromDecodedToken(decoded);
+      if (username) return { username, source: 'verified-token' };
     } catch (error) {
-      // Try the next candidate; OneFlow's own JWT can also be present here.
+      const decoded = jwt.decode(sourceToken);
+      const username = getUsernameFromDecodedToken(decoded);
+      if (username) decodedUsername = username;
     }
   }
 
-  return null;
+  return decodedUsername ? { username: decodedUsername, source: 'decoded-token' } : null;
 }
 
 router.get('/public-key', (req, res) => {
@@ -226,7 +256,8 @@ router.post('/login', strictLimiter, async (req, res) => {
 
 router.post('/sso', async (req, res) => {
   const updatetime = getUpdateTime();
-  const username = getJkstoreUsernameFromRequest(req);
+  const login = resolveJkstoreLogin(req);
+  const username = login?.username;
 
   if (!username) {
     return res.status(401).json({
