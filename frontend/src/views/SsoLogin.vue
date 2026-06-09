@@ -14,18 +14,12 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authApi } from '../api'
 import { clearStoredSession, setStoredCurrentUser } from '../utils/session'
+import { buildSsoPayload } from '../utils/sso'
 
 const route = useRoute()
 const router = useRouter()
 const message = ref('正在读取主平台登录态...')
 const failed = ref(false)
-
-function getQueryValue(value) {
-  if (Array.isArray(value)) {
-    return value[0] || ''
-  }
-  return value || ''
-}
 
 function goLogin() {
   router.replace('/login')
@@ -35,10 +29,7 @@ onMounted(async () => {
   clearStoredSession()
 
   try {
-    const payload = {
-      jkToken: getQueryValue(route.query.jkToken),
-      jkUsername: getQueryValue(route.query.jkUsername)
-    }
+    const payload = buildSsoPayload(route.query)
     if (payload.jkToken || payload.jkUsername) {
       window.history.replaceState(window.history.state, '', '/sso')
     }

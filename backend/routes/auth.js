@@ -11,6 +11,7 @@ const { buildCurrentUser } = require('../utils/sessionUser');
 const { createCaptcha, verifyCaptcha } = require('../utils/captchaStore');
 
 const JKSTORE_TOKEN_SECRET = process.env.JKSTORE_TOKEN_SECRET || 'cx_swx';
+const SSO_USERNAME_FIELDS = ['jkUsername', 'username', 'login_user', 'userName', 'loginName', 'account', 'name'];
 
 function getUpdateTime() {
   const now = new Date();
@@ -102,7 +103,7 @@ function getBearerToken(authHeader) {
 
 function getUsernameFromDecodedToken(decoded) {
   if (!decoded || typeof decoded !== 'object') return '';
-  return getFirstString(decoded.username, decoded.name, decoded.sub);
+  return getFirstString(SSO_USERNAME_FIELDS.map((field) => decoded[field]), decoded.sub);
 }
 
 function addTokenCandidate(tokens, value) {
@@ -126,13 +127,12 @@ function getJkstoreTokenCandidates(req, cookies) {
 
 function getRequestUsername(req, cookies) {
   return getFirstString(
-    req.body?.jkUsername,
-    req.body?.username,
-    req.query?.jkUsername,
-    req.query?.username,
+    SSO_USERNAME_FIELDS.map((field) => req.body?.[field]),
+    SSO_USERNAME_FIELDS.map((field) => req.query?.[field]),
     req.headers['x-jk-username'],
     req.headers['x-username'],
-    cookies.username
+    req.headers['x-login-user'],
+    SSO_USERNAME_FIELDS.map((field) => cookies[field])
   );
 }
 

@@ -148,6 +148,7 @@ import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { authApi } from "../api";
 import { clearStoredSession, setStoredCurrentUser } from "../utils/session";
+import { buildSsoPayload } from "../utils/sso";
 
 const route = useRoute();
 const router = useRouter();
@@ -243,59 +244,15 @@ function storeLoginSession(user, token) {
   });
 }
 
-function getQueryValue(value) {
-  if (Array.isArray(value)) {
-    return value[0] || "";
-  }
-  return value || "";
-}
-
-function getCookieValue(name) {
-  const prefix = `${name}=`;
-  const cookies = (document.cookie || "").split(";");
-  for (const cookie of cookies) {
-    const item = cookie.trim();
-    if (item.startsWith(prefix)) {
-      const value = item.slice(prefix.length);
-      try {
-        return decodeURIComponent(value);
-      } catch (error) {
-        return value;
-      }
-    }
-  }
-  return "";
-}
-
-function getSsoPayloadFromRoute() {
-  const params = new URLSearchParams(window.location.search || "");
-  return {
-    jkToken:
-      getQueryValue(route.query.jkToken) ||
-      params.get("jkToken") ||
-      params.get("token") ||
-      getCookieValue("token") ||
-      "",
-    jkUsername:
-      getQueryValue(route.query.jkUsername) ||
-      params.get("jkUsername") ||
-      params.get("username") ||
-      getCookieValue("username") ||
-      "",
-    forceSso: getQueryValue(route.query.forceSso) || params.get("forceSso") || "",
-    manualLogout: getQueryValue(route.query.manualLogout) || params.get("manualLogout") || "",
-  };
-}
-
 function stripSsoQueryFromLoginUrl(payload) {
-  if (payload.jkToken || payload.jkUsername || payload.forceSso || payload.manualLogout) {
+  if (payload.jkToken || payload.jkUsername || payload.username || payload.forceSso || payload.manualLogout) {
     window.history.replaceState(window.history.state, "", "/login");
   }
 }
 
 async function trySsoLogin() {
   try {
-    const payload = getSsoPayloadFromRoute();
+    const payload = buildSsoPayload(route.query);
     if (payload.manualLogout === "1") {
       clearStoredSession();
       stripSsoQueryFromLoginUrl(payload);

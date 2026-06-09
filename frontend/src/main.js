@@ -18,6 +18,7 @@ import PlatformSettings from './views/PlatformSettings.vue'
 import SsoLogin from './views/SsoLogin.vue'
 import { hasPermission } from './utils/access'
 import { clearStoredSession, refreshCurrentUserIfStale, getStoredCurrentUser } from './utils/session'
+import { hasSsoLoginSignal } from './utils/sso'
 
 const routes = [
   { path: '/login', component: Login, meta: { requiresAuth: false } },
@@ -45,6 +46,11 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   if (to.path === '/login' && to.query?.manualLogout === '1') {
     clearStoredSession()
+    next()
+    return
+  }
+
+  if (to.path === '/login' && hasSsoLoginSignal(to.query)) {
     next()
     return
   }
