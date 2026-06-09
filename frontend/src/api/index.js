@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const DEFAULT_BACKEND_BASE_URL = 'http://10.45.104.71:3000'
+const DEFAULT_BACKEND_BASE_URL = ''
 
 export const BACKEND_BASE_URL = (
   import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_BACKEND_BASE_URL

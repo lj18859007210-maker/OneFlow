@@ -12,7 +12,7 @@ const config = {
   dbType: (process.env.DB_TYPE || 'oracle').toLowerCase(),
 
   // 服务器配置
-  port: envInt('PORT', 3000),
+  port: envInt('PORT', 8887),
   nodeEnv: process.env.NODE_ENV || 'development',
 
   // JWT 配置
