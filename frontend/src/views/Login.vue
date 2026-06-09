@@ -250,12 +250,52 @@ function stripSsoQueryFromLoginUrl(payload) {
   }
 }
 
+function hasSsoPayload(payload) {
+  return Boolean(payload?.jkToken || payload?.jkUsername || payload?.username || payload?.forceSso);
+}
+
+function requestParentSsoPayload(timeoutMs = 800) {
+  return new Promise((resolve) => {
+    if (window.parent === window) {
+      resolve(null);
+      return;
+    }
+
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("message", handleMessage);
+      resolve(null);
+    }, timeoutMs);
+
+    function handleMessage(event) {
+      if (!event?.data || event.data.type !== "oneflow:sso:payload") return;
+      settled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("message", handleMessage);
+      resolve(event.data.payload || null);
+    }
+
+    window.addEventListener("message", handleMessage);
+    window.parent.postMessage({ type: "oneflow:sso:request" }, "*");
+  });
+}
+
 async function trySsoLogin() {
   try {
-    const payload = buildSsoPayload(route.query);
+    let payload = buildSsoPayload(route.query);
+    if (!hasSsoPayload(payload)) {
+      payload = (await requestParentSsoPayload()) || payload;
+    }
+
     if (payload.manualLogout === "1") {
       clearStoredSession();
       stripSsoQueryFromLoginUrl(payload);
+      return false;
+    }
+
+    if (!hasSsoPayload(payload)) {
       return false;
     }
 
