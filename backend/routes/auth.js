@@ -138,14 +138,14 @@ function getRequestUsername(req, cookies) {
 
 function resolveJkstoreLogin(req) {
   const cookies = parseCookies(req.headers.cookie || '');
-  const tokens = getJkstoreTokenCandidates(req, cookies);
-  if (tokens.length === 0) {
-    return null;
-  }
-
   const requestUsername = getRequestUsername(req, cookies);
   if (requestUsername) {
     return { username: requestUsername, source: 'request' };
+  }
+
+  const tokens = getJkstoreTokenCandidates(req, cookies);
+  if (tokens.length === 0) {
+    return null;
   }
 
   let decodedUsername = '';

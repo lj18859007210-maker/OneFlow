@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const DEFAULT_BACKEND_BASE_URL = 'http://localhost:8877'
+const DEFAULT_BACKEND_BASE_URL = ''
 
 export const BACKEND_BASE_URL = DEFAULT_BACKEND_BASE_URL.replace(/\/+$/, '')
 export const API_BASE_URL = `${BACKEND_BASE_URL}/api`

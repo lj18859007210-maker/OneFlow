@@ -2,6 +2,18 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
 
+const backendTarget = "http://127.0.0.1:8877";
+const proxy = {
+  "/api": {
+    target: backendTarget,
+    changeOrigin: true,
+  },
+  "/uploads": {
+    target: backendTarget,
+    changeOrigin: true,
+  },
+};
+
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -11,12 +23,13 @@ export default defineConfig({
   },
   server: {
     port: 5174,
-    proxy: {
-      "/api": {
-        target: "http://localhost:8877",
-        changeOrigin: true,
-      },
-    },
+    host: "0.0.0.0",
+    proxy,
+  },
+  preview: {
+    port: 5174,
+    host: "0.0.0.0",
+    proxy,
   },
   build: {
     // 代码分割
