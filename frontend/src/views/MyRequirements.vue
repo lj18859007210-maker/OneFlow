@@ -61,11 +61,11 @@
             <td>
               <template v-if="req.isDraft">
                 <span v-if="canUpdateRequirement" class="tech-link" @click="editDraft(req.id)">编辑</span>
-                <span v-if="canDeleteRequirement" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
+                <span v-if="canDeleteRequirement(req)" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
               </template>
               <template v-else>
                 <span class="tech-link" @click="viewDetail(req.id)">查看</span>
-                <span v-if="canDeleteRequirement" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
+                <span v-if="canDeleteRequirement(req)" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
               </template>
             </td>
           </tr>
@@ -166,7 +166,31 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const canCreateRequirement = computed(() => hasPermission(currentUser?.value, 'requirement:create'))
 const canUpdateRequirement = computed(() => hasPermission(currentUser?.value, 'requirement:update'))
-const canDeleteRequirement = computed(() => hasPermission(currentUser?.value, 'requirement:delete'))
+const normalizeList = (value) => {
+  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean)
+  return String(value || '')
+    .split(/[,;，；]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+const isAssignedDeveloper = (req) => {
+  const user = currentUser?.value || {}
+  const userKeys = [user.id, user.userId, user.username, user.name].map(item => String(item || '').trim()).filter(Boolean)
+  if (!userKeys.length) return false
+  const assignedKeys = [...normalizeList(req?.developerIds), ...normalizeList(req?.developer)]
+  return userKeys.some(key => assignedKeys.includes(key))
+}
+
+const canDeleteRequirement = (req) => {
+  const user = currentUser?.value || {}
+  if (user.role === 'admin' || user.role === 'role-admin') return true
+  if (user.role === 'developer' || user.role === 'role-developer') {
+    return isAssignedDeveloper(req)
+  }
+  if (hasPermission(user, 'requirement:delete')) return true
+  return false
+}
 
 const allItems = computed(() => {
   const draftItems = drafts.value.map(d => ({ ...d, isDraft: true }))

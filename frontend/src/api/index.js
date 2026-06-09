@@ -1,7 +1,52 @@
 import axios from 'axios'
 
+const DEFAULT_BACKEND_BASE_URL = 'http://10.45.104.71:3000'
+
+export const BACKEND_BASE_URL = (
+  import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_BACKEND_BASE_URL
+).replace(/\/+$/, '')
+export const API_BASE_URL = `${BACKEND_BASE_URL}/api`
+
+function isAbsoluteUrl(value) {
+  return /^https?:\/\//i.test(value)
+}
+
+function withLeadingSlash(value = '') {
+  if (!value) return ''
+  return value.startsWith('/') ? value : `/${value}`
+}
+
+export function backendUrl(path = '') {
+  if (!path) return BACKEND_BASE_URL
+  if (isAbsoluteUrl(path)) return path
+  return `${BACKEND_BASE_URL}${withLeadingSlash(path)}`
+}
+
+export function apiUrl(path = '') {
+  if (isAbsoluteUrl(path)) return path
+  const normalizedPath = withLeadingSlash(path)
+  const apiPath = normalizedPath.startsWith('/api/')
+    ? normalizedPath.slice('/api'.length)
+    : normalizedPath === '/api'
+      ? ''
+      : normalizedPath
+  return `${API_BASE_URL}${apiPath}`
+}
+
+export function authHeaders(headers = {}) {
+  const token = localStorage.getItem('token')
+  return token ? { ...headers, Authorization: `Bearer ${token}` } : headers
+}
+
+export function apiFetch(path, options = {}) {
+  return fetch(apiUrl(path), {
+    ...options,
+    headers: authHeaders(options.headers)
+  })
+}
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 30000
 })
 

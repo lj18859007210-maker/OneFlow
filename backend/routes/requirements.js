@@ -31,7 +31,7 @@ const clearCache = (req, res, next) => {
 
 router.post('/', requirePermission('requirement:create'), clearCache, auditMiddleware('create', 'requirement'), requirementController.create);
 router.put('/:id', requirePermission('requirement:update'), clearCache, auditMiddleware('update', 'requirement'), requirementController.update);
-router.delete('/:id', requirePermission('requirement:delete'), clearCache, auditMiddleware('delete', 'requirement'), requirementController.remove);
+router.delete('/:id', clearCache, auditMiddleware('delete', 'requirement'), requirementController.remove);
 router.put('/:id/status', requirePermission('requirement:update'), clearCache, auditMiddleware('update_status', 'requirement'), requirementController.updateStatus);
 router.put('/:id/approve', requirePermission('requirement:approve'), clearCache, auditMiddleware('approve', 'requirement'), requirementController.approve);
 router.put('/:id/score', requirePermission('requirement:score'), clearCache, auditMiddleware('score', 'requirement'), requirementController.score);

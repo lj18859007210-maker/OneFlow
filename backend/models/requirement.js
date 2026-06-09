@@ -691,6 +691,36 @@ function serializeDeveloperIdentifiers(value) {
   return normalizeDeveloperIdentifiers(value).join(', ');
 }
 
+function canUserDeleteRequirement(user = {}, requirement = {}) {
+  const role = String(user.role || '').trim();
+  if (role === 'admin' || role === 'role-admin') {
+    return true;
+  }
+
+  if (role !== 'developer' && role !== 'role-developer') {
+    return false;
+  }
+
+  const userKeys = [
+    user.id,
+    user.userId,
+    user.username,
+    user.name
+  ].map(value => String(value || '').trim()).filter(Boolean);
+
+  if (userKeys.length === 0) {
+    return false;
+  }
+
+  const assignedKeys = [
+    ...normalizeDeveloperIdentifiers(requirement.developerIds),
+    ...normalizeDeveloperNames(requirement.developer)
+  ];
+  const assignedSet = new Set(assignedKeys.map(value => String(value || '').trim()).filter(Boolean));
+
+  return userKeys.some(key => assignedSet.has(key));
+}
+
 async function resolveRequirementContactEmails(connection, requirement = {}) {
   const submitterId = String(requirement.submitterId || '').trim();
   const submitterName = String(requirement.submitter || '').trim();
@@ -1282,6 +1312,24 @@ async function remove(id) {
       `DELETE FROM requirement_comments WHERE requirementId = :id`,
       [id]
     );
+    try {
+      await connection.execute(
+        `DELETE FROM requirement_attachment_versions
+         WHERE attachmentId IN (
+           SELECT id FROM requirement_attachments WHERE requirementId = :id
+         )`,
+        [id]
+      );
+      await connection.execute(
+        `DELETE FROM requirement_attachments WHERE requirementId = :id`,
+        [id]
+      );
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (!message.includes('ORA-00942') && !message.includes('ORA-00904')) {
+        throw error;
+      }
+    }
     // 再删除需求记录
     const result = await connection.execute(
       `DELETE FROM requirements WHERE id = :id`,
@@ -1789,6 +1837,7 @@ module.exports = {
   normalizeDeveloperIdentifiers,
   serializeDeveloperNames,
   serializeDeveloperIdentifiers,
+  canUserDeleteRequirement,
   resolveStoredRequirementScore,
   resolveRequirementScore,
   STATUS,

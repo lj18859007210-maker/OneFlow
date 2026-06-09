@@ -383,6 +383,12 @@ async function update(req, res) {
 
 async function remove(req, res) {
   try {
+    const requirement = await requirementModel.getById(req.params.id);
+    if (!requirement) return res.status(404).json({ success: false, message: 'requirement not found' });
+    if (!requirementModel.canUserDeleteRequirement(req.user, requirement)) {
+      return res.status(403).json({ success: false, message: '当前账号不能删除该需求' });
+    }
+
     const success = await requirementModel.remove(req.params.id);
     if (!success) return res.status(404).json({ success: false, message: 'requirement not found' });
     res.json({ success: true, message: 'requirement removed' });

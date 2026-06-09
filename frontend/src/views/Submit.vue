@@ -203,7 +203,7 @@
                 <img
                   v-for="(img, idx) in s.images"
                   :key="idx"
-                  :src="img.url"
+                  :src="backendUrl(img.url)"
                   :alt="img.name"
                 />
               </div>
@@ -246,7 +246,7 @@
             <!-- 备注类型：显示图片上传区域 -->
             <div v-if="s.type === 'note'" class="note-images">
               <div v-for="(img, idx) in s.images" :key="idx" class="note-img">
-                <img :src="img.url" :alt="img.name" />
+                <img :src="backendUrl(img.url)" :alt="img.name" />
                 <button class="note-img-del" @click="removeImage(i, idx)">
                   ×
                 </button>
@@ -332,7 +332,7 @@
 <script setup>
 import { ref, computed, onMounted, inject } from "vue";
 import { useRouter } from "vue-router";
-import { requirementApi, developerApi } from "../api";
+import { apiFetch, backendUrl, requirementApi, developerApi } from "../api";
 import DeveloperMultiSelect from "../components/DeveloperMultiSelect.vue";
 import PlatformPicker from "../components/PlatformPicker.vue";
 import { DEFAULT_PLATFORMS, loadPlatformOptions } from "../utils/platformOptions";
@@ -549,7 +549,7 @@ async function checkStep(i) {
 
 只返回JSON，不要其他内容。`;
 
-    const res = await fetch("/api/ai/generate", {
+    const res = await apiFetch("/ai/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: qualityCheckPrompt }),
@@ -593,7 +593,7 @@ async function uploadImages(si, e) {
   const formData = new FormData();
   for (const f of files) formData.append("files", f);
   try {
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    const res = await apiFetch("/upload", { method: "POST", body: formData });
     const json = await res.json();
     if (!json.success) throw new Error(json.message);
     json.data.forEach((url, idx) => {
@@ -642,7 +642,7 @@ ${qa}
         ? `\n\n【附带图片】\n${noteStep.images.map((img) => `${img.url}`).join("\n")}`
         : "";
 
-    const res = await fetch("/api/ai/generate", {
+    const res = await apiFetch("/ai/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: prompt + noteText + imgInfo }),

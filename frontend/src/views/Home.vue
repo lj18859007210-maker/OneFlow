@@ -258,6 +258,13 @@
               >
                 查看详情
               </span>
+              <span
+                class="tech-link tech-link-danger home-action-link"
+                :class="{ 'tech-link-disabled': !canDeleteRequirement(req) }"
+                @click="canDeleteRequirement(req) && deleteItem(req)"
+              >
+                删除
+              </span>
             </td>
           </tr>
         </tbody>
@@ -271,6 +278,24 @@
         @change="handlePageChange"
       />
     </div>
+
+    <div v-if="showDeleteConfirm" class="tech-modal-overlay">
+      <div class="tech-modal tech-modal-small" @click.stop>
+        <div class="tech-modal-header">
+          <h2 class="tech-modal-title">确认删除</h2>
+          <button class="tech-modal-close" @click="closeDeleteConfirm">×</button>
+        </div>
+        <div class="tech-modal-body">
+          <p class="tech-confirm-text">
+            确定要删除“{{ deleteTarget?.title || "该需求" }}”吗？此操作不可撤销。
+          </p>
+          <div class="tech-confirm-actions">
+            <button class="tech-btn tech-btn-cancel" @click="closeDeleteConfirm">取消</button>
+            <button class="tech-btn tech-btn-danger" @click="confirmDelete">确认删除</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -283,6 +308,7 @@ import Pagination from "../components/Pagination.vue";
 import ChartsPanel from "../components/ChartsPanel.vue";
 import { hasPermission } from "../utils/access";
 import { createEmptyDashboard } from "../utils/dashboardAnalytics";
+import { showToast as showAppToast } from "../utils/toastService.js";
 
 const router = useRouter();
 const currentUser = inject(
@@ -301,6 +327,8 @@ const dashboardMetrics = ref(createEmptyDashboard());
 const globalAvgScore = ref("0.0");
 const platformOptions = ref([]);
 const developerOptions = ref([]);
+const showDeleteConfirm = ref(false);
+const deleteTarget = ref(null);
 const statusList = ["待审批", "待评审", "待开发", "开发中", "测试中", "已发布"];
 const priorityList = ["高", "中", "低"];
 const canCreateRequirement = computed(() =>
@@ -454,8 +482,64 @@ function goToSubmitRequirement() {
 function canViewDetail(req) {
   const user = currentUser.value;
   if (!user || user.name === "未登录") return false;
-  if (user.role === "admin") return true;
+  if (user.role === "admin" || user.role === "role-admin") return true;
   return req.submitter === user.name || normalizeDeveloperNames(req.developer).includes(user.name);
+}
+
+function normalizeList(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  return String(value || "")
+    .split(/[,;，；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function isAssignedDeveloper(req) {
+  const user = currentUser.value || {};
+  const userKeys = [user.id, user.userId, user.username, user.name]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  if (!userKeys.length) return false;
+  const assignedKeys = [...normalizeList(req?.developerIds), ...normalizeList(req?.developer)];
+  return userKeys.some((key) => assignedKeys.includes(key));
+}
+
+function canDeleteRequirement(req) {
+  const user = currentUser.value || {};
+  if (user.role === "admin" || user.role === "role-admin") return true;
+  if (user.role === "developer" || user.role === "role-developer") {
+    return isAssignedDeveloper(req);
+  }
+  if (hasPermission(user, "requirement:delete")) return true;
+  return false;
+}
+
+function deleteItem(req) {
+  deleteTarget.value = req;
+  showDeleteConfirm.value = true;
+}
+
+function closeDeleteConfirm() {
+  showDeleteConfirm.value = false;
+  deleteTarget.value = null;
+}
+
+async function confirmDelete() {
+  if (!deleteTarget.value) return;
+  try {
+    await requirementApi.remove(deleteTarget.value.id);
+    closeDeleteConfirm();
+    await loadRequirements(currentPage.value);
+    showAppToast("需求已删除", { type: "success", title: "删除成功" });
+  } catch (error) {
+    closeDeleteConfirm();
+    showAppToast(`删除失败: ${error.response?.data?.message || error.message}`, {
+      type: "error",
+      title: "删除失败",
+    });
+  }
 }
 
 onMounted(async () => {
@@ -589,6 +673,65 @@ onMounted(async () => {
   opacity: 0.4;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+.home-action-link {
+  margin-left: 12px;
+}
+
+.tech-link-danger {
+  color: #f44;
+}
+
+.tech-link-danger:hover {
+  color: #f66;
+  text-decoration: underline;
+}
+
+.tech-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 8, 20, 0.52);
+  backdrop-filter: blur(4px);
+}
+
+.tech-modal-small {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.tech-confirm-text {
+  font-size: 15px;
+  color: var(--tech-text-primary);
+  margin: 0 0 24px 0;
+  line-height: 1.6;
+}
+
+.tech-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.tech-btn-cancel {
+  background: var(--tech-border);
+  color: var(--tech-text-primary);
+}
+
+.tech-btn-cancel:hover {
+  background: #555;
+}
+
+.tech-btn-danger {
+  background: #f44;
+  color: #fff;
+}
+
+.tech-btn-danger:hover {
+  background: #f66;
 }
 
 @media (max-width: 900px) {

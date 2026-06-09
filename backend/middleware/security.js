@@ -123,14 +123,10 @@ function securityHeaders(req, res, next) {
 
 // CORS 配置
 function corsConfig(req, res, next) {
-  const allowedOrigins =
-    config.nodeEnv === "production"
-      ? ["https://oneflow.cmcc.cn"]
-      : ["http://localhost:5174", "http://localhost:3000"];
-
   const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
+  if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
   }
 
   res.setHeader(
