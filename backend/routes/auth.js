@@ -80,17 +80,58 @@ function parseCookies(cookieHeader) {
   }, {});
 }
 
+function getFirstString(...values) {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const hit = getFirstString(...value);
+      if (hit) return hit;
+      continue;
+    }
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function getBearerToken(authHeader) {
+  const header = getFirstString(authHeader);
+  if (!header.toLowerCase().startsWith('bearer ')) return '';
+  return header.slice(7).trim();
+}
+
+function addTokenCandidate(tokens, value) {
+  const token = getFirstString(value);
+  if (token && !tokens.includes(token)) {
+    tokens.push(token);
+  }
+}
+
+function getJkstoreTokenCandidates(req, cookies) {
+  const tokens = [];
+  addTokenCandidate(tokens, req.body?.jkToken);
+  addTokenCandidate(tokens, req.body?.token);
+  addTokenCandidate(tokens, req.query?.jkToken);
+  addTokenCandidate(tokens, req.query?.token);
+  addTokenCandidate(tokens, req.headers['x-jk-token']);
+  addTokenCandidate(tokens, cookies.token);
+  addTokenCandidate(tokens, getBearerToken(req.headers.authorization));
+  return tokens;
+}
+
 function getJkstoreUsernameFromRequest(req) {
   const cookies = parseCookies(req.headers.cookie || '');
-  const sourceToken = cookies.token;
-  if (!sourceToken) return null;
 
-  try {
-    const decoded = jwt.verify(sourceToken, JKSTORE_TOKEN_SECRET);
-    return decoded?.name || cookies.username || null;
-  } catch (error) {
-    return null;
+  for (const sourceToken of getJkstoreTokenCandidates(req, cookies)) {
+    try {
+      const decoded = jwt.verify(sourceToken, JKSTORE_TOKEN_SECRET);
+      if (decoded?.name) return decoded.name;
+    } catch (error) {
+      // Try the next candidate; OneFlow's own JWT can also be present here.
+    }
   }
+
+  return null;
 }
 
 router.get('/public-key', (req, res) => {
@@ -291,6 +332,33 @@ router.put('/me/email', authMiddleware, async (req, res) => {
   } catch (error) {
     if (String(error.message || '').includes('Invalid email')) {
       return res.status(400).json({ success: false, message: '\u8bf7\u8f93\u5165\u6709\u6548\u7684\u90ae\u7bb1\u5730\u5740' });
+    }
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put('/me/password', authMiddleware, async (req, res) => {
+  try {
+    const updated = await userModel.updatePassword(req.user.id, req.body?.password);
+    if (!updated) {
+      return res.status(404).json({ success: false, message: '\u7528\u6237\u4e0d\u5b58\u5728' });
+    }
+
+    auditLogModel.create({
+      userId: req.user.id,
+      userName: req.user.name || req.user.username,
+      userRole: req.user.role,
+      action: 'update_password',
+      resource: 'auth',
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent'),
+      status: 'success'
+    }).catch(() => {});
+
+    res.json({ success: true, message: '\u5bc6\u7801\u66f4\u65b0\u6210\u529f' });
+  } catch (error) {
+    if (String(error.message || '').includes('Invalid password')) {
+      return res.status(400).json({ success: false, message: '\u5bc6\u7801\u957f\u5ea6\u81f3\u5c11 8 \u4f4d' });
     }
     res.status(500).json({ success: false, message: error.message });
   }

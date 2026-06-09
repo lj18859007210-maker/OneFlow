@@ -11,13 +11,21 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { authApi } from '../api'
 import { clearStoredSession, setStoredCurrentUser } from '../utils/session'
 
+const route = useRoute()
 const router = useRouter()
 const message = ref('正在读取主平台登录态...')
 const failed = ref(false)
+
+function getQueryValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] || ''
+  }
+  return value || ''
+}
 
 function goLogin() {
   router.replace('/login')
@@ -27,7 +35,15 @@ onMounted(async () => {
   clearStoredSession()
 
   try {
-    const res = await authApi.sso()
+    const payload = {
+      jkToken: getQueryValue(route.query.jkToken),
+      jkUsername: getQueryValue(route.query.jkUsername)
+    }
+    if (payload.jkToken || payload.jkUsername) {
+      window.history.replaceState(window.history.state, '', '/sso')
+    }
+
+    const res = await authApi.sso(payload)
     if (res.data?.code !== 0 || !res.data?.data?.token || !res.data?.data?.user) {
       throw new Error(res.data?.message || '自动登录失败')
     }

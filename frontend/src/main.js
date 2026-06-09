@@ -43,6 +43,12 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
+  if (to.path === '/login' && to.query?.manualLogout === '1') {
+    clearStoredSession()
+    next()
+    return
+  }
+
   const token = localStorage.getItem('token')
   const currentUser = getStoredCurrentUser()
   const hasSession = Boolean(token && currentUser)

@@ -265,7 +265,7 @@
           <button
             class="tech-header-user"
             type="button"
-            title="修改邮箱"
+            title="账号设置"
             @click="openEmailDialog"
           >
             <svg
@@ -312,13 +312,31 @@
     </main>
     <AIChat v-if="!isStandalonePage" />
     <div v-if="showEmailDialog" class="tech-dialog-overlay" @click="closeEmailDialog">
-      <form class="tech-dialog profile-email-dialog" @submit.prevent="saveEmail" @click.stop>
+      <form class="tech-dialog profile-email-dialog" @submit.prevent="saveProfileSetting" @click.stop>
         <div class="tech-dialog-header">
-          <div class="tech-dialog-title">修改邮箱</div>
+          <div class="tech-dialog-title">账号设置</div>
           <button class="tech-dialog-close" type="button" @click="closeEmailDialog">×</button>
         </div>
+        <div class="profile-tabs">
+          <button
+            class="profile-tab"
+            :class="{ active: activeProfileTab === 'email' }"
+            type="button"
+            @click="activeProfileTab = 'email'"
+          >
+            修改邮箱
+          </button>
+          <button
+            class="profile-tab"
+            :class="{ active: activeProfileTab === 'password' }"
+            type="button"
+            @click="activeProfileTab = 'password'"
+          >
+            修改密码
+          </button>
+        </div>
         <div class="tech-dialog-body profile-email-body">
-          <label class="profile-email-field">
+          <label v-if="activeProfileTab === 'email'" class="profile-email-field">
             <span>邮箱地址</span>
             <input
               v-model.trim="emailDraft"
@@ -329,14 +347,38 @@
               :disabled="savingEmail"
             />
           </label>
-          <p v-if="emailError" class="profile-email-error">{{ emailError }}</p>
+          <template v-else>
+            <label class="profile-email-field">
+              <span>新密码</span>
+              <input
+                v-model="passwordDraft"
+                class="profile-email-input"
+                type="password"
+                placeholder="请输入新密码"
+                autocomplete="new-password"
+                :disabled="savingPassword"
+              />
+            </label>
+            <label class="profile-email-field">
+              <span>确认新密码</span>
+              <input
+                v-model="passwordConfirm"
+                class="profile-email-input"
+                type="password"
+                placeholder="请再次输入新密码"
+                autocomplete="new-password"
+                :disabled="savingPassword"
+              />
+            </label>
+          </template>
+          <p v-if="profileError" class="profile-email-error">{{ profileError }}</p>
         </div>
         <div class="tech-dialog-footer">
-          <button class="tech-btn tech-btn-outline tech-btn-sm" type="button" :disabled="savingEmail" @click="closeEmailDialog">
+          <button class="tech-btn tech-btn-outline tech-btn-sm" type="button" :disabled="savingProfile" @click="closeEmailDialog">
             取消
           </button>
-          <button class="tech-btn tech-btn-primary tech-btn-sm" type="submit" :disabled="savingEmail">
-            {{ savingEmail ? "保存中..." : "保存" }}
+          <button class="tech-btn tech-btn-primary tech-btn-sm" type="submit" :disabled="savingProfile">
+            {{ savingProfile ? "保存中..." : "保存" }}
           </button>
         </div>
       </form>
@@ -359,7 +401,7 @@ import NotificationBell from "./components/NotificationBell.vue";
 import TechToast from "./components/TechToast.vue";
 import { hasPermission } from "./utils/access";
 import { setStoredCurrentUser } from "./utils/session";
-import { validateEmail } from "./utils/security";
+import { validateEmail, validatePassword } from "./utils/security";
 import { showToast, toastState } from "./utils/toastService";
 
 const route = useRoute();
@@ -369,9 +411,16 @@ const isStandalonePage = computed(() => route.path === "/login" || route.path ==
 
 const currentUser = ref({ name: "未登录", email: "", role: "user", permissions: [] });
 const showEmailDialog = ref(false);
+const activeProfileTab = ref("email");
 const emailDraft = ref("");
 const emailError = ref("");
 const savingEmail = ref(false);
+const passwordDraft = ref("");
+const passwordConfirm = ref("");
+const passwordError = ref("");
+const savingPassword = ref(false);
+const savingProfile = computed(() => savingEmail.value || savingPassword.value);
+const profileError = computed(() => activeProfileTab.value === "email" ? emailError.value : passwordError.value);
 const roleLabelMap = {
   admin: "管理员",
   user: "普通用户",
@@ -434,20 +483,34 @@ provide("currentUser", currentUser);
 function handleLogout() {
   localStorage.removeItem("currentUser");
   localStorage.removeItem("token");
-  router.push("/login");
+  router.push({ path: "/login", query: { manualLogout: "1" } });
 }
 
 function openEmailDialog() {
   if (!currentUser.value?.id) return;
+  activeProfileTab.value = "email";
   emailDraft.value = currentUser.value.email || "";
   emailError.value = "";
+  passwordDraft.value = "";
+  passwordConfirm.value = "";
+  passwordError.value = "";
   showEmailDialog.value = true;
 }
 
 function closeEmailDialog() {
-  if (savingEmail.value) return;
+  if (savingProfile.value) return;
   showEmailDialog.value = false;
   emailError.value = "";
+  passwordError.value = "";
+  passwordDraft.value = "";
+  passwordConfirm.value = "";
+}
+
+function saveProfileSetting() {
+  if (activeProfileTab.value === "password") {
+    return savePassword();
+  }
+  return saveEmail();
 }
 
 async function saveEmail() {
@@ -479,6 +542,35 @@ async function saveEmail() {
     emailError.value = error.response?.data?.message || error.message || "邮箱更新失败";
   } finally {
     savingEmail.value = false;
+  }
+}
+
+async function savePassword() {
+  passwordError.value = "";
+  const validation = validatePassword(passwordDraft.value);
+  if (!validation.valid) {
+    passwordError.value = validation.message || "请输入有效的新密码";
+    return;
+  }
+  if (passwordDraft.value !== passwordConfirm.value) {
+    passwordError.value = "两次输入的新密码不一致";
+    return;
+  }
+
+  try {
+    savingPassword.value = true;
+    const res = await authApi.updatePassword(passwordDraft.value);
+    if (!res.data?.success) {
+      throw new Error(res.data?.message || "密码更新失败");
+    }
+    passwordDraft.value = "";
+    passwordConfirm.value = "";
+    showEmailDialog.value = false;
+    showToast("密码已更新", { type: "success", title: "更新成功" });
+  } catch (error) {
+    passwordError.value = error.response?.data?.message || error.message || "密码更新失败";
+  } finally {
+    savingPassword.value = false;
   }
 }
 
@@ -537,6 +629,32 @@ const permissionCount = computed(() => Array.isArray(currentUser.value?.permissi
 
 .profile-email-body {
   padding-bottom: 10px;
+}
+
+.profile-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 22px 14px;
+  border-bottom: 1px solid var(--tech-border);
+}
+
+.profile-tab {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--tech-border);
+  border-radius: 8px;
+  background: var(--tech-card);
+  color: var(--tech-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.profile-tab.active {
+  border-color: var(--tech-blue);
+  background: rgba(74, 144, 226, 0.14);
+  color: var(--tech-blue);
 }
 
 .profile-email-field {

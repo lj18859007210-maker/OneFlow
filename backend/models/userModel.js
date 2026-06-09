@@ -347,5 +347,42 @@ module.exports = {
     } finally {
       connection.close();
     }
+  },
+
+  async updatePassword(userId, password) {
+    const nextPassword = typeof password === 'string' ? password : '';
+    if (nextPassword.length < 8) {
+      throw new Error('Invalid password');
+    }
+
+    const connection = await db.getConnection();
+    try {
+      const existing = await connection.execute(
+        `SELECT id FROM users WHERE id = :id`,
+        { id: userId },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      if (!existing.rows?.[0]) {
+        return null;
+      }
+
+      const passwordHash = await bcrypt.hash(nextPassword, 10);
+      await connection.execute(
+        `UPDATE users SET password = :password, updatedAt = CURRENT_TIMESTAMP WHERE id = :id`,
+        { id: userId, password: passwordHash }
+      );
+      await connection.commit();
+
+      const result = await connection.execute(
+        `SELECT id, username, name, email, role, status, createdAt, updatedAt
+         FROM users
+         WHERE id = :id`,
+        { id: userId },
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      return result.rows?.[0] || null;
+    } finally {
+      connection.close();
+    }
   }
 };

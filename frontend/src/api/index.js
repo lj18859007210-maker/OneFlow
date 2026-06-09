@@ -7,7 +7,7 @@ const api = axios.create({
 
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
-  if (token) {
+  if (token && !config.skipAuth) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
@@ -16,7 +16,9 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   response => response,
   error => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || ''
+    const skipUnauthorizedRedirect = requestUrl.includes('/auth/sso')
+    if (error.response?.status === 401 && !skipUnauthorizedRedirect) {
       localStorage.removeItem('token')
       localStorage.removeItem('currentUser')
       window.location.href = '/login'
@@ -29,9 +31,10 @@ export const authApi = {
   getPublicKey: () => api.get('/auth/public-key'),
   getCaptcha: () => api.get('/auth/captcha', { params: { _t: Date.now() } }),
   login: (username, encryptedPassword, captchaId, captchaCode) => api.post('/auth/login', { username, encryptedPassword, captchaId, captchaCode }),
-  sso: () => api.post('/auth/sso'),
+  sso: (payload = {}) => api.post('/auth/sso', payload, { skipAuth: true }),
   me: () => api.get('/auth/me'),
-  updateEmail: (email) => api.put('/auth/me/email', { email })
+  updateEmail: (email) => api.put('/auth/me/email', { email }),
+  updatePassword: (password) => api.put('/auth/me/password', { password })
 }
 
 export const requirementApi = {

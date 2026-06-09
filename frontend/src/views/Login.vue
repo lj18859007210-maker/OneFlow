@@ -136,7 +136,7 @@
         <div v-if="errorMsg" class="form-error">{{ errorMsg }}</div>
 
         <button type="submit" class="login-btn" :disabled="loading || captchaLoading">
-          {{ loading ? "登录中..." : "登 录" }}
+          {{ ssoChecking ? "正在统一登录..." : loading ? "登录中..." : "登 录" }}
         </button>
       </form>
     </section>
@@ -145,9 +145,11 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { authApi } from "../api";
+import { clearStoredSession, setStoredCurrentUser } from "../utils/session";
 
+const route = useRoute();
 const router = useRouter();
 const username = ref("");
 const password = ref("");
@@ -157,6 +159,7 @@ const captchaSvg = ref("");
 const loading = ref(false);
 const captchaLoading = ref(false);
 const errorMsg = ref("");
+const ssoChecking = ref(false);
 
 const modules = [
   { title: "需求列表", desc: "提交、跟踪、查看需求", color: "#2f75d1" },
@@ -224,6 +227,74 @@ async function loadCaptcha() {
   }
 }
 
+function storeLoginSession(user, token) {
+  localStorage.setItem("token", token);
+  setStoredCurrentUser({
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    permissions: user.permissions || [],
+  });
+}
+
+function getQueryValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] || "";
+  }
+  return value || "";
+}
+
+function getSsoPayloadFromRoute() {
+  const params = new URLSearchParams(window.location.search || "");
+  return {
+    jkToken: getQueryValue(route.query.jkToken) || params.get("jkToken") || params.get("token") || "",
+    jkUsername:
+      getQueryValue(route.query.jkUsername) ||
+      params.get("jkUsername") ||
+      params.get("username") ||
+      "",
+    forceSso: getQueryValue(route.query.forceSso) || params.get("forceSso") || "",
+    manualLogout: getQueryValue(route.query.manualLogout) || params.get("manualLogout") || "",
+  };
+}
+
+function stripSsoQueryFromLoginUrl(payload) {
+  if (payload.jkToken || payload.jkUsername || payload.forceSso || payload.manualLogout) {
+    window.history.replaceState(window.history.state, "", "/login");
+  }
+}
+
+async function trySsoLogin() {
+  try {
+    const payload = getSsoPayloadFromRoute();
+    if (payload.manualLogout === "1") {
+      clearStoredSession();
+      stripSsoQueryFromLoginUrl(payload);
+      return false;
+    }
+
+    ssoChecking.value = true;
+    clearStoredSession();
+    stripSsoQueryFromLoginUrl(payload);
+
+    const res = await authApi.sso(payload);
+    const data = res.data?.data;
+    if (res.data?.code === 0 && data?.token && data?.user) {
+      storeLoginSession(data.user, data.token);
+      router.replace("/");
+      return true;
+    }
+  } catch (error) {
+    // 主平台登录态不可用时，保留账号密码登录入口。
+  } finally {
+    ssoChecking.value = false;
+  }
+
+  return false;
+}
+
 async function handleLogin() {
   if (!captchaId.value || !captchaCode.value) {
     errorMsg.value = "请输入验证码";
@@ -249,18 +320,7 @@ async function handleLogin() {
 
     if (res.data.code === 0) {
       const { user, token } = res.data.data;
-      localStorage.setItem("token", token);
-      localStorage.setItem(
-        "currentUser",
-        JSON.stringify({
-          id: user.id,
-          username: user.username,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          permissions: user.permissions || [],
-        }),
-      );
+      storeLoginSession(user, token);
       router.push("/");
     } else {
       errorMsg.value = res.data.data || "登录失败";
@@ -278,7 +338,12 @@ async function handleLogin() {
   }
 }
 
-onMounted(loadCaptcha);
+onMounted(async () => {
+  const loggedIn = await trySsoLogin();
+  if (!loggedIn) {
+    await loadCaptcha();
+  }
+});
 </script>
 
 <style scoped>
