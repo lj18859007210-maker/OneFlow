@@ -20,8 +20,13 @@ function readSearch(params, key) {
 }
 
 function readCookie(name) {
+  return readCookieFromDocument(document, name);
+}
+
+function readCookieFromDocument(sourceDocument, name) {
+  if (!sourceDocument) return "";
   const prefix = `${name}=`;
-  const cookies = (document.cookie || "").split(";");
+  const cookies = (sourceDocument.cookie || "").split(";");
   for (const cookie of cookies) {
     const item = cookie.trim();
     if (!item.startsWith(prefix)) continue;
@@ -36,6 +41,22 @@ function readCookie(name) {
   return "";
 }
 
+function readStorage(sourceWindow, storageName, key) {
+  try {
+    return firstString([sourceWindow?.[storageName]?.getItem(key)]);
+  } catch (error) {
+    return "";
+  }
+}
+
+function isSameOriginWindow(sourceWindow) {
+  try {
+    return Boolean(sourceWindow && sourceWindow.location && sourceWindow.location.origin === window.location.origin);
+  } catch (error) {
+    return false;
+  }
+}
+
 function firstFromKeys(keys, readers) {
   for (const key of keys) {
     const value = firstString(readers.map((reader) => reader(key)));
@@ -46,10 +67,22 @@ function firstFromKeys(keys, readers) {
 
 export function buildSsoPayload(query = {}, search = window.location.search || "") {
   const params = new URLSearchParams(search);
+  const hrefParams = new URL(window.location.href).searchParams;
+  const sameOriginWindows = [window.opener, window.parent].filter((sourceWindow) => {
+    return sourceWindow !== window && isSameOriginWindow(sourceWindow);
+  });
   const readers = [
     (key) => readQuery(query, key),
     (key) => readSearch(params, key),
+    (key) => readSearch(hrefParams, key),
     readCookie,
+    (key) => readStorage(window, "localStorage", key),
+    (key) => readStorage(window, "sessionStorage", key),
+    ...sameOriginWindows.flatMap((sourceWindow) => [
+      (key) => readCookieFromDocument(sourceWindow.document, key),
+      (key) => readStorage(sourceWindow, "localStorage", key),
+      (key) => readStorage(sourceWindow, "sessionStorage", key),
+    ]),
   ];
   const username = firstFromKeys(SSO_USERNAME_KEYS, readers);
 
