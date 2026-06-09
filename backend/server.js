@@ -8,6 +8,7 @@ const logger = require('./utils/logger');
 const requestLogger = require('./middleware/requestLogger');
 const { helmetMiddleware, limiter, xssProtection, securityHeaders, corsConfig } = require('./middleware/security');
 const { cacheMiddleware } = require('./middleware/cache');
+const { createApiProxy } = require('./middleware/apiProxy');
 const autoMigrate = require('./db/auto-migrate');
 const requirementRoutes = require('./routes/requirements');
 const emailRoutes = require('./routes/email');
@@ -26,19 +27,37 @@ const platformRoutes = require('./routes/platforms');
 
 const app = express();
 const PORT = config.port;
+const apiProxy = config.apiProxy?.target ? createApiProxy(config.apiProxy) : null;
+
+function isLoopbackProxyTarget(target, port) {
+  const targetUrl = new URL(target);
+  const targetPort = Number(targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80));
+  return ['localhost', '127.0.0.1', '::1'].includes(targetUrl.hostname) && targetPort === port;
+}
+
+if (apiProxy && isLoopbackProxyTarget(config.apiProxy.target, PORT)) {
+  throw new Error(`API_PROXY_TARGET cannot point back to localhost:${PORT}`);
+}
 
 // 安全中间件
 app.use(helmetMiddleware);
 app.use(corsConfig);
-app.use(limiter);
-app.use(xssProtection);
+if (!apiProxy) {
+  app.use(limiter);
+}
 app.use(securityHeaders);
-
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
 // 请求日志中间件
 app.use(requestLogger);
+
+if (apiProxy) {
+  app.use('/api', apiProxy);
+  app.use('/uploads', apiProxy);
+}
+
+app.use(xssProtection);
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // 静态资源缓存
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
@@ -68,6 +87,15 @@ app.get('/api/health', (req, res) => {
 
 async function startServer() {
   try {
+    if (apiProxy) {
+      app.listen(PORT, () => {
+        console.log(`后端代理服务运行在 http://localhost:${PORT}`);
+        console.log(`API 代理目标: ${config.apiProxy.target}`);
+        console.log(`环境: ${config.nodeEnv}`);
+      });
+      return;
+    }
+
     await db.initialize();
     if (config.dbType === 'dm') {
       const connection = await db.getConnection();

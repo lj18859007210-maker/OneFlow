@@ -87,6 +87,8 @@ const pageSize = 10
 const total = ref(0)
 
 let refreshTimer = null
+let unreadCountLoading = false
+let unreadCountFailures = 0
 
 const hasAuthToken = () => !!localStorage.getItem('token')
 
@@ -132,12 +134,34 @@ const loadUnreadCount = async () => {
     return
   }
 
+  if (unreadCountLoading) {
+    return
+  }
+
+  unreadCountLoading = true
   try {
     const res = await notificationApi.getUnreadCount()
     unreadCount.value = Number(res.data?.data?.count ?? 0)
+    unreadCountFailures = 0
   } catch (error) {
+    unreadCountFailures += 1
     console.error('获取未读数量失败:', error)
+  } finally {
+    unreadCountLoading = false
   }
+}
+
+const scheduleUnreadCountRefresh = () => {
+  if (!hasAuthToken()) {
+    refreshTimer = null
+    return
+  }
+
+  const delay = unreadCountFailures >= 3 ? 120000 : 30000
+  refreshTimer = setTimeout(async () => {
+    await loadUnreadCount()
+    scheduleUnreadCountRefresh()
+  }, delay)
 }
 
 const handleMarkAllRead = async () => {
@@ -208,16 +232,14 @@ const handleClickOutside = (e) => {
 onMounted(() => {
   if (hasAuthToken()) {
     loadUnreadCount()
+    scheduleUnreadCountRefresh()
   }
   document.addEventListener('click', handleClickOutside)
-  
-  // 每 30 秒刷新未读数量
-  refreshTimer = setInterval(loadUnreadCount, 30000)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
-  if (refreshTimer) clearInterval(refreshTimer)
+  if (refreshTimer) clearTimeout(refreshTimer)
 })
 </script>
 

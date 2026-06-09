@@ -209,6 +209,10 @@ async function encryptPasswordByPublicKey(plainText, publicKeyPem) {
 }
 
 async function loadCaptcha() {
+  if (captchaLoading.value) {
+    return;
+  }
+
   captchaLoading.value = true;
   try {
     const res = await authApi.getCaptcha();

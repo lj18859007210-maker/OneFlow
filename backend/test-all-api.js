@@ -18,7 +18,7 @@ function request(method, path, body) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: 'localhost',
-      port: 8887,
+      port: 8877,
       path,
       method,
       headers: { 'Content-Type': 'application/json' }
@@ -60,7 +60,7 @@ async function test() {
   function authRequest(method, path, body) {
     return new Promise((resolve, reject) => {
       const options = {
-        hostname: 'localhost', port: 8887, path, method,
+        hostname: 'localhost', port: 8877, path, method,
         headers: { 'Content-Type': 'application/json', ...authHeaders }
       };
       if (body) options.headers['Content-Length'] = Buffer.byteLength(JSON.stringify(body));

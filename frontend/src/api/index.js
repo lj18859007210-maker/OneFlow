@@ -1,10 +1,8 @@
 import axios from 'axios'
 
-const DEFAULT_BACKEND_BASE_URL = ''
+const DEFAULT_BACKEND_BASE_URL = 'http://localhost:8877'
 
-export const BACKEND_BASE_URL = (
-  import.meta.env.VITE_BACKEND_BASE_URL || DEFAULT_BACKEND_BASE_URL
-).replace(/\/+$/, '')
+export const BACKEND_BASE_URL = DEFAULT_BACKEND_BASE_URL.replace(/\/+$/, '')
 export const API_BASE_URL = `${BACKEND_BASE_URL}/api`
 
 function isAbsoluteUrl(value) {

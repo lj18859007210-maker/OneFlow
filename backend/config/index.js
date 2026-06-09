@@ -12,8 +12,13 @@ const config = {
   dbType: (process.env.DB_TYPE || 'oracle').toLowerCase(),
 
   // 服务器配置
-  port: envInt('PORT', 8887),
+  port: envInt('PORT', 8877),
   nodeEnv: process.env.NODE_ENV || 'development',
+
+  apiProxy: {
+    target: process.env.API_PROXY_TARGET || 'http://10.45.104.71:8887',
+    timeoutMs: envInt('API_PROXY_TIMEOUT_MS', 30000)
+  },
 
   // JWT 配置
   jwt: {
