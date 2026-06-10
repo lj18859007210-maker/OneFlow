@@ -264,7 +264,10 @@ async function getApprovalList(req, res) {
 
 async function getAll(req, res) {
   try {
-    const filters = parseRequirementListQuery(req.query);
+    const filters = {
+      ...parseRequirementListQuery(req.query),
+      viewer: req.user
+    };
     const result = await requirementModel.getAll(filters.page, filters.pageSize, filters);
     res.json({
       success: true,
@@ -289,11 +292,14 @@ async function getAll(req, res) {
 
 async function getBySubmitter(req, res) {
   try {
-    const { submitter } = req.query;
+    const isAdmin = req.user?.role === 'admin' || req.user?.role === 'role-admin';
+    const submitter = isAdmin ? req.query.submitter : (req.user?.name || req.user?.username);
     if (!submitter) return res.status(400).json({ success: false, message: 'submitter is required' });
     const page = parseInt(req.query.page, 10) || 1;
     const pageSize = parseInt(req.query.pageSize, 10) || 20;
-    const result = await requirementModel.getBySubmitter(submitter, page, pageSize);
+    const result = isAdmin
+      ? await requirementModel.getBySubmitter(submitter, page, pageSize)
+      : await requirementModel.getBySubmitterUser(req.user, page, pageSize);
     res.json({ success: true, data: result.data, total: result.total, page: result.page, pageSize: result.pageSize });
   } catch (error) {
     console.error('getBySubmitter error:', error);
@@ -328,6 +334,9 @@ async function getById(req, res) {
   try {
     const requirement = await requirementModel.getById(req.params.id);
     if (!requirement) return res.status(404).json({ success: false, message: 'requirement not found' });
+    if (!requirementModel.canUserViewRequirement(req.user, requirement)) {
+      return res.status(403).json({ success: false, message: '当前账号不能查看该需求' });
+    }
     res.json({ success: true, data: requirement });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -545,7 +554,7 @@ async function getGanttData(req, res) {
 
 async function getDashboard(req, res) {
   try {
-    const dashboard = await requirementModel.getDashboardMetrics();
+    const dashboard = await requirementModel.getDashboardMetrics(req.user);
     res.json({ success: true, data: dashboard });
   } catch (error) {
     console.error('getDashboard error:', error);

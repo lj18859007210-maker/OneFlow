@@ -73,7 +73,7 @@ api.interceptors.response.use(
 export const authApi = {
   getPublicKey: () => api.get('/auth/public-key'),
   getCaptcha: () => api.get('/auth/captcha', { params: { _t: Date.now() } }),
-  login: (username, encryptedPassword, captchaId, captchaCode) => api.post('/auth/login', { username, encryptedPassword, captchaId, captchaCode }),
+  login: (username, encryptedPassword, captchaId, captchaCode, password) => api.post('/auth/login', { username, encryptedPassword, captchaId, captchaCode, password }),
   sso: (payload = {}) => api.post('/auth/sso', payload, { skipAuth: true }),
   me: () => api.get('/auth/me'),
   updateEmail: (email) => api.put('/auth/me/email', { email }),

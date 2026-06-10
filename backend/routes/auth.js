@@ -185,11 +185,11 @@ router.post('/login', strictLimiter, async (req, res) => {
 
   try {
     await withTimeout((async () => {
-    const { username, encryptedPassword, captchaId, captchaCode } = req.body;
+    const { username, encryptedPassword, password: plainPassword, captchaId, captchaCode } = req.body;
     const logLogin = createLoginLogger(username);
     logLogin('request-start');
 
-    if (!username || !encryptedPassword) {
+    if (!username || (!encryptedPassword && !plainPassword)) {
       recordLoginFailure(req, username, 'empty_credentials');
       return sendJson(res, { updatetime, code: 500, data: '\u8d26\u53f7\u548c\u5bc6\u7801\u4e0d\u80fd\u4e3a\u7a7a' });
     }
@@ -200,8 +200,8 @@ router.post('/login', strictLimiter, async (req, res) => {
     }
     logLogin('captcha-ok');
 
-    const password = decryptPassword(encryptedPassword);
-    logLogin('password-decrypted');
+    const password = encryptedPassword ? decryptPassword(encryptedPassword) : plainPassword;
+    logLogin(encryptedPassword ? 'password-decrypted' : 'password-plain-fallback');
 
     const user = await userModel.login(username, password);
     logLogin('user-query-finished');

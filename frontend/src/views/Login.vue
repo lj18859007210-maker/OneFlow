@@ -194,6 +194,10 @@ function pemToArrayBuffer(pem) {
 }
 
 async function encryptPasswordByPublicKey(plainText, publicKeyPem) {
+  if (!window.crypto?.subtle) {
+    return "";
+  }
+
   const publicKey = await window.crypto.subtle.importKey(
     "spki",
     pemToArrayBuffer(publicKeyPem),
@@ -254,9 +258,16 @@ function hasSsoPayload(payload) {
   return Boolean(payload?.jkToken || payload?.jkUsername || payload?.username || payload?.forceSso);
 }
 
-function requestParentSsoPayload(timeoutMs = 800) {
+function getSsoMessageTargets() {
+  return [window.opener, window.parent].filter((target, index, targets) => {
+    return target && target !== window && targets.indexOf(target) === index;
+  });
+}
+
+function requestExternalSsoPayload(timeoutMs = 800) {
   return new Promise((resolve) => {
-    if (window.parent === window) {
+    const targets = getSsoMessageTargets();
+    if (targets.length === 0) {
       resolve(null);
       return;
     }
@@ -278,21 +289,28 @@ function requestParentSsoPayload(timeoutMs = 800) {
     }
 
     window.addEventListener("message", handleMessage);
-    window.parent.postMessage({ type: "oneflow:sso:request" }, "*");
+    targets.forEach((target) => {
+      target.postMessage({ type: "oneflow:sso:request" }, "*");
+    });
   });
 }
 
 async function trySsoLogin() {
   try {
     let payload = buildSsoPayload(route.query);
-    if (!hasSsoPayload(payload)) {
-      payload = (await requestParentSsoPayload()) || payload;
-    }
 
     if (payload.manualLogout === "1") {
       clearStoredSession();
       stripSsoQueryFromLoginUrl(payload);
       return false;
+    }
+
+    if (hasSsoPayload(payload)) {
+      stripSsoQueryFromLoginUrl(payload);
+    }
+
+    if (!hasSsoPayload(payload)) {
+      payload = (await requestExternalSsoPayload()) || payload;
     }
 
     if (!hasSsoPayload(payload)) {
@@ -340,6 +358,7 @@ async function handleLogin() {
       encryptedPassword,
       captchaId.value,
       captchaCode.value,
+      encryptedPassword ? undefined : password.value,
     );
 
     if (res.data.code === 0) {

@@ -81,6 +81,87 @@ function resolveApprovalListScope(user = {}) {
   return { type: 'none' };
 }
 
+function resolveRequirementViewScope(user = {}) {
+  const role = typeof user.role === 'string' ? user.role.trim() : '';
+  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+
+  if (role === 'admin' || role === 'role-admin') {
+    return { type: 'all' };
+  }
+
+  if (permissions.includes('requirement:approve')) {
+    return { type: 'all' };
+  }
+
+  return { type: 'own' };
+}
+
+function getUserScopeKeys(user = {}) {
+  return {
+    id: String(user.id || user.userId || '').trim(),
+    username: String(user.username || '').trim(),
+    name: String(user.name || user.username || '').trim()
+  };
+}
+
+function appendRequirementScopeFilter(clauses, params, user = {}, paramPrefix = 'scope') {
+  const scope = resolveRequirementViewScope(user);
+  if (scope.type === 'all') return;
+
+  const keys = getUserScopeKeys(user);
+  const userNames = [...new Set([keys.name, keys.username].filter(Boolean))];
+  const developerIdPattern = keys.id ? `%,${keys.id.replace(/\s+/g, '')},%` : '';
+  const scopeParts = [];
+  const legacyScopeParts = [];
+
+  if (keys.id) {
+    params[`${paramPrefix}UserId`] = keys.id;
+    scopeParts.push(`submitterId = :${paramPrefix}UserId`);
+  }
+
+  userNames.forEach((name, index) => {
+    params[`${paramPrefix}Name${index}`] = name;
+    params[`${paramPrefix}Developer${index}`] = `%,${name.replace(/\s+/g, '')},%`;
+    legacyScopeParts.push(`submitter = :${paramPrefix}Name${index}`);
+    legacyScopeParts.push(`(',' || REPLACE(developer, ' ', '') || ',') LIKE :${paramPrefix}Developer${index}`);
+  });
+
+  if (developerIdPattern) {
+    params[`${paramPrefix}DeveloperId`] = developerIdPattern;
+    scopeParts.push(`(',' || REPLACE(NVL(developerIds, ''), ' ', '') || ',') LIKE :${paramPrefix}DeveloperId`);
+  }
+
+  if (legacyScopeParts.length) {
+    scopeParts.push(`((submitterId IS NULL OR TRIM(submitterId) IS NULL) AND (developerIds IS NULL OR TRIM(developerIds) IS NULL) AND (${legacyScopeParts.join(' OR ')}))`);
+  }
+
+  clauses.push(scopeParts.length ? `AND (${scopeParts.join(' OR ')})` : 'AND 1 = 0');
+}
+
+function canUserViewRequirement(user = {}, requirement = {}) {
+  const scope = resolveRequirementViewScope(user);
+  if (scope.type === 'all') return true;
+
+  const keys = getUserScopeKeys(user);
+  const userIdKeys = [keys.id].filter(Boolean);
+  const legacyUserKeys = [keys.username, keys.name].filter(Boolean);
+  if (userIdKeys.length === 0 && legacyUserKeys.length === 0) return false;
+
+  const submitterId = String(requirement.submitterId || '').trim();
+  const developerIdSet = new Set(normalizeDeveloperIdentifiers(requirement.developerIds));
+  if (userIdKeys.some(key => key === submitterId || developerIdSet.has(key))) return true;
+
+  const hasStoredIdentity = Boolean(submitterId || developerIdSet.size);
+  if (hasStoredIdentity) return false;
+
+  const legacyAllowedKeys = new Set([
+    String(requirement.submitter || '').trim(),
+    ...normalizeDeveloperNames(requirement.developer)
+  ].filter(Boolean));
+
+  return legacyUserKeys.some(key => legacyAllowedKeys.has(key));
+}
+
 async function getNextStatuses(currentStatus) {
   const flow = await workflowModel.getFlow(FLOW_KEY_REQUIREMENT);
   return workflowModel.listNextStatuses(flow, currentStatus, 'none');
@@ -842,6 +923,9 @@ function buildRequirementListFilters(filters = {}) {
     clauses.push('AND TRUNC(publishedAt) < TRUNC(expectedDate)');
     params.earlyReleasedStatus = STATUS.RELEASED;
   }
+  if (filters.viewer) {
+    appendRequirementScopeFilter(clauses, params, filters.viewer, 'viewer');
+  }
 
   return {
     whereClause: clauses.join(' '),
@@ -1003,6 +1087,59 @@ async function getBySubmitter(submitter, page = 1, pageSize = 20) {
     const totalResult = await connection.execute(
       `SELECT COUNT(*) FROM requirements WHERE isDraft = 0 AND submitter = :submitter`,
       { submitter }
+    );
+    const total = totalResult.rows[0][0];
+
+    return { data, total, page, pageSize };
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
+async function getBySubmitterUser(user = {}, page = 1, pageSize = 20) {
+  let connection;
+  try {
+    connection = await db.getConnection();
+    const offset = (page - 1) * pageSize;
+    const clauses = ['WHERE isDraft = 0'];
+    const params = { offset, limit: offset + pageSize };
+    const keys = getUserScopeKeys(user);
+    const legacyNames = [...new Set([keys.name, keys.username].filter(Boolean))];
+    const scopeParts = [];
+
+    if (keys.id) {
+      params.submitterUserId = keys.id;
+      scopeParts.push('submitterId = :submitterUserId');
+    }
+
+    if (legacyNames.length) {
+      const legacyParts = legacyNames.map((name, index) => {
+        params[`submitterName${index}`] = name;
+        return `submitter = :submitterName${index}`;
+      });
+      scopeParts.push(`((submitterId IS NULL OR TRIM(submitterId) IS NULL) AND (${legacyParts.join(' OR ')}))`);
+    }
+
+    clauses.push(scopeParts.length ? `AND (${scopeParts.join(' OR ')})` : 'AND 1 = 0');
+    const whereClause = clauses.join(' ');
+
+    const result = await connection.execute(
+      `SELECT * FROM (
+        SELECT r.*, ROW_NUMBER() OVER (ORDER BY CREATEDAT DESC) as rn
+        FROM requirements r
+        ${whereClause}
+      ) WHERE rn > :offset AND rn <= :limit`,
+      params,
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    const data = await parseRows(await reconcileRequirementStates(connection, result.rows));
+
+    const countParams = { ...params };
+    delete countParams.offset;
+    delete countParams.limit;
+    const totalResult = await connection.execute(
+      `SELECT COUNT(*) FROM requirements ${whereClause}`,
+      countParams
     );
     const total = totalResult.rows[0][0];
 
@@ -1572,17 +1709,23 @@ async function getGanttData(filters = {}) {
   }
 }
 
-async function getDashboardMetrics() {
+async function getDashboardMetrics(viewer = null) {
   let connection;
   try {
     connection = await db.getConnection();
 
     const fields = 'ID, DEVELOPER, PLATFORM, STATUS, EXPECTEDDATE, CREATEDAT, UPDATEDAT';
+    const clauses = ['WHERE isDraft = 0'];
+    const params = {};
+    if (viewer) {
+      appendRequirementScopeFilter(clauses, params, viewer, 'dashboardViewer');
+    }
+    const whereClause = clauses.join(' ');
     const requirementsResult = await connection.execute(
       `SELECT ${fields}
        FROM requirements
-       WHERE isDraft = 0`,
-      {},
+       ${whereClause}`,
+      params,
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
 
@@ -1816,6 +1959,7 @@ module.exports = {
   getAll,
   getApprovalList,
   getBySubmitter,
+  getBySubmitterUser,
   getDrafts,
   getLatestDraft,
   getById,
@@ -1837,6 +1981,7 @@ module.exports = {
   normalizeDeveloperIdentifiers,
   serializeDeveloperNames,
   serializeDeveloperIdentifiers,
+  canUserViewRequirement,
   canUserDeleteRequirement,
   resolveStoredRequirementScore,
   resolveRequirementScore,

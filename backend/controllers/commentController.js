@@ -3,7 +3,8 @@ const notificationService = require('../utils/notificationService');
 const autoEmailService = require('../utils/autoEmailService');
 const db = require('../db/oracle');
 const { driver: oracledb } = require('../db/oracle');
-const { normalizeDeveloperNames } = require('../models/requirement');
+const requirementModel = require('../models/requirement');
+const { normalizeDeveloperNames } = requirementModel;
 
 function uniqueNames(values) {
   return [...new Set((Array.isArray(values) ? values : [values])
@@ -27,6 +28,14 @@ async function create(req, res) {
 
     if (!requirementId || !type || (!normalizedContent && normalizedAttachmentIds.length === 0)) {
       return res.status(400).json({ success: false, message: '缂哄皯蹇呰鍙傛暟' });
+    }
+
+    const targetRequirement = await requirementModel.getById(requirementId);
+    if (!targetRequirement) {
+      return res.status(404).json({ success: false, message: 'requirement not found' });
+    }
+    if (!requirementModel.canUserViewRequirement(req.user, targetRequirement)) {
+      return res.status(403).json({ success: false, message: '当前账号不能操作该需求' });
     }
 
     const comment = await commentModel.create({
@@ -115,6 +124,14 @@ async function getList(req, res) {
     const { requirementId } = req.params;
     if (!requirementId) {
       return res.status(400).json({ success: false, message: '缂哄皯闇€姹侷D鍙傛暟' });
+    }
+
+    const requirement = await requirementModel.getById(requirementId);
+    if (!requirement) {
+      return res.status(404).json({ success: false, message: 'requirement not found' });
+    }
+    if (!requirementModel.canUserViewRequirement(req.user, requirement)) {
+      return res.status(403).json({ success: false, message: '当前账号不能查看该需求' });
     }
 
     const comments = await commentModel.getByRequirementId(requirementId);

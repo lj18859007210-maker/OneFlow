@@ -1,5 +1,6 @@
 const fs = require('fs');
 const attachmentModel = require('../models/attachment');
+const requirementModel = require('../models/requirement');
 const { getAttachmentActions } = require('../utils/attachmentPolicy');
 const { resolveStoragePath, toStoredFileInfo } = require('../utils/attachmentStorage');
 const autoEmailService = require('../utils/autoEmailService');
@@ -58,8 +59,23 @@ function streamFile(res, fileRecord, mode = 'download', fileName = 'attachment')
   return fs.createReadStream(absolutePath).pipe(res);
 }
 
+async function ensureRequirementVisible(req, res, requirementId, action = '查看') {
+  const requirement = await requirementModel.getById(requirementId);
+  if (!requirement) {
+    res.status(404).json({ success: false, message: 'requirement not found' });
+    return null;
+  }
+  if (!requirementModel.canUserViewRequirement(req.user, requirement)) {
+    res.status(403).json({ success: false, message: `当前账号不能${action}该需求` });
+    return null;
+  }
+  return requirement;
+}
+
 async function listByRequirement(req, res) {
   try {
+    const requirement = await ensureRequirementVisible(req, res, req.params.requirementId);
+    if (!requirement) return;
     const attachments = await attachmentModel.listByRequirementId(req.params.requirementId);
     res.json({
       success: true,
@@ -73,6 +89,8 @@ async function listByRequirement(req, res) {
 
 async function uploadFormal(req, res) {
   try {
+    const requirement = await ensureRequirementVisible(req, res, req.params.requirementId, '操作');
+    if (!requirement) return;
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'file is required' });
     }
@@ -113,6 +131,8 @@ async function uploadComment(req, res) {
     if (!req.body.requirementId) {
       return res.status(400).json({ success: false, message: 'requirementId is required' });
     }
+    const requirement = await ensureRequirementVisible(req, res, req.body.requirementId, '操作');
+    if (!requirement) return;
     if (!req.files?.length) {
       return res.status(400).json({ success: false, message: 'files are required' });
     }
@@ -181,6 +201,8 @@ async function promoteCommentAttachment(req, res) {
     if (!requirementId || !category) {
       return res.status(400).json({ success: false, message: 'requirementId and category are required' });
     }
+    const requirement = await ensureRequirementVisible(req, res, requirementId, '操作');
+    if (!requirement) return;
     const attachment = await attachmentModel.promoteCommentAttachment({
       requirementId,
       commentAttachmentId: req.params.commentAttachmentId,
@@ -239,6 +261,9 @@ async function downloadFile(req, res) {
       if (!version) {
         return res.status(404).json({ success: false, message: 'file not found' });
       }
+      const requirementId = await attachmentModel.getRequirementIdByAttachmentVersionId(req.params.id);
+      const requirement = await ensureRequirementVisible(req, res, requirementId);
+      if (!requirement) return;
       return streamFile(res, version, mode, `attachment-v${version.versionNo}`);
     }
 
@@ -247,6 +272,8 @@ async function downloadFile(req, res) {
       if (!commentAttachment) {
         return res.status(404).json({ success: false, message: 'file not found' });
       }
+      const requirement = await ensureRequirementVisible(req, res, commentAttachment.requirementId);
+      if (!requirement) return;
       return streamFile(res, commentAttachment, mode, commentAttachment.originalName);
     }
 

@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
 
-const backendTarget = "http://127.0.0.1:8877";
+const backendTarget = "http://10.45.104.71:8877";
 const proxy = {
   "/api": {
     target: backendTarget,

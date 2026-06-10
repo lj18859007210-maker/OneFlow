@@ -412,6 +412,23 @@ async function getAttachmentVersionById(id, existingConnection = null) {
   }
 }
 
+async function getRequirementIdByAttachmentVersionId(id, existingConnection = null) {
+  const { connection, ownsConnection } = await withConnection(existingConnection);
+  try {
+    const result = await connection.execute(
+      `SELECT a.requirementId
+       FROM requirement_attachment_versions v
+       JOIN requirement_attachments a ON a.id = v.attachmentId
+       WHERE v.id = :id`,
+      { id },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    return result.rows?.[0]?.REQUIREMENTID || null;
+  } finally {
+    await releaseConnection(connection, ownsConnection);
+  }
+}
+
 module.exports = {
   ATTACHMENT_CATEGORIES,
   ensureValidCategory,
@@ -425,5 +442,6 @@ module.exports = {
   addAttachmentVersion,
   promoteCommentAttachment,
   deleteRequirementAttachment,
-  getAttachmentVersionById
+  getAttachmentVersionById,
+  getRequirementIdByAttachmentVersionId
 };
