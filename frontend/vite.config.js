@@ -3,6 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
 
 const backendTarget = "http://10.45.104.71:8877";
+const publicBase = `${process.env.VITE_PUBLIC_BASE || "/oneflow/"}`.replace(/\/?$/, "/");
 const proxy = {
   "/api": {
     target: backendTarget,
@@ -15,6 +16,7 @@ const proxy = {
 };
 
 export default defineConfig({
+  base: publicBase,
   plugins: [vue()],
   resolve: {
     alias: {

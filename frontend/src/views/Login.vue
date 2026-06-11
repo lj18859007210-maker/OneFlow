@@ -250,7 +250,10 @@ function storeLoginSession(user, token) {
 
 function stripSsoQueryFromLoginUrl(payload) {
   if (payload.jkToken || payload.jkUsername || payload.username || payload.forceSso || payload.manualLogout) {
-    window.history.replaceState(window.history.state, "", "/login");
+    const loginPath = import.meta.env.VITE_ROUTER_MODE === "hash"
+      ? `${import.meta.env.BASE_URL}#/login`
+      : `${import.meta.env.BASE_URL}login`;
+    window.history.replaceState(window.history.state, "", loginPath);
   }
 }
 

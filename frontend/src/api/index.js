@@ -1,9 +1,12 @@
 import axios from 'axios'
 
-const DEFAULT_BACKEND_BASE_URL = ''
+const DEFAULT_BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL || ''
 
 export const BACKEND_BASE_URL = DEFAULT_BACKEND_BASE_URL.replace(/\/+$/, '')
 export const API_BASE_URL = `${BACKEND_BASE_URL}/api`
+const LOGIN_URL = import.meta.env.VITE_ROUTER_MODE === 'hash'
+  ? `${import.meta.env.BASE_URL}#/login`
+  : `${import.meta.env.BASE_URL}login`
 
 function isAbsoluteUrl(value) {
   return /^https?:\/\//i.test(value)
@@ -64,7 +67,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !skipUnauthorizedRedirect) {
       localStorage.removeItem('token')
       localStorage.removeItem('currentUser')
-      window.location.href = '/login'
+      window.location.href = LOGIN_URL
     }
     return Promise.reject(error)
   }
