@@ -64,7 +64,6 @@ function getConsistentRequirementState({ status, approvalStatus }) {
 
 function resolveApprovalListScope(user = {}) {
   const role = typeof user.role === 'string' ? user.role.trim() : '';
-  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
 
   if (role === 'admin' || role === 'role-admin') {
     return { type: 'all' };
@@ -74,26 +73,35 @@ function resolveApprovalListScope(user = {}) {
     return { type: 'assigned' };
   }
 
-  if (permissions.includes('requirement:approve')) {
-    return { type: 'all' };
-  }
-
   return { type: 'none' };
 }
 
 function resolveRequirementViewScope(user = {}) {
   const role = typeof user.role === 'string' ? user.role.trim() : '';
-  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
 
   if (role === 'admin' || role === 'role-admin') {
     return { type: 'all' };
   }
 
-  if (permissions.includes('requirement:approve')) {
-    return { type: 'all' };
-  }
-
   return { type: 'own' };
+}
+
+function isAdminRole(role) {
+  const normalizedRole = String(role || '').trim();
+  return normalizedRole === 'admin' || normalizedRole === 'role-admin';
+}
+
+function isDeveloperRole(role) {
+  const normalizedRole = String(role || '').trim();
+  return normalizedRole === 'developer' || normalizedRole === 'role-developer';
+}
+
+function isAdminUser(user = {}) {
+  return isAdminRole(user.role);
+}
+
+function uniqueTrimmed(values = []) {
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
 }
 
 function getUserScopeKeys(user = {}) {
@@ -104,62 +112,157 @@ function getUserScopeKeys(user = {}) {
   };
 }
 
+function getUserStructuredKeys(user = {}) {
+  return uniqueTrimmed([user.id, user.userId, user.username]);
+}
+
+function getUserLegacyKeys(user = {}) {
+  const keys = getUserScopeKeys(user);
+  return uniqueTrimmed([keys.name, keys.username]);
+}
+
 function appendRequirementScopeFilter(clauses, params, user = {}, paramPrefix = 'scope') {
   const scope = resolveRequirementViewScope(user);
   if (scope.type === 'all') return;
 
+  appendOwnRequirementScopeFilter(clauses, params, user, paramPrefix);
+}
+
+function qualifyRequirementScopeClause(clause, alias = '') {
+  const prefix = alias ? `${alias}.` : '';
+  return clause
+    .replace(/\bsubmitterId\b/g, `${prefix}submitterId`)
+    .replace(/\bdeveloperIds\b/g, `${prefix}developerIds`)
+    .replace(/\bsubmitter\b/g, `${prefix}submitter`)
+    .replace(/\bdeveloper\b/g, `${prefix}developer`);
+}
+
+function appendOwnRequirementScopeFilter(clauses, params, user = {}, paramPrefix = 'scope') {
+  return appendOwnRequirementScopeFilterWithAlias(clauses, params, user, paramPrefix);
+}
+
+function appendOwnRequirementScopeFilterWithAlias(clauses, params, user = {}, paramPrefix = 'scope', alias = '') {
   const keys = getUserScopeKeys(user);
   const userNames = [...new Set([keys.name, keys.username].filter(Boolean))];
-  const developerIdPattern = keys.id ? `%,${keys.id.replace(/\s+/g, '')},%` : '';
+  const structuredKeys = getUserStructuredKeys(user);
   const scopeParts = [];
-  const legacyScopeParts = [];
 
-  if (keys.id) {
-    params[`${paramPrefix}UserId`] = keys.id;
-    scopeParts.push(`submitterId = :${paramPrefix}UserId`);
-  }
+  structuredKeys.forEach((key, index) => {
+    params[`${paramPrefix}UserId${index}`] = key;
+    params[`${paramPrefix}DeveloperId${index}`] = `%,${key.replace(/\s+/g, '')},%`;
+    scopeParts.push(`submitterId = :${paramPrefix}UserId${index}`);
+    scopeParts.push(`(',' || REPLACE(NVL(developerIds, ''), ' ', '') || ',') LIKE :${paramPrefix}DeveloperId${index}`);
+  });
 
   userNames.forEach((name, index) => {
     params[`${paramPrefix}Name${index}`] = name;
     params[`${paramPrefix}Developer${index}`] = `%,${name.replace(/\s+/g, '')},%`;
-    legacyScopeParts.push(`submitter = :${paramPrefix}Name${index}`);
-    legacyScopeParts.push(`(',' || REPLACE(developer, ' ', '') || ',') LIKE :${paramPrefix}Developer${index}`);
+    scopeParts.push(`((submitterId IS NULL OR TRIM(submitterId) IS NULL) AND submitter = :${paramPrefix}Name${index})`);
+    scopeParts.push(`((developerIds IS NULL OR TRIM(developerIds) IS NULL) AND (',' || REPLACE(developer, ' ', '') || ',') LIKE :${paramPrefix}Developer${index})`);
   });
 
-  if (developerIdPattern) {
-    params[`${paramPrefix}DeveloperId`] = developerIdPattern;
-    scopeParts.push(`(',' || REPLACE(NVL(developerIds, ''), ' ', '') || ',') LIKE :${paramPrefix}DeveloperId`);
-  }
+  const qualifiedScopeParts = alias
+    ? scopeParts.map(part => qualifyRequirementScopeClause(part, alias))
+    : scopeParts;
+  clauses.push(qualifiedScopeParts.length ? `AND (${qualifiedScopeParts.join(' OR ')})` : 'AND 1 = 0');
+}
 
-  if (legacyScopeParts.length) {
-    scopeParts.push(`((submitterId IS NULL OR TRIM(submitterId) IS NULL) AND (developerIds IS NULL OR TRIM(developerIds) IS NULL) AND (${legacyScopeParts.join(' OR ')}))`);
-  }
+function appendSubmitterScopeFilter(clauses, params, user = {}, paramPrefix = 'submitterScope') {
+  const structuredKeys = getUserStructuredKeys(user);
+  const userNames = getUserLegacyKeys(user);
+  const scopeParts = [];
+
+  structuredKeys.forEach((key, index) => {
+    params[`${paramPrefix}UserId${index}`] = key;
+    scopeParts.push(`submitterId = :${paramPrefix}UserId${index}`);
+  });
+
+  userNames.forEach((name, index) => {
+    params[`${paramPrefix}Name${index}`] = name;
+    scopeParts.push(`((submitterId IS NULL OR TRIM(submitterId) IS NULL) AND submitter = :${paramPrefix}Name${index})`);
+  });
 
   clauses.push(scopeParts.length ? `AND (${scopeParts.join(' OR ')})` : 'AND 1 = 0');
+}
+
+function isDraftRequirement(requirement = {}) {
+  const draftValue = requirement.isDraft ?? requirement.ISDRAFT;
+  return draftValue === true || Number(draftValue) === 1;
+}
+
+function isRequirementSubmitter(user = {}, requirement = {}) {
+  const submitterId = String(requirement.submitterId || requirement.SUBMITTERID || '').trim();
+  if (submitterId) {
+    return getUserStructuredKeys(user).includes(submitterId);
+  }
+
+  const submitter = String(requirement.submitter || requirement.SUBMITTER || '').trim();
+  return Boolean(submitter) && getUserLegacyKeys(user).includes(submitter);
+}
+
+function isRequirementAssignedDeveloper(user = {}, requirement = {}) {
+  const developerIds = normalizeDeveloperIdentifiers(requirement.developerIds || requirement.DEVELOPERIDS);
+  const developerNames = normalizeDeveloperNames(requirement.developer || requirement.DEVELOPER);
+  const structuredKeys = getUserStructuredKeys(user);
+  const legacyKeys = getUserLegacyKeys(user);
+
+  return developerIds.some(developerId => structuredKeys.includes(developerId))
+    || developerNames.some(developerName => legacyKeys.includes(developerName));
 }
 
 function canUserViewRequirement(user = {}, requirement = {}) {
   const scope = resolveRequirementViewScope(user);
   if (scope.type === 'all') return true;
 
-  const keys = getUserScopeKeys(user);
-  const userIdKeys = [keys.id].filter(Boolean);
-  const legacyUserKeys = [keys.username, keys.name].filter(Boolean);
-  if (userIdKeys.length === 0 && legacyUserKeys.length === 0) return false;
+  if (isDraftRequirement(requirement)) {
+    return isRequirementSubmitter(user, requirement);
+  }
 
-  const submitterId = String(requirement.submitterId || '').trim();
-  const developerIdSet = new Set(normalizeDeveloperIdentifiers(requirement.developerIds));
-  if (userIdKeys.some(key => key === submitterId || developerIdSet.has(key))) return true;
+  return isRequirementSubmitter(user, requirement) || isRequirementAssignedDeveloper(user, requirement);
+}
 
-  const hasStoredIdentity = Boolean(submitterId || developerIdSet.size);
-  if (hasStoredIdentity) return false;
+function canUserEditRequirement(user = {}, requirement = {}) {
+  if (isAdminUser(user)) return true;
+  return isRequirementSubmitter(user, requirement);
+}
 
-  const legacyAllowedKeys = new Set([
-    String(requirement.submitter || '').trim(),
-    ...normalizeDeveloperNames(requirement.developer)
-  ].filter(Boolean));
+function canUserUpdateRequirementStatus(user = {}, requirement = {}) {
+  if (isAdminUser(user)) return true;
+  return isDeveloperRole(user.role) && isRequirementAssignedDeveloper(user, requirement);
+}
 
-  return legacyUserKeys.some(key => legacyAllowedKeys.has(key));
+function canUserScoreRequirement(user = {}, requirement = {}) {
+  return canUserUpdateRequirementStatus(user, requirement);
+}
+
+function canUserManageRequirementAttachment(user = {}, requirement = {}) {
+  return canUserUpdateRequirementStatus(user, requirement);
+}
+
+function sanitizeRequirementUpdatePayload(data = {}, user = {}, currentRequirement = {}) {
+  if (isAdminUser(user)) return { ...data };
+
+  const next = { ...data };
+  const restrictedFields = [
+    'submitter',
+    'submitterId',
+    'status',
+    'approvalStatus',
+    'approvalComment',
+    'score',
+    'publishedAt',
+    'actualDate'
+  ];
+
+  if (!isDraftRequirement(currentRequirement)) {
+    restrictedFields.push('isDraft');
+  }
+
+  restrictedFields.forEach((field) => {
+    delete next[field];
+  });
+
+  return next;
 }
 
 async function getNextStatuses(currentStatus) {
@@ -478,6 +581,33 @@ async function parseDashboardAuditRows(rows = []) {
   }));
 }
 
+function isActiveRequirementStatus(status) {
+  return Boolean(status) && status !== STATUS.RELEASED;
+}
+
+function buildDeveloperLoadMap(requirements = []) {
+  const loadMap = new Map();
+
+  requirements.forEach((requirement) => {
+    if (!isActiveRequirementStatus(requirement.status)) return;
+
+    const developerIds = normalizeDeveloperIdentifiers(requirement.developerIds);
+    const developerNames = normalizeDeveloperNames(requirement.developer);
+    const count = Math.max(developerIds.length, developerNames.length);
+
+    for (let index = 0; index < count; index += 1) {
+      [developerIds[index], developerNames[index]]
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+        .forEach((key) => {
+          loadMap.set(key, (loadMap.get(key) || 0) + 1);
+        });
+    }
+  });
+
+  return loadMap;
+}
+
 function averageByMonth(samples) {
   const grouped = new Map();
   samples.forEach((sample) => {
@@ -592,11 +722,18 @@ function buildDashboardMetrics({ requirements = [], auditLogs = [], developerLoa
     }))
     .sort((a, b) => b.total - a.total || b.released - a.released || a.platform.localeCompare(b.platform));
 
+  const liveDeveloperLoadMap = buildDeveloperLoadMap(requirements);
   const developerHeatmap = developerLoadStats
     .map((item) => {
-      const loadPercent = roundToOne(item.loadPercent);
+      const liveCurrentLoad = liveDeveloperLoadMap.get(String(item.id || '').trim())
+        ?? liveDeveloperLoadMap.get(String(item.userId || '').trim())
+        ?? liveDeveloperLoadMap.get(String(item.name || '').trim())
+        ?? 0;
+      const maxLoad = Number(item.maxLoad || 0);
+      const loadPercent = maxLoad ? roundToOne((liveCurrentLoad / maxLoad) * 100) : 0;
       return {
         ...item,
+        currentLoad: liveCurrentLoad,
         loadPercent,
         loadLevel: loadPercent >= 80 ? 'high' : loadPercent >= 60 ? 'medium' : 'normal'
       };
@@ -773,33 +910,15 @@ function serializeDeveloperIdentifiers(value) {
 }
 
 function canUserDeleteRequirement(user = {}, requirement = {}) {
-  const role = String(user.role || '').trim();
-  if (role === 'admin' || role === 'role-admin') {
+  if (isAdminUser(user)) {
     return true;
   }
 
-  if (role !== 'developer' && role !== 'role-developer') {
-    return false;
+  if (isDraftRequirement(requirement)) {
+    return isRequirementSubmitter(user, requirement);
   }
 
-  const userKeys = [
-    user.id,
-    user.userId,
-    user.username,
-    user.name
-  ].map(value => String(value || '').trim()).filter(Boolean);
-
-  if (userKeys.length === 0) {
-    return false;
-  }
-
-  const assignedKeys = [
-    ...normalizeDeveloperIdentifiers(requirement.developerIds),
-    ...normalizeDeveloperNames(requirement.developer)
-  ];
-  const assignedSet = new Set(assignedKeys.map(value => String(value || '').trim()).filter(Boolean));
-
-  return userKeys.some(key => assignedSet.has(key));
+  return isDeveloperRole(user.role) && isRequirementAssignedDeveloper(user, requirement);
 }
 
 async function resolveRequirementContactEmails(connection, requirement = {}) {
@@ -1103,24 +1222,7 @@ async function getBySubmitterUser(user = {}, page = 1, pageSize = 20) {
     const offset = (page - 1) * pageSize;
     const clauses = ['WHERE isDraft = 0'];
     const params = { offset, limit: offset + pageSize };
-    const keys = getUserScopeKeys(user);
-    const legacyNames = [...new Set([keys.name, keys.username].filter(Boolean))];
-    const scopeParts = [];
-
-    if (keys.id) {
-      params.submitterUserId = keys.id;
-      scopeParts.push('submitterId = :submitterUserId');
-    }
-
-    if (legacyNames.length) {
-      const legacyParts = legacyNames.map((name, index) => {
-        params[`submitterName${index}`] = name;
-        return `submitter = :submitterName${index}`;
-      });
-      scopeParts.push(`((submitterId IS NULL OR TRIM(submitterId) IS NULL) AND (${legacyParts.join(' OR ')}))`);
-    }
-
-    clauses.push(scopeParts.length ? `AND (${scopeParts.join(' OR ')})` : 'AND 1 = 0');
+    appendSubmitterScopeFilter(clauses, params, user, 'submitter');
     const whereClause = clauses.join(' ');
 
     const result = await connection.execute(
@@ -1150,6 +1252,10 @@ async function getBySubmitterUser(user = {}, page = 1, pageSize = 20) {
 }
 
 async function getDrafts(submitter) {
+  return getDraftsBySubmitter(submitter);
+}
+
+async function getDraftsBySubmitter(submitter) {
   let connection;
   try {
     connection = await db.getConnection();
@@ -1165,12 +1271,53 @@ async function getDrafts(submitter) {
 }
 
 async function getLatestDraft(submitter) {
+  return getLatestDraftBySubmitter(submitter);
+}
+
+async function getLatestDraftBySubmitter(submitter) {
   let connection;
   try {
     connection = await db.getConnection();
     const result = await connection.execute(
        `SELECT * FROM (SELECT * FROM requirements WHERE isDraft = 1 AND submitter = :submitter ORDER BY UPDATEDAT DESC) WHERE ROWNUM = 1`,
       [submitter],
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    if (result.rows.length === 0) return null;
+    return await parseRow(result.rows[0]);
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
+async function getDraftsByUser(user = {}) {
+  let connection;
+  try {
+    connection = await db.getConnection();
+    const clauses = ['WHERE isDraft = 1'];
+    const params = {};
+    appendSubmitterScopeFilter(clauses, params, user, 'draftSubmitter');
+    const result = await connection.execute(
+      `SELECT * FROM requirements ${clauses.join(' ')} ORDER BY UPDATEDAT DESC`,
+      params,
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    return await parseRows(result.rows);
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
+async function getLatestDraftByUser(user = {}) {
+  let connection;
+  try {
+    connection = await db.getConnection();
+    const clauses = ['WHERE isDraft = 1'];
+    const params = {};
+    appendSubmitterScopeFilter(clauses, params, user, 'draftSubmitter');
+    const result = await connection.execute(
+      `SELECT * FROM (SELECT * FROM requirements ${clauses.join(' ')} ORDER BY UPDATEDAT DESC) WHERE ROWNUM = 1`,
+      params,
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     if (result.rows.length === 0) return null;
@@ -1634,10 +1781,15 @@ async function getGanttData(filters = {}) {
   try {
     connection = await db.getConnection();
     
-    let whereClause = 'WHERE isDraft = 0';
+    const clauses = ['WHERE isDraft = 0'];
     const params = {};
     
-    if (filters.userRole !== 'admin') {
+    if (filters.viewer) {
+      const role = String(filters.viewer.role || '').trim();
+      if (role !== 'admin' && role !== 'role-admin') {
+        appendOwnRequirementScopeFilterWithAlias(clauses, params, filters.viewer, 'ganttViewer', 'r');
+      }
+    } else if (filters.userRole !== 'admin') {
       const userResult = await connection.execute(
         `SELECT name FROM users WHERE id = :userId`,
         { userId: filters.userId },
@@ -1645,42 +1797,44 @@ async function getGanttData(filters = {}) {
       );
       if (userResult.rows.length > 0) {
         const userName = userResult.rows[0].NAME;
-        whereClause += ` AND (submitter = :submitter OR (',' || REPLACE(developer, ' ', '') || ',') LIKE :developerPattern)`;
+        clauses.push(`AND (submitter = :submitter OR (',' || REPLACE(developer, ' ', '') || ',') LIKE :developerPattern)`);
         params.submitter = userName;
         params.developerPattern = `%,${String(userName || '').replace(/\s+/g, '')},%`;
+      } else {
+        clauses.push('AND 1 = 0');
       }
     }
     
     if (filters.platform) {
-      whereClause += ' AND platform = :platform';
+      clauses.push('AND platform = :platform');
       params.platform = filters.platform;
     }
     if (filters.status) {
-      whereClause += ' AND status = :status';
+      clauses.push('AND status = :status');
       params.status = filters.status;
     }
     if (filters.developer) {
       const [developerName] = normalizeDeveloperNames(filters.developer);
       if (developerName) {
-        whereClause += ` AND (',' || REPLACE(developer, ' ', '') || ',') LIKE :filterDeveloperPattern`;
+        clauses.push(`AND (',' || REPLACE(developer, ' ', '') || ',') LIKE :filterDeveloperPattern`);
         params.filterDeveloperPattern = `%,${developerName.replace(/\s+/g, '')},%`;
       }
     }
     
     const result = await connection.execute(
-      `SELECT id, title, submitter, submitterId, developer, developerIds, platform, capability, 
-              expectedDate, actualDate, priority, score, status, approvalStatus, publishedAt,
+      `SELECT r.id, r.title, r.submitter, r.submitterId, r.developer, r.developerIds, r.platform, r.capability, 
+              r.expectedDate, r.actualDate, r.priority, r.score, r.status, r.approvalStatus, r.publishedAt,
               (
                 SELECT MIN(a.createdAt)
                 FROM audit_logs a
-                WHERE a.resourceId = requirements.id
+                WHERE a.resourceId = r.id
                   AND a.action = 'approve'
                   AND DBMS_LOB.INSTR(a.details, '"approved":true') > 0
               ) AS approvedAt,
-              createdAt, updatedAt
-       FROM requirements
-       ${whereClause}
-       ORDER BY platform, createdAt ASC`,
+              r.createdAt, r.updatedAt
+       FROM requirements r
+       ${clauses.join(' ')}
+       ORDER BY r.platform, r.createdAt ASC`,
       params,
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
@@ -1785,7 +1939,7 @@ async function getDashboardMetrics(viewer = null) {
            NVL(d.currentLoad, 0) AS currentLoad
          FROM users u
          LEFT JOIN developers d ON d.userId = u.id
-         WHERE (u.role = 'developer' OR u.role = 'role-developer')
+         WHERE u.role IN ('developer', 'role-developer', 'admin', 'role-admin')
            AND u.status = 1
          ORDER BY u.name ASC`,
         {},
@@ -1822,7 +1976,7 @@ async function getDashboardMetrics(viewer = null) {
   }
 }
 
-async function getAIContext() {
+async function getAIContext(viewer = null) {
   let connection;
   try {
     connection = await db.getConnection();
@@ -1854,27 +2008,38 @@ async function getAIContext() {
       };
     };
 
-    const fields = 'ID, TITLE, SUBMITTER, DEVELOPER, PLATFORM, CAPABILITY, PRIORITY, STATUS, SCORE, EXPECTEDDATE, ACTUALDATE, CREATEDAT, UPDATEDAT';
+    const fields = 'ID, TITLE, SUBMITTER, SUBMITTERID, DEVELOPER, DEVELOPERIDS, PLATFORM, CAPABILITY, PRIORITY, STATUS, SCORE, EXPECTEDDATE, ACTUALDATE, CREATEDAT, UPDATEDAT';
+    const baseClauses = ['WHERE isDraft = 0'];
+    const baseParams = {};
+    if (viewer) {
+      appendRequirementScopeFilter(baseClauses, baseParams, viewer, 'aiViewer');
+    }
+    const visibleWhereClause = baseClauses.join(' ');
+    const visibleWhereClauseForRequirementAlias = visibleWhereClause
+      .replace(/\bsubmitterId\b/g, 'r.submitterId')
+      .replace(/\bdeveloperIds\b/g, 'r.developerIds')
+      .replace(/\bsubmitter\b/g, 'r.submitter')
+      .replace(/\bdeveloper\b/g, 'r.developer');
 
     const recentNewResult = await connection.execute(
-      `SELECT ${fields} FROM requirements WHERE isDraft = 0 AND CREATEDAT >= SYSDATE - 7 ORDER BY CREATEDAT DESC`,
-      {}, { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      `SELECT ${fields} FROM requirements ${visibleWhereClause} AND CREATEDAT >= SYSDATE - 7 ORDER BY CREATEDAT DESC`,
+      baseParams, { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     const recentChangesResult = await connection.execute(
-      `SELECT ${fields} FROM requirements WHERE isDraft = 0 AND UPDATEDAT >= SYSDATE - 7 AND CREATEDAT < SYSDATE - 7 ORDER BY UPDATEDAT DESC`,
-      {}, { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      `SELECT ${fields} FROM requirements ${visibleWhereClause} AND UPDATEDAT >= SYSDATE - 7 AND CREATEDAT < SYSDATE - 7 ORDER BY UPDATEDAT DESC`,
+      baseParams, { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     const activeResult = await connection.execute(
-      `SELECT ${fields} FROM requirements WHERE isDraft = 0 AND STATUS != '已发布' ORDER BY PRIORITY DESC, CREATEDAT ASC`,
-      {}, { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      `SELECT ${fields} FROM requirements ${visibleWhereClause} AND STATUS != '已发布' ORDER BY PRIORITY DESC, CREATEDAT ASC`,
+      baseParams, { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     const overdueResult = await connection.execute(
-      `SELECT ${fields} FROM requirements WHERE isDraft = 0 AND EXPECTEDDATE IS NOT NULL AND EXPECTEDDATE <= SYSDATE + 3 AND STATUS != '已发布' ORDER BY EXPECTEDDATE ASC`,
-      {}, { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      `SELECT ${fields} FROM requirements ${visibleWhereClause} AND EXPECTEDDATE IS NOT NULL AND EXPECTEDDATE <= SYSDATE + 3 AND STATUS != '已发布' ORDER BY EXPECTEDDATE ASC`,
+      baseParams, { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
     const allResult = await connection.execute(
-      `SELECT ${fields} FROM requirements WHERE isDraft = 0 ORDER BY CREATEDAT DESC`,
-      {}, { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      `SELECT ${fields} FROM requirements ${visibleWhereClause} ORDER BY CREATEDAT DESC`,
+      baseParams, { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
 
     const recentNew = recentNewResult.rows.map(parseSimpleRow);
@@ -1908,8 +2073,13 @@ let recentActivities = [];
         `SELECT c.REQUIREMENTID, c.USERNAME, c.TYPE, c.CREATEDAT
          FROM requirement_comments c
          WHERE c.CREATEDAT >= SYSDATE - 30
+           AND EXISTS (
+             SELECT 1 FROM requirements r
+             ${visibleWhereClauseForRequirementAlias}
+               AND r.id = c.REQUIREMENTID
+           )
          ORDER BY c.CREATEDAT DESC`,
-        {}, { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        baseParams, { outFormat: oracledb.OUT_FORMAT_OBJECT }
       );
       const reqMap = {};
       all.forEach(r => { reqMap[r.id] = r.title; });
@@ -1961,7 +2131,11 @@ module.exports = {
   getBySubmitter,
   getBySubmitterUser,
   getDrafts,
+  getDraftsBySubmitter,
+  getDraftsByUser,
   getLatestDraft,
+  getLatestDraftBySubmitter,
+  getLatestDraftByUser,
   getById,
   create,
   update,
@@ -1982,7 +2156,15 @@ module.exports = {
   serializeDeveloperNames,
   serializeDeveloperIdentifiers,
   canUserViewRequirement,
+  canUserEditRequirement,
+  canUserUpdateRequirementStatus,
+  canUserScoreRequirement,
+  canUserManageRequirementAttachment,
   canUserDeleteRequirement,
+  sanitizeRequirementUpdatePayload,
+  isAdminUser,
+  isRequirementSubmitter,
+  isRequirementAssignedDeveloper,
   resolveStoredRequirementScore,
   resolveRequirementScore,
   STATUS,

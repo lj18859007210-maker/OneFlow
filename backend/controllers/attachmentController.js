@@ -72,6 +72,19 @@ async function ensureRequirementVisible(req, res, requirementId, action = '查�
   return requirement;
 }
 
+async function ensureRequirementManageable(req, res, requirementId, action = 'manage') {
+  const requirement = await requirementModel.getById(requirementId);
+  if (!requirement) {
+    res.status(404).json({ success: false, message: 'requirement not found' });
+    return null;
+  }
+  if (!requirementModel.canUserManageRequirementAttachment(req.user, requirement)) {
+    res.status(403).json({ success: false, message: `current account cannot ${action} this requirement attachment` });
+    return null;
+  }
+  return requirement;
+}
+
 async function listByRequirement(req, res) {
   try {
     const requirement = await ensureRequirementVisible(req, res, req.params.requirementId);
@@ -89,7 +102,7 @@ async function listByRequirement(req, res) {
 
 async function uploadFormal(req, res) {
   try {
-    const requirement = await ensureRequirementVisible(req, res, req.params.requirementId, '操作');
+    const requirement = await ensureRequirementManageable(req, res, req.params.requirementId, 'upload to');
     if (!requirement) return;
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'file is required' });
@@ -165,6 +178,13 @@ async function addVersion(req, res) {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'file is required' });
     }
+    const currentAttachment = await attachmentModel.getRequirementAttachmentById(req.params.attachmentId);
+    if (!currentAttachment) {
+      return res.status(404).json({ success: false, message: 'attachment not found' });
+    }
+    const requirement = await ensureRequirementManageable(req, res, currentAttachment.requirementId, 'upload version to');
+    if (!requirement) return;
+
     const attachment = await attachmentModel.addAttachmentVersion({
       attachmentId: req.params.attachmentId,
       remark: req.body.remark || null,
@@ -201,7 +221,14 @@ async function promoteCommentAttachment(req, res) {
     if (!requirementId || !category) {
       return res.status(400).json({ success: false, message: 'requirementId and category are required' });
     }
-    const requirement = await ensureRequirementVisible(req, res, requirementId, '操作');
+    const commentAttachment = await attachmentModel.getCommentAttachmentById(req.params.commentAttachmentId);
+    if (!commentAttachment) {
+      return res.status(404).json({ success: false, message: 'comment attachment not found' });
+    }
+    if (String(commentAttachment.requirementId || '') !== String(requirementId || '')) {
+      return res.status(400).json({ success: false, message: 'comment attachment does not belong to requirement' });
+    }
+    const requirement = await ensureRequirementManageable(req, res, requirementId, 'promote');
     if (!requirement) return;
     const attachment = await attachmentModel.promoteCommentAttachment({
       requirementId,
@@ -235,6 +262,13 @@ async function promoteCommentAttachment(req, res) {
 
 async function remove(req, res) {
   try {
+    const attachment = await attachmentModel.getRequirementAttachmentById(req.params.attachmentId);
+    if (!attachment) {
+      return res.status(404).json({ success: false, message: 'attachment not found' });
+    }
+    const requirement = await ensureRequirementManageable(req, res, attachment.requirementId, 'delete');
+    if (!requirement) return;
+
     const removed = await attachmentModel.deleteRequirementAttachment(req.params.attachmentId);
     if (!removed) {
       return res.status(404).json({ success: false, message: 'attachment not found' });

@@ -309,9 +309,14 @@ async function getBySubmitter(req, res) {
 
 async function getDrafts(req, res) {
   try {
-    const { submitter } = req.query;
-    if (!submitter) return res.status(400).json({ success: false, message: 'submitter is required' });
-    const drafts = await requirementModel.getDrafts(submitter);
+    const isAdmin = requirementModel.isAdminUser(req.user);
+    const submitter = toOptionalString(req.query.submitter);
+    if (isAdmin && !submitter) {
+      return res.status(400).json({ success: false, message: 'submitter is required' });
+    }
+    const drafts = isAdmin
+      ? await requirementModel.getDraftsBySubmitter(submitter)
+      : await requirementModel.getDraftsByUser(req.user);
     res.json({ success: true, data: drafts });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -320,9 +325,14 @@ async function getDrafts(req, res) {
 
 async function getLatestDraft(req, res) {
   try {
-    const { submitter } = req.query;
-    if (!submitter) return res.status(400).json({ success: false, message: 'submitter is required' });
-    const draft = await requirementModel.getLatestDraft(submitter);
+    const isAdmin = requirementModel.isAdminUser(req.user);
+    const submitter = toOptionalString(req.query.submitter);
+    if (isAdmin && !submitter) {
+      return res.status(400).json({ success: false, message: 'submitter is required' });
+    }
+    const draft = isAdmin
+      ? await requirementModel.getLatestDraftBySubmitter(submitter)
+      : await requirementModel.getLatestDraftByUser(req.user);
     if (!draft) return res.status(404).json({ success: false, message: 'draft not found' });
     res.json({ success: true, data: draft });
   } catch (error) {
@@ -372,12 +382,19 @@ async function create(req, res) {
 
 async function update(req, res) {
   try {
-    const developers = req.body.developer !== undefined
-      ? await resolveAssignableDevelopers(req.body.developer)
+    const currentRequirement = await requirementModel.getById(req.params.id);
+    if (!currentRequirement) return res.status(404).json({ success: false, message: 'requirement not found' });
+    if (!requirementModel.canUserEditRequirement(req.user, currentRequirement)) {
+      return res.status(403).json({ success: false, message: '当前账号不能修改该需求' });
+    }
+
+    const safeBody = requirementModel.sanitizeRequirementUpdatePayload(req.body, req.user, currentRequirement);
+    const developers = safeBody.developer !== undefined
+      ? await resolveAssignableDevelopers(safeBody.developer)
       : [];
-    const requirementBody = req.body.developer !== undefined
-      ? applyResolvedRequirementUsers(req.body, req.user, developers)
-      : { ...req.body };
+    const requirementBody = safeBody.developer !== undefined
+      ? applyResolvedRequirementUsers(safeBody, req.user, developers)
+      : safeBody;
     const requirement = await requirementModel.update(req.params.id, requirementBody);
     if (!requirement) return res.status(404).json({ success: false, message: 'requirement not found' });
     for (const developer of developers) {
@@ -410,6 +427,11 @@ async function updateStatus(req, res) {
   try {
     const { status } = req.body;
     if (!status) return res.status(400).json({ success: false, message: 'status is required' });
+    const currentRequirement = await requirementModel.getById(req.params.id);
+    if (!currentRequirement) return res.status(404).json({ success: false, message: 'requirement not found' });
+    if (!requirementModel.canUserUpdateRequirementStatus(req.user, currentRequirement)) {
+      return res.status(403).json({ success: false, message: '当前账号不能流转该需求' });
+    }
     const statusResult = await requirementModel.updateStatus(req.params.id, status, req.user.role);
     if (!statusResult) return res.status(404).json({ success: false, message: 'requirement not found' });
 
@@ -527,6 +549,11 @@ async function approve(req, res) {
 async function score(req, res) {
   try {
     const { score } = req.body;
+    const currentRequirement = await requirementModel.getById(req.params.id);
+    if (!currentRequirement) return res.status(404).json({ success: false, message: 'requirement not found' });
+    if (!requirementModel.canUserScoreRequirement(req.user, currentRequirement)) {
+      return res.status(403).json({ success: false, message: '当前账号不能评分该需求' });
+    }
     const requirement = await requirementModel.score(req.params.id, score);
     if (!requirement) return res.status(404).json({ success: false, message: 'requirement not found' });
     res.json({ success: true, data: requirement, message: 'score updated' });
@@ -541,6 +568,7 @@ async function getGanttData(req, res) {
       platform: req.query.platform || null,
       status: req.query.status || null,
       developer: req.query.developer || null,
+      viewer: req.user,
       userId: req.user.id,
       userRole: req.user.role
     };

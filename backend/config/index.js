@@ -58,7 +58,9 @@ const config = {
   // AI 服务配置
   ai: {
     baseUrl: process.env.AI_BASE_URL || 'http://10.46.250.242:11434',
-    model: process.env.AI_MODEL || 'qwen3.5'
+    model: process.env.AI_MODEL || 'qwen3.5',
+    apiKey: process.env.AI_API_KEY || '',
+    provider: (process.env.AI_PROVIDER || '').toLowerCase()
   },
 
   // 邮件配置

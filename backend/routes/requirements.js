@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const requirementController = require('../controllers/requirementController');
 const authMiddleware = require('../middleware/auth');
-const { requirePermission } = require('../middleware/permission');
+const { requirePermission, requireAnyPermission } = require('../middleware/permission');
 const auditMiddleware = require('../middleware/audit');
 const { clearCacheByPattern } = require('../middleware/cache');
 
@@ -30,7 +30,7 @@ const clearCache = (req, res, next) => {
 };
 
 router.post('/', requirePermission('requirement:create'), clearCache, auditMiddleware('create', 'requirement'), requirementController.create);
-router.put('/:id', requirePermission('requirement:update'), clearCache, auditMiddleware('update', 'requirement'), requirementController.update);
+router.put('/:id', requireAnyPermission('requirement:update', 'requirement:create'), clearCache, auditMiddleware('update', 'requirement'), requirementController.update);
 router.delete('/:id', clearCache, auditMiddleware('delete', 'requirement'), requirementController.remove);
 router.put('/:id/status', requirePermission('requirement:update'), clearCache, auditMiddleware('update_status', 'requirement'), requirementController.updateStatus);
 router.put('/:id/approve', requirePermission('requirement:approve'), clearCache, auditMiddleware('approve', 'requirement'), requirementController.approve);

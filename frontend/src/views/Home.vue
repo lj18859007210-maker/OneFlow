@@ -303,10 +303,9 @@
 import { computed, inject, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { developerApi, requirementApi } from "../api";
-import { normalizeDeveloperNames } from "../utils/requirementFormValidation";
 import Pagination from "../components/Pagination.vue";
 import ChartsPanel from "../components/ChartsPanel.vue";
-import { hasPermission } from "../utils/access";
+import { canDeleteRequirement as canDeleteRequirementByAccess, canViewRequirement, hasPermission } from "../utils/access";
 import { createEmptyDashboard } from "../utils/dashboardAnalytics";
 import { showToast as showAppToast } from "../utils/toastService.js";
 
@@ -480,40 +479,11 @@ function goToSubmitRequirement() {
 }
 
 function canViewDetail(req) {
-  const user = currentUser.value;
-  if (!user || user.name === "未登录") return false;
-  if (user.role === "admin" || user.role === "role-admin") return true;
-  return req.submitter === user.name || normalizeDeveloperNames(req.developer).includes(user.name);
-}
-
-function normalizeList(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item || "").trim()).filter(Boolean);
-  }
-  return String(value || "")
-    .split(/[,;，；]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function isAssignedDeveloper(req) {
-  const user = currentUser.value || {};
-  const userKeys = [user.id, user.userId, user.username, user.name]
-    .map((item) => String(item || "").trim())
-    .filter(Boolean);
-  if (!userKeys.length) return false;
-  const assignedKeys = [...normalizeList(req?.developerIds), ...normalizeList(req?.developer)];
-  return userKeys.some((key) => assignedKeys.includes(key));
+  return canViewRequirement(currentUser.value, req);
 }
 
 function canDeleteRequirement(req) {
-  const user = currentUser.value || {};
-  if (user.role === "admin" || user.role === "role-admin") return true;
-  if (user.role === "developer" || user.role === "role-developer") {
-    return isAssignedDeveloper(req);
-  }
-  if (hasPermission(user, "requirement:delete")) return true;
-  return false;
+  return canDeleteRequirementByAccess(currentUser.value, req);
 }
 
 function deleteItem(req) {
