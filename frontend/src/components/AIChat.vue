@@ -101,6 +101,7 @@
 <script setup>
 import { ref, nextTick, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { aiApi } from '../api'
+import { clampFabPosition, getDefaultFabPosition, getViewportRect } from '../utils/aiChatPosition'
 
 const open = ref(false)
 const input = ref('')
@@ -108,7 +109,16 @@ const loading = ref(false)
 const messages = ref([])
 const messagesRef = ref(null)
 
-const fabPos = ref({ x: window.innerWidth - 88, y: window.innerHeight - 88 })
+const FAB_SIZE = { width: 60, height: 72 }
+const FAB_MARGIN = 28
+const initialViewport = typeof window !== 'undefined' ? getViewportRect(window) : { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 }
+const fabPos = ref(getDefaultFabPosition({
+  viewport: initialViewport,
+  anchorRect: initialViewport,
+  fabSize: FAB_SIZE,
+  margin: FAB_MARGIN,
+}))
+const fabWasMoved = ref(false)
 let fabDragState = { dragging: false, moved: false, startX: 0, startY: 0, startPosX: 0, startPosY: 0 }
 
 const fabDragStart = (e) => {
@@ -130,12 +140,21 @@ if (typeof window !== 'undefined') {
     if (!fabDragState.dragging) return
     const dx = cx - fabDragState.startX
     const dy = cy - fabDragState.startY
-    if (!fabDragState.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) fabDragState.moved = true
-    if (!fabDragState.moved) return
-    fabPos.value = {
-      x: Math.max(0, Math.min(window.innerWidth - 60, fabDragState.startPosX + dx)),
-      y: Math.max(0, Math.min(window.innerHeight - 72, fabDragState.startPosY + dy))
+    if (!fabDragState.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      fabDragState.moved = true
+      fabWasMoved.value = true
     }
+    if (!fabDragState.moved) return
+    fabPos.value = clampFabPosition({
+      position: {
+        x: fabDragState.startPosX + dx,
+        y: fabDragState.startPosY + dy,
+      },
+      viewport: getViewportRect(window),
+      anchorRect: getLayoutAnchorRect(),
+      fabSize: FAB_SIZE,
+      margin: 8,
+    })
   }
   const onEnd = () => {
     fabDragState.dragging = false
@@ -144,6 +163,35 @@ if (typeof window !== 'undefined') {
   window.addEventListener('mouseup', onEnd)
   window.addEventListener('touchmove', e => { const t = e.touches[0]; onMove(t.clientX, t.clientY) }, { passive: true })
   window.addEventListener('touchend', onEnd)
+}
+
+const getLayoutAnchorRect = () => {
+  if (typeof document === 'undefined') return getViewportRect(window)
+  return document.querySelector('.tech-main')?.getBoundingClientRect() || getViewportRect(window)
+}
+
+const syncFabPosition = ({ reset = false } = {}) => {
+  if (typeof window === 'undefined') return
+  const viewport = getViewportRect(window)
+  const anchorRect = getLayoutAnchorRect()
+
+  if (reset || !fabWasMoved.value) {
+    fabPos.value = getDefaultFabPosition({
+      viewport,
+      anchorRect,
+      fabSize: FAB_SIZE,
+      margin: FAB_MARGIN,
+    })
+    return
+  }
+
+  fabPos.value = clampFabPosition({
+    position: fabPos.value,
+    viewport,
+    anchorRect,
+    fabSize: FAB_SIZE,
+    margin: 8,
+  })
 }
 
 const chatWindowStyle = computed(() => {
@@ -236,6 +284,23 @@ const renderMarkdown = (text) => {
 }
 
 onMounted(() => {
+  syncFabPosition({ reset: true })
+  const resizeObserver = typeof ResizeObserver !== 'undefined'
+    ? new ResizeObserver(() => syncFabPosition())
+    : null
+  const mainEl = document.querySelector('.tech-main')
+  if (resizeObserver && mainEl) resizeObserver.observe(mainEl)
+  const handleViewportChange = () => syncFabPosition()
+  window.addEventListener('resize', handleViewportChange)
+  window.visualViewport?.addEventListener('resize', handleViewportChange)
+  window.visualViewport?.addEventListener('scroll', handleViewportChange)
+  dragCleanup.value = () => {
+    resizeObserver?.disconnect()
+    window.removeEventListener('resize', handleViewportChange)
+    window.visualViewport?.removeEventListener('resize', handleViewportChange)
+    window.visualViewport?.removeEventListener('scroll', handleViewportChange)
+  }
+
   const saved = sessionStorage.getItem('ai-chat-messages')
   if (saved) {
     try {
