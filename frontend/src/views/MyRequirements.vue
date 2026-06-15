@@ -2,13 +2,13 @@
   <div class="my-requirements">
     <div class="tech-table-wrap">
       <div class="tech-table-header">
-        <div class="tech-table-title">鎴戠殑闇€姹?/div>
+        <div class="tech-table-title">我的需求</div>
         <div class="tech-table-actions">
           <select v-model="filterStatus" class="tech-filter-select">
-            <option value="">鍏ㄩ儴鐘舵€?/option>
+            <option value="">全部状态</option>
             <option v-for="s in statusList" :key="s" :value="s">{{ s }}</option>
           </select>
-          <button v-if="canCreateRequirement" @click="showModal = true" class="tech-btn tech-btn-primary tech-btn-sm">+ 鎻愪氦鏂伴渶姹?/button>
+          <button v-if="canCreateRequirement" @click="showModal = true" class="tech-btn tech-btn-primary tech-btn-sm">+ 提交新需求</button>
         </div>
       </div>
 
@@ -21,7 +21,7 @@
             <rect x="24" y="24" width="16" height="16" rx="3" fill="currentColor" opacity="0.45"/>
           </svg>
         </div>
-        <div class="tech-loading-text">鍔犺浇涓?..</div>
+        <div class="tech-loading-text">加载中...</div>
       </div>
 
       <div v-else-if="filteredRequirements.length === 0" class="tech-empty">
@@ -33,39 +33,39 @@
             <line x1="16" y1="17" x2="8" y2="17"/>
           </svg>
         </div>
-        <div class="tech-empty-text">鏆傛棤闇€姹傛暟鎹?/div>
+        <div class="tech-empty-text">暂无需求数据</div>
       </div>
 
       <table v-else class="tech-table">
         <thead>
           <tr>
-            <th>闇€姹傛爣棰?/th>
-            <th>鎻愪氦浜?/th>
-            <th>寮€鍙戜汉鍛?/th>
-            <th>浼樺厛绾?/th>
-            <th>鐘舵€?/th>
-            <th>璇勫垎</th>
-            <th>鎻愪氦鏃堕棿</th>
-            <th>鎿嶄綔</th>
+            <th>需求标题</th>
+            <th>提交人</th>
+            <th>开发人员</th>
+            <th>优先级</th>
+            <th>状态</th>
+            <th>评分</th>
+            <th>提交时间</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="req in filteredRequirements" :key="req.isDraft ? 'draft-' + req.id : req.id" :class="{ 'tech-draft-row': req.isDraft }">
-            <td><span class="tech-link" @click="goToDetailOrDraft(req.id, req.isDraft)">{{ req.title }}<span v-if="req.isDraft" class="tech-draft-badge">鑽夌</span></span></td>
+            <td><span class="tech-link" @click="goToDetailOrDraft(req.id, req.isDraft)">{{ req.title }}<span v-if="req.isDraft" class="tech-draft-badge">草稿</span></span></td>
             <td>{{ req.submitter }}</td>
             <td>{{ req.developer || '-' }}</td>
             <td><span class="tech-tag" :class="getPriorityClass(req.priority)">{{ req.priority || '-' }}</span></td>
-            <td><span v-if="req.isDraft" class="tech-tag tech-tag-draft">鑽夌</span><span v-else class="tech-tag" :class="getStatusClass(req.status)">{{ req.status }}</span></td>
+            <td><span v-if="req.isDraft" class="tech-tag tech-tag-draft">草稿</span><span v-else class="tech-tag" :class="getStatusClass(req.status)">{{ req.status }}</span></td>
             <td>{{ formatRequirementScore(req) }}</td>
             <td>{{ formatDate(req.createdAt) }}</td>
             <td>
               <template v-if="req.isDraft">
-                <span v-if="canUpdateRequirement" class="tech-link" @click="editDraft(req.id)">缂栬緫</span>
-                <span v-if="canDeleteRequirement(req)" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">鍒犻櫎</span>
+                <span v-if="canUpdateRequirement" class="tech-link" @click="editDraft(req.id)">编辑</span>
+                <span v-if="canDeleteRequirement(req)" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
               </template>
               <template v-else>
-                <span class="tech-link" @click="viewDetail(req.id)">鏌ョ湅</span>
-                <span v-if="canDeleteRequirement(req)" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">鍒犻櫎</span>
+                <span class="tech-link" @click="viewDetail(req.id)">查看</span>
+                <span v-if="canDeleteRequirement(req)" class="tech-link tech-link-danger" @click="deleteItem(req.id, req.isDraft)">删除</span>
               </template>
             </td>
           </tr>
@@ -84,12 +84,12 @@
     <div v-if="showModal" class="tech-modal-overlay">
       <div class="tech-modal" @click.stop>
         <div class="tech-modal-header">
-          <h2 class="tech-modal-title">鎻愪氦鏂伴渶姹?/h2>
+          <h2 class="tech-modal-title">提交新需求</h2>
           <div class="header-actions">
             <button class="tech-btn tech-btn-warning tech-btn-sm" @click="saveDraft" :disabled="savingDraft">
-              {{ savingDraft ? "淇濆瓨涓?.." : "淇濆瓨鑽夌" }}
+              {{ savingDraft ? "保存中..." : "保存草稿" }}
             </button>
-            <button class="tech-modal-close" @click="closeModal">脳</button>
+            <button class="tech-modal-close" @click="closeModal">×</button>
           </div>
         </div>
         <div class="tech-modal-body">
@@ -101,12 +101,12 @@
     <div v-if="showEditModal" class="tech-modal-overlay">
       <div class="tech-modal" @click.stop>
         <div class="tech-modal-header">
-          <h2 class="tech-modal-title">缂栬緫鑽夌</h2>
+          <h2 class="tech-modal-title">编辑草稿</h2>
           <div class="header-actions">
             <button class="tech-btn tech-btn-warning tech-btn-sm" @click="saveEditDraft" :disabled="savingDraft">
-              {{ savingDraft ? "淇濆瓨涓?.." : "淇濆瓨鑽夌" }}
+              {{ savingDraft ? "保存中..." : "保存草稿" }}
             </button>
-            <button class="tech-modal-close" @click="closeEditModal">脳</button>
+            <button class="tech-modal-close" @click="closeEditModal">×</button>
           </div>
         </div>
         <div class="tech-modal-body">
@@ -117,18 +117,18 @@
 
 
 
-    <!-- 鍒犻櫎纭寮圭獥 -->
+    <!-- 删除确认弹窗 -->
     <div v-if="showDeleteConfirm" class="tech-modal-overlay">
       <div class="tech-modal tech-modal-small" @click.stop>
         <div class="tech-modal-header">
-          <h2 class="tech-modal-title">纭鍒犻櫎</h2>
-          <button class="tech-modal-close" @click="closeDeleteConfirm">脳</button>
+          <h2 class="tech-modal-title">确认删除</h2>
+          <button class="tech-modal-close" @click="closeDeleteConfirm">×</button>
         </div>
         <div class="tech-modal-body">
-          <p class="tech-confirm-text">纭畾瑕佸垹闄よ闇€姹傚悧锛熸鎿嶄綔涓嶅彲鎾ら攢銆?/p>
+          <p class="tech-confirm-text">确定要删除该需求吗？此操作不可撤销。</p>
           <div class="tech-confirm-actions">
-            <button class="tech-btn tech-btn-cancel" @click="closeDeleteConfirm">鍙栨秷</button>
-            <button class="tech-btn tech-btn-danger" @click="confirmDelete">纭鍒犻櫎</button>
+            <button class="tech-btn tech-btn-cancel" @click="closeDeleteConfirm">取消</button>
+            <button class="tech-btn tech-btn-danger" @click="confirmDelete">确认删除</button>
           </div>
         </div>
       </div>
@@ -160,7 +160,7 @@ const editRequirementFormRef = ref(null)
 const savingDraft = ref(false)
 const showDeleteConfirm = ref(false)
 const deleteTarget = ref(null)
-const statusList = ['寰呭鎵?, '寰呰瘎瀹?, '寰呭紑鍙?, '寮€鍙戜腑', '娴嬭瘯涓?, '宸插彂甯?, '鑽夌']
+const statusList = ['待审批', '待评审', '待开发', '开发中', '测试中', '已发布', '草稿']
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -178,33 +178,33 @@ const allItems = computed(() => {
 
 const filteredRequirements = computed(() => {
   if (!filterStatus.value) return allItems.value
-  if (filterStatus.value === '鑽夌') return allItems.value.filter(r => r.isDraft)
+  if (filterStatus.value === '草稿') return allItems.value.filter(r => r.isDraft)
   return allItems.value.filter(r => !r.isDraft && r.status === filterStatus.value)
 })
 
 const getStatusClass = (status) => {
   const map = {
-    '寰呭鎵?: 'tech-tag-pending',
-    '寰呰瘎瀹?: 'tech-tag-pending',
-    '寰呭紑鍙?: 'tech-tag-dev',
-    '寮€鍙戜腑': 'tech-tag-dev',
-    '娴嬭瘯涓?: 'tech-tag-testing',
-    '宸插彂甯?: 'tech-tag-released'
+    '待审批': 'tech-tag-pending',
+    '待评审': 'tech-tag-pending',
+    '待开发': 'tech-tag-dev',
+    '开发中': 'tech-tag-dev',
+    '测试中': 'tech-tag-testing',
+    '已发布': 'tech-tag-released'
   }
   return map[status] || ''
 }
 
 const getPriorityClass = (priority) => {
-  const map = { '楂?: 'tech-tag-high', '涓?: 'tech-tag-medium', '浣?: 'tech-tag-low' }
+  const map = { '高': 'tech-tag-high', '中': 'tech-tag-medium', '低': 'tech-tag-low' }
   return map[priority] || ''
 }
 
 const formatDate = (date) => new Date(date).toLocaleDateString('zh-CN')
 
 const formatRequirementScore = (req) => {
-  if (req.isDraft || req.status !== '宸插彂甯?) return '-'
+  if (req.isDraft || req.status !== '已发布') return '-'
   const score = Number(req.score)
-  return score > 0 ? `${score}鍒哷 : '-'
+  return score > 0 ? `${score}分` : '-'
 }
 
 const goToDetailOrDraft = (id, isDraft) => {
@@ -227,8 +227,8 @@ const editDraft = async (id) => {
       showEditModal.value = true
     }
   } catch (error) {
-    console.error('鑾峰彇鑽夌澶辫触:', error)
-    showToast('鍔犺浇鑽夌澶辫触')
+    console.error('获取草稿失败:', error)
+    showToast('加载草稿失败')
   }
 }
 
@@ -252,8 +252,8 @@ const confirmDelete = async () => {
     await loadRequirements()
     closeDeleteConfirm()
   } catch (error) {
-    console.error('鍒犻櫎澶辫触:', error)
-    showAppToast('鍒犻櫎澶辫触: ' + (error.response?.data?.message || error.message), { type: 'error', title: '鍒犻櫎澶辫触' })
+    console.error('删除失败:', error)
+    showAppToast('删除失败: ' + (error.response?.data?.message || error.message), { type: 'error', title: '删除失败' })
     closeDeleteConfirm()
   }
 }
@@ -284,14 +284,10 @@ const handleEditSuccess = () => {
 }
 
 const saveDraft = async () => {
-  console.log('requirementFormRef.value:', requirementFormRef.value)
   if (!requirementFormRef.value) {
-    console.warn('RequirementForm ref not found')
     return
   }
-  console.log('requirementFormRef.value.saveDraft:', requirementFormRef.value.saveDraft)
   if (typeof requirementFormRef.value.saveDraft !== 'function') {
-    console.error('saveDraft is not a function on RequirementForm')
     return
   }
   savingDraft.value = true
@@ -312,7 +308,7 @@ const loadRequirements = async (page = 1) => {
   try {
     loading.value = true
     currentPage.value = page
-    const submitter = currentUser?.value?.name || '绠＄悊鍛?
+    const submitter = currentUser?.value?.name || '管理员'
     const [reqRes, draftRes] = await Promise.all([
       requirementApi.getBySubmitter(submitter, page, pageSize.value),
       requirementApi.getDrafts(submitter)
@@ -321,7 +317,7 @@ const loadRequirements = async (page = 1) => {
     drafts.value = draftRes.data.data || []
     total.value = (reqRes.data.total || 0) + (drafts.value.length || 0)
   } catch (error) {
-    console.error('鑾峰彇鎴戠殑闇€姹傚垪琛ㄥけ璐?', error)
+    console.error('获取我的需求列表失败:', error)
   } finally {
     loading.value = false
   }
@@ -356,7 +352,7 @@ onMounted(async () => {
     if (canCreateRequirement.value) {
       showModal.value = true
     } else {
-      showAppToast('褰撳墠璐﹀彿娌℃湁鎻愪氦闇€姹傛潈闄?, { type: 'error', title: '鏃犳潈闄? })
+      showAppToast('当前账号没有提交需求权限', { type: 'error', title: '无权限' })
     }
   }
 })

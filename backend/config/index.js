@@ -11,8 +11,10 @@ const config = {
   // 数据库类型：oracle 或 dm
   dbType: (process.env.DB_TYPE || 'oracle').toLowerCase(),
 
-  // 服务器配置
+  // Server
+  host: process.env.HOST || '0.0.0.0',
   port: envInt('PORT', 8877),
+
   nodeEnv: process.env.NODE_ENV || 'development',
 
   apiProxy: {

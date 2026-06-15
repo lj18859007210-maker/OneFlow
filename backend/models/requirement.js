@@ -64,6 +64,7 @@ function getConsistentRequirementState({ status, approvalStatus }) {
 
 function resolveApprovalListScope(user = {}) {
   const role = typeof user.role === 'string' ? user.role.trim() : '';
+  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
 
   if (role === 'admin' || role === 'role-admin') {
     return { type: 'all' };
@@ -71,6 +72,10 @@ function resolveApprovalListScope(user = {}) {
 
   if (role === 'developer' || role === 'role-developer') {
     return { type: 'assigned' };
+  }
+
+  if (permissions.includes('requirement:approve')) {
+    return { type: 'all' };
   }
 
   return { type: 'none' };
@@ -125,7 +130,16 @@ function appendRequirementScopeFilter(clauses, params, user = {}, paramPrefix = 
   const scope = resolveRequirementViewScope(user);
   if (scope.type === 'all') return;
 
-  appendOwnRequirementScopeFilter(clauses, params, user, paramPrefix);
+  appendRequirementScopeFilterWithAlias(clauses, params, user, paramPrefix);
+}
+
+function appendRequirementScopeFilterWithAlias(clauses, params, user = {}, paramPrefix = 'scope', alias = '') {
+  if (isDeveloperRole(user.role)) {
+    appendOwnRequirementScopeFilterWithAlias(clauses, params, user, paramPrefix, alias);
+    return;
+  }
+
+  appendSubmitterScopeFilterWithAlias(clauses, params, user, paramPrefix, alias);
 }
 
 function qualifyRequirementScopeClause(clause, alias = '') {
@@ -168,6 +182,10 @@ function appendOwnRequirementScopeFilterWithAlias(clauses, params, user = {}, pa
 }
 
 function appendSubmitterScopeFilter(clauses, params, user = {}, paramPrefix = 'submitterScope') {
+  return appendSubmitterScopeFilterWithAlias(clauses, params, user, paramPrefix);
+}
+
+function appendSubmitterScopeFilterWithAlias(clauses, params, user = {}, paramPrefix = 'submitterScope', alias = '') {
   const structuredKeys = getUserStructuredKeys(user);
   const userNames = getUserLegacyKeys(user);
   const scopeParts = [];
@@ -182,7 +200,10 @@ function appendSubmitterScopeFilter(clauses, params, user = {}, paramPrefix = 's
     scopeParts.push(`((submitterId IS NULL OR TRIM(submitterId) IS NULL) AND submitter = :${paramPrefix}Name${index})`);
   });
 
-  clauses.push(scopeParts.length ? `AND (${scopeParts.join(' OR ')})` : 'AND 1 = 0');
+  const qualifiedScopeParts = alias
+    ? scopeParts.map(part => qualifyRequirementScopeClause(part, alias))
+    : scopeParts;
+  clauses.push(qualifiedScopeParts.length ? `AND (${qualifiedScopeParts.join(' OR ')})` : 'AND 1 = 0');
 }
 
 function isDraftRequirement(requirement = {}) {
@@ -218,7 +239,11 @@ function canUserViewRequirement(user = {}, requirement = {}) {
     return isRequirementSubmitter(user, requirement);
   }
 
-  return isRequirementSubmitter(user, requirement) || isRequirementAssignedDeveloper(user, requirement);
+  if (isDeveloperRole(user.role)) {
+    return isRequirementSubmitter(user, requirement) || isRequirementAssignedDeveloper(user, requirement);
+  }
+
+  return isRequirementSubmitter(user, requirement);
 }
 
 function canUserEditRequirement(user = {}, requirement = {}) {
@@ -1787,7 +1812,7 @@ async function getGanttData(filters = {}) {
     if (filters.viewer) {
       const role = String(filters.viewer.role || '').trim();
       if (role !== 'admin' && role !== 'role-admin') {
-        appendOwnRequirementScopeFilterWithAlias(clauses, params, filters.viewer, 'ganttViewer', 'r');
+        appendRequirementScopeFilterWithAlias(clauses, params, filters.viewer, 'ganttViewer', 'r');
       }
     } else if (filters.userRole !== 'admin') {
       const userResult = await connection.execute(

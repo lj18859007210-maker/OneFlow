@@ -26,6 +26,7 @@ const attachmentRoutes = require('./routes/attachments');
 const platformRoutes = require('./routes/platforms');
 const app = express();
 const PORT = config.port;
+const HOST = config.host;
 const apiProxy = config.apiProxy?.target ? createApiProxy(config.apiProxy) : null;
 function isLoopbackProxyTarget(target, port) {
   const targetUrl = new URL(target);
@@ -85,8 +86,8 @@ async function startServer() {
     } else {
       await autoMigrate.initialize();
     }
-    app.listen(PORT, () => {
-      console.log(`Backend service running at http://localhost:${PORT}`);
+    app.listen(PORT, HOST, () => {
+      console.log(`Backend service running at http://${HOST}:${PORT}`);
       console.log(`Environment: ${config.nodeEnv}`);
     });
   } catch (error) {
