@@ -393,17 +393,15 @@ onMounted(async () => {
 
 .tech-modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  inset: 0;
+  background: rgba(20, 38, 63, 0.46);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 24px;
   overflow-y: auto;
+  backdrop-filter: blur(5px);
 }
 
 .tech-modal {
@@ -515,20 +513,72 @@ onMounted(async () => {
 }
 
 .tech-modal-small {
-  max-width: 480px;
+  max-width: 420px;
+  border: 1px solid rgba(212, 228, 247, 0.9);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(30, 58, 95, 0.28);
+  overflow: hidden;
+}
+
+.tech-modal-small .tech-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: static;
+  min-height: 58px;
+  padding: 18px 22px;
+  border-bottom: none;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.tech-modal-small .tech-modal-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #1e3a5f;
+}
+
+.tech-modal-small .tech-modal-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-left: 12px;
+  border: 1px solid rgba(74, 144, 226, 0.28);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 20px;
+  line-height: 1;
+  color: #5a7a9f;
+  cursor: pointer;
+}
+
+.tech-modal-small .tech-modal-close:hover {
+  background: rgba(74, 144, 226, 0.1);
+  color: #1e3a5f;
+}
+
+.tech-modal-small .tech-modal-body {
+  padding: 14px 26px 22px;
+  background: #fff;
 }
 
 .tech-confirm-text {
   font-size: 15px;
-  color: var(--tech-text-primary);
-  margin: 0 0 24px 0;
-  line-height: 1.6;
+  color: #395878;
+  margin: 0 0 22px 0;
+  line-height: 1.8;
 }
 
 .tech-confirm-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 14px;
+  padding-top: 2px;
 }
 
 .tech-btn {
@@ -542,20 +592,28 @@ onMounted(async () => {
 }
 
 .tech-btn-cancel {
-  background: var(--tech-border);
-  color: var(--tech-text-primary);
+  min-width: 86px;
+  height: 44px;
+  padding: 0 22px;
+  border: 1px solid #d4e4f7;
+  background: #eef6ff;
+  color: #1e3a5f;
 }
 
 .tech-btn-cancel:hover {
-  background: #555;
+  background: #e4f0ff;
 }
 
 .tech-btn-danger {
-  background: #f44;
+  min-width: 98px;
+  height: 44px;
+  padding: 0 22px;
+  background: #ff4545;
   color: #fff;
+  box-shadow: 0 8px 18px rgba(239, 83, 80, 0.28);
 }
 
 .tech-btn-danger:hover {
-  background: #f66;
+  background: #ff5a5a;
 }
 </style>
