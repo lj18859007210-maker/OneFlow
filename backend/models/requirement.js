@@ -261,7 +261,7 @@ function canUserScoreRequirement(user = {}, requirement = {}) {
 }
 
 function canUserManageRequirementAttachment(user = {}, requirement = {}) {
-  return canUserUpdateRequirementStatus(user, requirement);
+  return canUserUpdateRequirementStatus(user, requirement) || isRequirementSubmitter(user, requirement);
 }
 
 function sanitizeRequirementUpdatePayload(data = {}, user = {}, currentRequirement = {}) {

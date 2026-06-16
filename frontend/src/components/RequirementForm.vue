@@ -197,15 +197,14 @@
             <div class="gate-card-done-inner">
               <p>{{ s.answer }}</p>
               <div
-                v-if="s.images && s.images.length"
+                v-if="s.files && s.files.length"
                 class="gate-card-done-imgs"
               >
-                <img
-                  v-for="(img, idx) in s.images"
+                <span
+                  v-for="(file, idx) in s.files"
                   :key="idx"
-                  :src="backendUrl(img.url)"
-                  :alt="img.name"
-                />
+                  class="note-file-chip"
+                >{{ file.name }}</span>
               </div>
             </div>
             <span class="gate-card-edit">
@@ -245,19 +244,18 @@
 
             <!-- 备注类型：显示图片上传区域 -->
             <div v-if="s.type === 'note'" class="note-images">
-              <div v-for="(img, idx) in s.images" :key="idx" class="note-img">
-                <img :src="backendUrl(img.url)" :alt="img.name" />
+              <div v-for="(file, idx) in s.files" :key="idx" class="note-file">
+                <span class="note-file-name">{{ file.name }}</span>
                 <button class="note-img-del" @click="removeImage(i, idx)">
                   ×
                 </button>
               </div>
-              <label class="note-img-upload" v-if="s.images.length < 5">
+              <label class="note-img-upload" v-if="s.files.length < 5">
                 <input
                   type="file"
-                  accept="image/*"
                   multiple
                   hidden
-                  @change="uploadImages(i, $event)"
+                  @change="selectRequirementFiles(i, $event)"
                 />
                 <span>+</span>
               </label>
@@ -334,7 +332,7 @@
 
 <script setup>
 import { ref, computed, onMounted, inject, watch } from "vue";
-import { apiFetch, backendUrl, requirementApi, developerApi } from "../api";
+import { apiFetch, backendUrl, requirementApi, developerApi, attachmentApi } from "../api";
 import DeveloperMultiSelect from "./DeveloperMultiSelect.vue";
 import PlatformPicker from "./PlatformPicker.vue";
 import { DEFAULT_PLATFORMS, loadPlatformOptions } from "../utils/platformOptions";
@@ -425,6 +423,7 @@ const steps = ref([
     state: "locked",
     type: "note",
     images: [],
+    files: [],
   },
 ]);
 
@@ -620,7 +619,34 @@ async function uploadImages(si, e) {
 }
 
 function removeImage(si, idx) {
-  steps.value[si].images.splice(idx, 1);
+  const step = steps.value[si];
+  if (step.files) {
+    step.files.splice(idx, 1);
+    return;
+  }
+  step.images.splice(idx, 1);
+}
+
+function selectRequirementFiles(si, event) {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+  const step = steps.value[si];
+  if (!step.files) step.files = [];
+  step.files.push(...files.map((file) => ({ name: file.name, file })));
+  step.files = step.files.slice(0, 5);
+  event.target.value = "";
+}
+
+async function uploadRequirementFiles(requirementId, files = []) {
+  if (!requirementId || !files.length) return;
+  for (const item of files) {
+    if (!item.file) continue;
+    const formData = new FormData();
+    formData.append("file", item.file);
+    formData.append("category", "requirement");
+    formData.append("remark", "提交需求时上传");
+    await attachmentApi.uploadFormal(requirementId, formData);
+  }
 }
 
 async function finalSummary() {
@@ -684,17 +710,22 @@ async function doSubmit() {
 
     const noteStep = steps.value.find((s) => s.type === "note");
     const noteImages = (noteStep && noteStep.images) || [];
+    const requirementFiles = (noteStep && noteStep.files) || [];
+    let savedRequirement = null;
 
-    // 如果是编辑草稿，使用 update；否则使用 create
     if (currentDraftId.value) {
-      await requirementApi.update(currentDraftId.value, {
+      const res = await requirementApi.update(currentDraftId.value, {
         ...form.value,
         noteImages,
         isDraft: false,
       });
+      savedRequirement = res.data?.data;
     } else {
-      await requirementApi.create({ ...form.value, noteImages });
+      const res = await requirementApi.create({ ...form.value, noteImages });
+      savedRequirement = res.data?.data;
     }
+
+    await uploadRequirementFiles(savedRequirement?.id || currentDraftId.value, requirementFiles);
 
     showToast("需求提交成功");
 
@@ -853,6 +884,7 @@ function loadDraftData(draft) {
       if (steps.value[idx]) {
         steps.value[idx].answer = stepData.answer || "";
         steps.value[idx].images = stepData.images || [];
+        steps.value[idx].files = [];
         steps.value[idx].state = stepData.state || "locked";
         steps.value[idx].nudge = stepData.nudge || "";
         if (stepData.type) {
@@ -1081,6 +1113,34 @@ if (import.meta.env.DEV) {
 .note-img-upload:hover {
   border-color: var(--tech-blue);
   color: var(--tech-blue);
+}
+.note-file {
+  position: relative;
+  width: 160px;
+  min-height: 80px;
+  padding: 12px 28px 12px 12px;
+  border: 1px solid var(--tech-border);
+  border-radius: 8px;
+  background: var(--tech-bg-soft);
+  display: flex;
+  align-items: center;
+}
+.note-file-name {
+  font-size: 13px;
+  color: var(--tech-text);
+  word-break: break-all;
+}
+.note-file-chip {
+  display: inline-flex;
+  max-width: 180px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--tech-bg-soft);
+  color: var(--tech-text-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .gate-card-done-inner {
   flex: 1;
