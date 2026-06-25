@@ -4,7 +4,7 @@ server:
 
 spring:
   application:
-    name: oneflow-api
+    name: oneflow-app
   datasource:
     url: ${ONEFLOW_DATASOURCE_URL:jdbc:oracle:thin:@//${ORACLE_HOST:localhost}:${ORACLE_PORT:1521}/${ORACLE_SERVICE_NAME:ORCL}}
     username: ${ORACLE_USER:system}

@@ -64,12 +64,6 @@
         </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
+    <!-- 注意：此模块是业务库（jar），不可独立运行。
+         打包为可部署 JAR 请使用 app 模块。 -->
 </project>

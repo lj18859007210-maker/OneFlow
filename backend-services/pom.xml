@@ -14,6 +14,7 @@
 
     <modules>
         <module>oneflow-api</module>
+        <module>app</module>
     </modules>
 
     <properties>
