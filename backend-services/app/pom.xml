@@ -11,10 +11,10 @@
     </parent>
 
     <artifactId>oneflow-app</artifactId>
-    <packaging>jar</packaging>
+    <packaging>war</packaging>
 
     <name>OneFlow App</name>
-    <description>OneFlow 应用入口 — 聚合所有业务模块，提供唯一可部署的 JAR。</description>
+    <description>OneFlow 应用入口 — 聚合所有业务模块，提供唯一可部署的 WAR。</description>
 
     <dependencies>
         <!-- 业务模块 -->
@@ -24,6 +24,13 @@
             <version>${project.version}</version>
         </dependency>
         <!-- 未来加其他模块：new-project、... -->
+
+        <!-- WAR 部署：Tomcat 由容器提供 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>
