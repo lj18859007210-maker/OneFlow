@@ -1,0 +1,185 @@
+CREATE TABLE IF NOT EXISTS users (
+  id VARCHAR(36) PRIMARY KEY,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  password VARCHAR(100) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(200),
+  role VARCHAR(20) DEFAULT 'user',
+  status NUMBER DEFAULT 1,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+  id VARCHAR(36) PRIMARY KEY,
+  code VARCHAR(100) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
+  module VARCHAR(50),
+  description VARCHAR(200),
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+  id VARCHAR(36) PRIMARY KEY,
+  roleId VARCHAR(36) NOT NULL,
+  permissionId VARCHAR(36) NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS system_settings (
+  id VARCHAR(36) PRIMARY KEY,
+  settingKey VARCHAR(100) NOT NULL UNIQUE,
+  settingValue CLOB,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS developers (
+  id VARCHAR(36) PRIMARY KEY,
+  userId VARCHAR(36),
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(200),
+  department VARCHAR(100),
+  skills VARCHAR(500),
+  maxLoad NUMBER DEFAULT 5,
+  currentLoad NUMBER DEFAULT 0,
+  status NUMBER DEFAULT 1,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS requirements (
+  id VARCHAR(36) PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  description CLOB,
+  submitter VARCHAR(100),
+  submitterId VARCHAR(36),
+  developer VARCHAR(100),
+  developerIds VARCHAR(500),
+  platform VARCHAR(100),
+  capability VARCHAR(50),
+  expectedDate DATE,
+  actualDate DATE,
+  avgDevTime VARCHAR(50),
+  postDevAvgTime VARCHAR(50),
+  avgMonthlyCalls NUMBER,
+  senderEmail VARCHAR(200),
+  ccEmails CLOB,
+  priority VARCHAR(20) DEFAULT '中',
+  score NUMBER DEFAULT 0,
+  status VARCHAR(50) DEFAULT '待审批',
+  isDraft NUMBER DEFAULT 0,
+  steps CLOB,
+  noteImages CLOB,
+  approvalStatus VARCHAR(20) DEFAULT 'pending',
+  approvalComment CLOB,
+  publishedAt TIMESTAMP,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS requirement_comments (
+  id VARCHAR(36) PRIMARY KEY,
+  requirementId VARCHAR(36) NOT NULL,
+  userId VARCHAR(36),
+  userName VARCHAR(100),
+  userRole VARCHAR(50),
+  type VARCHAR(50),
+  content CLOB,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS requirement_attachments (
+  id VARCHAR(36) PRIMARY KEY,
+  requirementId VARCHAR(36) NOT NULL,
+  category VARCHAR(50) NOT NULL,
+  originalName VARCHAR(255) NOT NULL,
+  sourceType VARCHAR(32) DEFAULT 'formal',
+  sourceCommentId VARCHAR(36),
+  linkedCommentAttachmentId VARCHAR(36),
+  currentVersionId VARCHAR(36),
+  status VARCHAR(20) DEFAULT 'active',
+  createdBy VARCHAR(36),
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS requirement_attachment_versions (
+  id VARCHAR(36) PRIMARY KEY,
+  attachmentId VARCHAR(36) NOT NULL,
+  versionNo NUMBER NOT NULL,
+  storagePath VARCHAR(500) NOT NULL,
+  mimeType VARCHAR(200),
+  fileSize NUMBER DEFAULT 0,
+  remark CLOB,
+  createdBy VARCHAR(36),
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS comment_attachments (
+  id VARCHAR(36) PRIMARY KEY,
+  requirementId VARCHAR(36),
+  commentId VARCHAR(36),
+  originalName VARCHAR(255) NOT NULL,
+  storagePath VARCHAR(500) NOT NULL,
+  mimeType VARCHAR(200),
+  fileSize NUMBER DEFAULT 0,
+  createdBy VARCHAR(36),
+  status VARCHAR(20) DEFAULT 'pending',
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id VARCHAR(36) PRIMARY KEY,
+  userId VARCHAR(36),
+  userName VARCHAR(100),
+  userRole VARCHAR(20),
+  action VARCHAR(100) NOT NULL,
+  resource VARCHAR(100),
+  resourceId VARCHAR(36),
+  details CLOB,
+  ipAddress VARCHAR(45),
+  userAgent VARCHAR(500),
+  status VARCHAR(20) DEFAULT 'success',
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id VARCHAR(36) PRIMARY KEY,
+  userId VARCHAR(36) NOT NULL,
+  userName VARCHAR(100),
+  type VARCHAR(50) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  content CLOB,
+  resourceId VARCHAR(36),
+  resourceType VARCHAR(50),
+  isRead NUMBER DEFAULT 0,
+  readAt TIMESTAMP,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS workflow_statuses (
+  id VARCHAR(36) PRIMARY KEY,
+  flowKey VARCHAR(64) NOT NULL,
+  statusCode VARCHAR(64) NOT NULL,
+  statusName VARCHAR(64) NOT NULL,
+  sortOrder NUMBER DEFAULT 0,
+  isTerminal NUMBER DEFAULT 0,
+  enabled NUMBER DEFAULT 1,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS workflow_transitions (
+  id VARCHAR(36) PRIMARY KEY,
+  flowKey VARCHAR(64) NOT NULL,
+  fromStatus VARCHAR(64) NOT NULL,
+  toStatus VARCHAR(64) NOT NULL,
+  allowedRoles CLOB,
+  requireApproval NUMBER DEFAULT 0,
+  notifyEnabled NUMBER DEFAULT 1,
+  enabled NUMBER DEFAULT 1,
+  approvalOutcome VARCHAR(20) DEFAULT 'none',
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.oneflow</groupId>
+        <artifactId>backend-services</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>oneflow-app</artifactId>
+    <packaging>war</packaging>
+
+    <name>OneFlow App</name>
+    <description>OneFlow 应用入口 — 聚合所有业务模块，提供唯一可部署的 WAR。</description>
+
+    <dependencies>
+        <!-- 业务模块 -->
+        <dependency>
+            <groupId>com.oneflow</groupId>
+            <artifactId>oneflow-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- 未来加其他模块：new-project、... -->
+
+        <!-- WAR 部署：Tomcat 由容器提供 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.2.3</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
