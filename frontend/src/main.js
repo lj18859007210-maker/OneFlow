@@ -72,6 +72,11 @@ router.beforeEach(async (to, from, next) => {
         refreshedUser = await refreshCurrentUserIfStale()
       }
       if (!hasPermission(refreshedUser, to.meta.permission)) {
+        if (to.path === '/') {
+          clearStoredSession()
+          next('/login')
+          return
+        }
         next('/')
         return
       }

@@ -1,8 +1,11 @@
 package com.oneflow.api.auth;
 
 import com.oneflow.api.permission.PermissionRepository;
+import com.oneflow.api.permission.RoleAccess;
 import com.oneflow.api.user.UserRepository;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -58,8 +61,27 @@ public class SessionUserService {
         // 前端鉴权只需要权限 code 数组，不需要完整权限对象。
         // 这里去重后放入 token，与旧 buildCurrentUser 返回结构保持一致。
         Set<String> codes = new LinkedHashSet<String>(permissionRepository.findCodesByRole(user.getRole()));
+        addBasePermissionsWhenRoleMappingIsMissing(user.getRole(), codes);
         user.setPermissions(new java.util.ArrayList<String>(codes));
         return user;
+    }
+
+    private void addBasePermissionsWhenRoleMappingIsMissing(String role, Set<String> codes) {
+        if (!codes.isEmpty()) {
+            return;
+        }
+
+        String roleName = RoleAccess.normalizeRoleName(role);
+        List<String> basePermissions = null;
+        if ("user".equals(roleName) || "developer".equals(roleName)) {
+            // 兼容内网存量库：旧 Node 后端允许普通用户和开发人员进入需求列表。
+            // 新库若缺少 role_permissions 初始化数据，返回空权限会让前端首页守卫反复跳转。
+            basePermissions = Arrays.asList("requirement:view");
+        }
+
+        if (basePermissions != null) {
+            codes.addAll(basePermissions);
+        }
     }
 
     private String value(Map<String, Object> row, String upper, String lower) {

@@ -30,3 +30,9 @@ assert.match(
   /catch \(error\) \{[\s\S]*clearStoredSession\(\)[\s\S]*next\('\/login'\)/,
   'router guard should clear stale session state before redirecting to login after auth refresh failure'
 )
+
+assert.match(
+  mainSource,
+  /if \(!hasPermission\(refreshedUser, to\.meta\.permission\)\) \{[\s\S]*if \(to\.path === '\/'\) \{[\s\S]*clearStoredSession\(\)[\s\S]*next\('\/login'\)/,
+  'router guard should send permission-denied home navigation to login instead of redirecting / back to itself'
+)
