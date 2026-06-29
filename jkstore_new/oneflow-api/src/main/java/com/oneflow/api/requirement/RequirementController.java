@@ -36,16 +36,26 @@ public class RequirementController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "pageSize", defaultValue = "20") int pageSize,
-            @RequestParam(value = "keyword", required = false) String keyword) {
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "platform", required = false) String platform,
+            @RequestParam(value = "developer", required = false) String developer,
+            @RequestParam(value = "priority", required = false) String priority,
+            @RequestParam(value = "dateStart", required = false) String dateStart,
+            @RequestParam(value = "dateEnd", required = false) String dateEnd,
+            @RequestParam(value = "minScore", required = false) Double minScore,
+            @RequestParam(value = "maxScore", required = false) Double maxScore,
+            @RequestParam(value = "isOverdue", required = false) String isOverdue) {
         CurrentUser user = requireUser(authorization);
         ResponseEntity<ApiResponse<String>> denied = requirePermission(user, "requirement:view");
         if (denied != null) {
             return denied;
         }
 
-        // 保留旧 Node 列表接口的平铺响应结构：success/data/total/page/pageSize
-        // 以及统计字段。当前先返回空统计对象，后续迁 dashboard/filter 时再补全。
-        Map<String, Object> result = requirementRepository.findPage(page, pageSize, keyword, user);
+        // 保留旧 Node 列表接口的平铺响应结构，并继续支持首页筛选栏传入的全部查询参数。
+        Map<String, Object> result = requirementRepository.findPage(
+                page, pageSize, keyword, status, platform, developer, priority,
+                dateStart, dateEnd, minScore, maxScore, isOverdue, user);
         Map<String, Object> response = new LinkedHashMap<String, Object>();
         response.put("success", true);
         response.putAll(result);

@@ -8,11 +8,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SessionUserService {
+
+    private static final Logger log = LoggerFactory.getLogger(SessionUserService.class);
 
     private final UserRepository userRepository;
     private final PermissionRepository permissionRepository;
@@ -26,14 +30,19 @@ public class SessionUserService {
     public CurrentUser login(String username, String password) {
         Map<String, Object> row = userRepository.findActiveByUsername(username);
         if (row == null) {
+            // 只记录判断结果，不记录密码，方便区分“账号不存在”和“密码不匹配”。
+            log.info("[LOGIN] active user not found username={}", username);
             return null;
         }
         // Node 版使用 bcryptjs；Spring Security 的 BCryptPasswordEncoder
         // 可以验证同一类 $2a/$2b bcrypt hash，数据库密码不需要重新生成。
         String hash = value(row, "PASSWORD", "password");
-        if (hash == null || !passwordEncoder.matches(password, hash)) {
+        if (hash == null || !passwordEncoder.matches(password, compatibleBcryptHash(hash))) {
+            // 只输出 hash 前缀，确认数据库字段格式即可，避免泄露完整密码摘要。
+            log.info("[LOGIN] password mismatch username={} hashPrefix={}", username, hashPrefix(hash));
             return null;
         }
+        log.info("[LOGIN] password matched username={}", username);
         return build(row);
     }
 
@@ -90,5 +99,23 @@ public class SessionUserService {
             value = row.get(lower);
         }
         return value == null ? null : String.valueOf(value);
+    }
+
+    private String hashPrefix(String hash) {
+        if (hash == null) {
+            return "null";
+        }
+        return hash.length() <= 4 ? hash : hash.substring(0, 4);
+    }
+
+    private String compatibleBcryptHash(String hash) {
+        if (hash != null && hash.startsWith("$2b$")) {
+            // 旧 Node 后端 bcryptjs 生成/支持 $2b$。
+            // 当前 Spring Security 5.1.x 的 BCryptPasswordEncoder 只识别 $2a$，
+            // 但 $2a$/$2b$ 的主体校验格式相同；这里只在内存中转换给校验器使用，
+            // 不修改数据库里的原始 hash，避免影响旧后端或其他系统。
+            return "$2a$" + hash.substring(4);
+        }
+        return hash;
     }
 }

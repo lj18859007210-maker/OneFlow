@@ -5,9 +5,12 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.spec.MGF1ParameterSpec;
 import java.util.Base64;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 
 import org.springframework.stereotype.Service;
 
@@ -42,6 +45,12 @@ public class RsaKeyService {
 
     /**
      * 使用 RSA-OAEP/SHA-256 解密 base64 编码的密文。
+     *
+     * 注意：旧 Node 后端使用 crypto.privateDecrypt，并明确设置 oaepHash='sha256'。
+     * Java 的 "OAEPWithSHA-256AndMGF1Padding" 在部分 JDK/Provider 上，
+     * MGF1 可能仍按默认 SHA-1 处理；这里显式指定 MGF1 也使用 SHA-256，
+     * 以便和浏览器 WebCrypto RSA-OAEP/SHA-256 以及旧 Node 行为保持一致。
+     *
      * 返回值是明文字符串（UTF-8），解密失败返回 null。
      */
     public String decrypt(String base64Encrypted) {
@@ -50,7 +59,12 @@ public class RsaKeyService {
         }
         try {
             Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
-            cipher.init(Cipher.DECRYPT_MODE, privateKey);
+            OAEPParameterSpec oaepSpec = new OAEPParameterSpec(
+                    "SHA-256",
+                    "MGF1",
+                    MGF1ParameterSpec.SHA256,
+                    PSource.PSpecified.DEFAULT);
+            cipher.init(Cipher.DECRYPT_MODE, privateKey, oaepSpec);
             byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(base64Encrypted));
             return new String(decrypted, StandardCharsets.UTF_8);
         } catch (Exception e) {

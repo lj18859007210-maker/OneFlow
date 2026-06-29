@@ -57,6 +57,39 @@ class RequirementControllerTest {
                 .andExpect(jsonPath("$.data.steps").isArray());
     }
 
+    @Test
+    void listReturnsLegacyScopedStatsAndFilterOptions() throws Exception {
+        String developerToken = login("dev");
+
+        mockMvc.perform(get("/api/requirements?page=1&pageSize=10")
+                        .header("Authorization", "Bearer " + developerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.total", is(2)))
+                .andExpect(jsonPath("$.statusStats.待审批", is(1)))
+                .andExpect(jsonPath("$.statusStats.已发布", is(1)))
+                .andExpect(jsonPath("$.priorityStats.高", is(1)))
+                .andExpect(jsonPath("$.priorityStats.中", is(1)))
+                .andExpect(jsonPath("$.scoreStats.0-60", is(0)))
+                .andExpect(jsonPath("$.scoreStats.61-80", is(0)))
+                .andExpect(jsonPath("$.scoreStats.81-100", is(1)))
+                .andExpect(jsonPath("$.avgScore", is(88.0)))
+                .andExpect(jsonPath("$.filterOptions.platforms[0]", is("OneFlow")))
+                .andExpect(jsonPath("$.filterOptions.platforms[1]", is("Portal")));
+    }
+
+    @Test
+    void listAppliesLegacyFilterParameters() throws Exception {
+        String adminToken = login("admin");
+
+        mockMvc.perform(get("/api/requirements?page=1&pageSize=10&status=已发布&platform=Portal&developer=Developer&priority=中&minScore=80&maxScore=90")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.total", is(1)))
+                .andExpect(jsonPath("$.data[0].id", is("req-002")));
+    }
+
 
     @Test
     void normalUserCannotApproveRequirement() throws Exception {
@@ -110,10 +143,15 @@ class RequirementControllerTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success", is(true)))
-                .andExpect(jsonPath("$.data.overview.total", greaterThanOrEqualTo(2)))
                 .andExpect(jsonPath("$.data.throughput").isArray())
+                .andExpect(jsonPath("$.data.approvalCycle.trend").isArray())
+                .andExpect(jsonPath("$.data.developmentCycle.trend").isArray())
+                .andExpect(jsonPath("$.data.overdue.total", greaterThanOrEqualTo(2)))
                 .andExpect(jsonPath("$.data.platformRanking").isArray())
-                .andExpect(jsonPath("$.data.overdue.rate").exists());
+                .andExpect(jsonPath("$.data.platformRanking[0].total").exists())
+                .andExpect(jsonPath("$.data.platformRanking[0].released").exists())
+                .andExpect(jsonPath("$.data.platformRanking[0].releaseRate").exists())
+                .andExpect(jsonPath("$.data.developerHeatmap").isArray());
     }
 
     private String login(String username) throws Exception {

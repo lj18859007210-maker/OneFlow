@@ -5,6 +5,8 @@ import com.oneflow.api.security.AuthSupport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -19,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final CaptchaService captchaService;
     private final JwtService jwtService;
@@ -67,6 +71,13 @@ public class AuthController {
             password = request.getPassword();
         } else if (StringUtils.hasText(request.getEncryptedPassword())) {
             password = rsaKeyService.decrypt(request.getEncryptedPassword());
+            if (!StringUtils.hasText(password)) {
+                // 这里单独返回“解密失败”，避免把 RSA 参数不兼容误报成账号密码错误。
+                // 日志只记录账号和密文长度，不记录明文密码或密文内容。
+                log.info("[LOGIN] password decrypt failed username={} encryptedLength={}",
+                        request.getUsername(), request.getEncryptedPassword().length());
+                return ApiResponse.<Object>legacy(500, "密码解密失败，请刷新页面重试");
+            }
         } else {
             password = null;
         }
