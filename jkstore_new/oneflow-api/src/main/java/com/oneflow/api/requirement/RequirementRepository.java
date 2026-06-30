@@ -210,24 +210,29 @@ public class RequirementRepository {
             params.add(approvalStatus);
         }
         if (StringUtils.hasText(keyword)) {
-            where.append(" AND (LOWER(title) LIKE ? OR LOWER(description) LIKE ?)");
+            where.append(" AND (LOWER(title) LIKE ? OR LOWER(submitter) LIKE ?)");
             String like = "%" + keyword.trim().toLowerCase() + "%";
             params.add(like);
             params.add(like);
         }
-        if (!isAdmin(viewer) && "developer".equals(viewer.getRole())) {
-            where.append(" AND (developerIds = ? OR developer = ?)");
-            params.add(viewer.getId());
-            params.add(viewer.getName());
+        if (!isAdmin(viewer) && isDeveloper(viewer)) {
+            where.append(" AND ((',' || REPLACE(COALESCE(developerIds, ''), ' ', '') || ',') LIKE ? "
+                    + "OR (',' || REPLACE(COALESCE(developer, ''), ' ', '') || ',') LIKE ?)");
+            params.add("%," + String.valueOf(viewer.getId()).replaceAll("\\s+", "") + ",%");
+            params.add("%," + String.valueOf(viewer.getName()).replaceAll("\\s+", "") + ",%");
+        } else if (!isAdmin(viewer)) {
+            where.append(" AND 1 = 0");
         }
         Integer total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM requirements" + where, params.toArray(), Integer.class);
         List<Object> pageParams = new ArrayList<Object>(params);
         pageParams.add(offset);
         pageParams.add(offset + safePageSize);
         List<Map<String, Object>> data = jdbcTemplate.query(
-                "SELECT * FROM (SELECT r.*, ROW_NUMBER() OVER (ORDER BY r.createdAt DESC) rn FROM requirements r"
+                "SELECT * FROM (SELECT r.id, r.title, r.description, r.submitter, r.submitterId, r.developer, r.developerIds, "
+                        + "r.expectedDate, r.actualDate, r.priority, r.status, r.approvalStatus, r.approvalComment, "
+                        + "r.createdAt, r.updatedAt, ROW_NUMBER() OVER (ORDER BY r.createdAt DESC) rn FROM requirements r"
                         + where + ") WHERE rn > ? AND rn <= ?",
-                rowMapper(),
+                approvalRowMapper(),
                 pageParams.toArray());
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("data", data);
@@ -250,13 +255,16 @@ public class RequirementRepository {
             params.add(status);
         }
         if (StringUtils.hasText(developer)) {
-            where.append(" AND developer = ?");
-            params.add(developer);
+            where.append(" AND (',' || REPLACE(COALESCE(developer, ''), ' ', '') || ',') LIKE ?");
+            params.add("%," + developer.trim().replaceAll("\\s+", "") + ",%");
         }
         List<Map<String, Object>> data = jdbcTemplate.query(
-                "SELECT * FROM requirements" + where + " ORDER BY platform, createdAt",
-                rowMapper(),
+                "SELECT r.id, r.title, r.submitter, r.submitterId, r.developer, r.developerIds, r.platform, r.capability, "
+                        + "r.expectedDate, r.actualDate, r.priority, r.score, r.status, r.approvalStatus, r.publishedAt, "
+                        + "r.createdAt, r.updatedAt FROM requirements r" + where + " ORDER BY r.platform, r.createdAt",
+                ganttRowMapper(),
                 params.toArray());
+        fillGanttApprovedAt(data);
         Map<String, Map<String, Object>> platformStats = new LinkedHashMap<String, Map<String, Object>>();
         for (Map<String, Object> item : data) {
             String key = item.get("platform") == null ? "未分类" : String.valueOf(item.get("platform"));
@@ -321,7 +329,10 @@ public class RequirementRepository {
     public Map<String, Object> create(Map<String, Object> body, CurrentUser actor) {
         String id = UUID.randomUUID().toString();
         String title = requiredString(body, "title");
-        String developerName = optionalString(body, "developer");
+        String developerName = serializeDeveloperNames(body.get("developer"));
+        String developerIds = body.containsKey("developerIds")
+                ? serializeDeveloperIdentifiers(body.get("developerIds"))
+                : serializeDeveloperIdentifiers(body.get("developer"));
         String submitterName = StringUtils.hasText(actor.getName()) ? actor.getName() : actor.getUsername();
 
         jdbcTemplate.update(
@@ -335,7 +346,7 @@ public class RequirementRepository {
                 submitterName,
                 actor.getId(),
                 developerName,
-                optionalString(body, "developerIds"),
+                developerIds,
                 optionalString(body, "platform"),
                 optionalString(body, "capability"),
                 sqlDate(body.get("expectedDate")),
@@ -364,14 +375,27 @@ public class RequirementRepository {
             return null;
         }
         jdbcTemplate.update(
-                "UPDATE requirements SET title = ?, description = ?, platform = ?, priority = ?, developer = ?, "
-                        + "expectedDate = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+                "UPDATE requirements SET title = ?, description = ?, platform = ?, priority = ?, developer = ?, developerIds = ?, "
+                        + "expectedDate = ?, actualDate = ?, avgDevTime = ?, postDevAvgTime = ?, avgMonthlyCalls = ?, "
+                        + "capability = ?, senderEmail = ?, ccEmails = ?, steps = ?, noteImages = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
                 valueOrCurrent(body, "title", current.get("title")),
                 valueOrCurrent(body, "description", current.get("description")),
                 valueOrCurrent(body, "platform", current.get("platform")),
                 valueOrCurrent(body, "priority", current.get("priority")),
-                valueOrCurrent(body, "developer", current.get("developer")),
+                body.containsKey("developer") ? serializeDeveloperNames(body.get("developer")) : current.get("developer"),
+                body.containsKey("developer") || body.containsKey("developerIds")
+                        ? serializeDeveloperIdentifiers(body.containsKey("developerIds") ? body.get("developerIds") : body.get("developer"))
+                        : current.get("developerIds"),
                 body.containsKey("expectedDate") ? sqlDate(body.get("expectedDate")) : current.get("expectedDate"),
+                body.containsKey("actualDate") ? sqlDate(body.get("actualDate")) : current.get("actualDate"),
+                valueOrCurrent(body, "avgDevTime", current.get("avgDevTime")),
+                valueOrCurrent(body, "postDevAvgTime", current.get("postDevAvgTime")),
+                body.containsKey("avgMonthlyCalls") ? numberOrNull(body.get("avgMonthlyCalls")) : current.get("avgMonthlyCalls"),
+                valueOrCurrent(body, "capability", current.get("capability")),
+                valueOrCurrent(body, "senderEmail", current.get("senderEmail")),
+                body.containsKey("ccEmails") ? jsonOrDefault(body.get("ccEmails"), "[]") : jsonOrDefault(current.get("ccEmails"), "[]"),
+                body.containsKey("steps") ? jsonOrDefault(body.get("steps"), "[]") : jsonOrDefault(current.get("steps"), "[]"),
+                body.containsKey("noteImages") ? jsonOrDefault(body.get("noteImages"), "[]") : jsonOrDefault(current.get("noteImages"), "[]"),
                 id);
         return findById(id);
     }
@@ -382,7 +406,7 @@ public class RequirementRepository {
     }
 
     @Transactional
-    public Map<String, Object> approve(String id, boolean approved, String comment) {
+    public Map<String, Object> approve(String id, boolean approved, String comment, Object actualDate) {
         Map<String, Object> current = findById(id);
         if (current == null) {
             return null;
@@ -390,10 +414,11 @@ public class RequirementRepository {
         String approvalStatus = approved ? "approved" : "rejected";
         String nextStatus = approved ? STATUS_PENDING_REVIEW : STATUS_PENDING_APPROVAL;
         jdbcTemplate.update(
-                "UPDATE requirements SET approvalStatus = ?, approvalComment = ?, status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+                "UPDATE requirements SET approvalStatus = ?, approvalComment = ?, status = ?, actualDate = COALESCE(?, actualDate), updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
                 approvalStatus,
                 comment,
                 nextStatus,
+                actualDate == null ? null : sqlDate(actualDate),
                 id);
         return findById(id);
     }
@@ -713,6 +738,18 @@ public class RequirementRepository {
             }
         });
         return result;
+    }
+
+    private void fillGanttApprovedAt(List<Map<String, Object>> data) {
+        Map<String, List<Map<String, Object>>> logsByRequirement = logsByRequirement(dashboardAuditLogs());
+        for (Map<String, Object> row : data) {
+            Map<String, Object> approvalLog = firstApprovalLog(logsByRequirement.get(String.valueOf(row.get("id"))));
+            if (approvalLog != null) {
+                row.put("approvedAt", value(approvalLog, "CREATEDAT", "createdAt"));
+            } else {
+                row.put("approvedAt", null);
+            }
+        }
     }
 
     private Map<String, Object> groupedCount(String column, StringBuilder where, List<Object> params) {
@@ -1046,6 +1083,59 @@ public class RequirementRepository {
         };
     }
 
+    private RowMapper<Map<String, Object>> approvalRowMapper() {
+        return new RowMapper<Map<String, Object>>() {
+            @Override
+            public Map<String, Object> mapRow(ResultSet rs, int rowNum) throws SQLException {
+                Map<String, Object> row = new LinkedHashMap<String, Object>();
+                row.put("id", rs.getString("id"));
+                row.put("title", rs.getString("title"));
+                row.put("description", rs.getString("description"));
+                row.put("submitter", rs.getString("submitter"));
+                row.put("submitterId", rs.getString("submitterId"));
+                row.put("developer", rs.getString("developer"));
+                row.put("developerIds", rs.getString("developerIds"));
+                row.put("expectedDate", rs.getTimestamp("expectedDate"));
+                row.put("actualDate", rs.getTimestamp("actualDate"));
+                row.put("priority", rs.getString("priority"));
+                row.put("status", rs.getString("status"));
+                row.put("approvalStatus", rs.getString("approvalStatus"));
+                row.put("approvalComment", rs.getString("approvalComment"));
+                row.put("createdAt", rs.getTimestamp("createdAt"));
+                row.put("updatedAt", rs.getTimestamp("updatedAt"));
+                return row;
+            }
+        };
+    }
+
+    private RowMapper<Map<String, Object>> ganttRowMapper() {
+        return new RowMapper<Map<String, Object>>() {
+            @Override
+            public Map<String, Object> mapRow(ResultSet rs, int rowNum) throws SQLException {
+                Map<String, Object> row = new LinkedHashMap<String, Object>();
+                row.put("id", rs.getString("id"));
+                row.put("title", rs.getString("title"));
+                row.put("submitter", rs.getString("submitter"));
+                row.put("submitterId", rs.getString("submitterId"));
+                row.put("developer", rs.getString("developer"));
+                row.put("developerIds", rs.getString("developerIds"));
+                row.put("platform", rs.getString("platform"));
+                row.put("capability", rs.getString("capability"));
+                row.put("expectedDate", rs.getTimestamp("expectedDate"));
+                row.put("actualDate", rs.getTimestamp("actualDate"));
+                row.put("priority", rs.getString("priority"));
+                row.put("score", rs.getObject("score"));
+                row.put("status", rs.getString("status"));
+                row.put("approvalStatus", rs.getString("approvalStatus"));
+                row.put("publishedAt", rs.getTimestamp("publishedAt"));
+                row.put("approvedAt", null);
+                row.put("createdAt", rs.getTimestamp("createdAt"));
+                row.put("updatedAt", rs.getTimestamp("updatedAt"));
+                return row;
+            }
+        };
+    }
+
     private List<Object> parseJsonArray(String value) {
         if (!StringUtils.hasText(value)) {
             return new ArrayList<Object>();
@@ -1071,6 +1161,80 @@ public class RequirementRepository {
         }
         String value = String.valueOf(body.get(field)).trim();
         return value.isEmpty() ? null : value;
+    }
+
+    private String serializeDeveloperNames(Object value) {
+        List<String> names = new ArrayList<String>();
+        for (Object item : objectList(value)) {
+            String name = developerName(item);
+            addUnique(names, name);
+        }
+        return joinComma(names);
+    }
+
+    private String serializeDeveloperIdentifiers(Object value) {
+        List<String> identifiers = new ArrayList<String>();
+        for (Object item : objectList(value)) {
+            String identifier = developerIdentifier(item);
+            addUnique(identifiers, identifier);
+        }
+        return joinComma(identifiers);
+    }
+
+    private List<Object> objectList(Object value) {
+        List<Object> result = new ArrayList<Object>();
+        if (value == null) {
+            return result;
+        }
+        if (value instanceof Iterable<?>) {
+            for (Object item : (Iterable<?>) value) {
+                result.add(item);
+            }
+            return result;
+        }
+        String[] parts = String.valueOf(value).split("[,;，；]");
+        for (String part : parts) {
+            if (StringUtils.hasText(part)) {
+                result.add(part.trim());
+            }
+        }
+        return result;
+    }
+
+    private String developerName(Object item) {
+        if (item instanceof Map<?, ?>) {
+            Map<?, ?> map = (Map<?, ?>) item;
+            return firstText(map.get("name"), map.get("label"), map.get("username"), map.get("userId"), map.get("id"));
+        }
+        return item == null ? null : String.valueOf(item).trim();
+    }
+
+    private String developerIdentifier(Object item) {
+        if (item instanceof Map<?, ?>) {
+            Map<?, ?> map = (Map<?, ?>) item;
+            return firstText(map.get("userId"), map.get("id"), map.get("username"), map.get("value"), map.get("name"));
+        }
+        return item == null ? null : String.valueOf(item).trim();
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            if (value != null && StringUtils.hasText(String.valueOf(value))) {
+                return String.valueOf(value).trim();
+            }
+        }
+        return null;
+    }
+
+    private String joinComma(List<String> values) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(value);
+        }
+        return builder.toString();
     }
 
     private Object valueOrCurrent(Map<String, Object> body, String field, Object current) {

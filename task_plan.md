@@ -143,3 +143,41 @@
 - `frontend/src/main.js`
 - `frontend/src/api/index.js`
 - `frontend/src/App.vue`
+
+---
+
+## 阶段 8：Node → Spring Boot 接口契约对齐
+**状态**: in_progress
+**优先级**: 最高
+**说明**: 以旧 Node 后端和前端实际调用为基准，逐个核对 Spring Boot 后端的请求参数、权限、响应结构、字段名、统计口径和副作用，避免继续零散救火。
+
+### 8.1 建立接口清单
+- [ ] 扫描前端 `frontend/src/api/index.js` 的实际调用
+- [ ] 扫描旧 Node `backend/routes/*.js` 路由
+- [ ] 扫描新 Spring `jkstore_new/oneflow-api` Controller
+- [ ] 输出差异：缺失接口、参数不全、响应结构风险
+
+### 8.2 高优先级页面接口对齐
+- [x] 登录与当前用户：`/auth/*`
+- [x] 静态资源相对路径问题
+- [x] 需求 dashboard：`/requirements/dashboard`
+- [x] 需求列表筛选：`/requirements`
+- [ ] 需求详情/新增/编辑/审批/流转/评分
+- [ ] 开发人员：`/developers/*`
+- [ ] 评论与上传：`/comments/*`、`/upload`
+- [ ] 附件中心：`/attachments/*`
+
+### 8.3 管理端接口对齐
+- [ ] 权限：`/permissions/*`
+- [ ] 用户：`/users/*`
+- [ ] 工作流：`/workflows/*`
+- [ ] 审计：`/audit-logs/*`
+- [ ] 通知：`/notifications/*`
+- [ ] 平台：`/platforms`
+- [ ] 邮件：`/email/*`
+- [ ] AI：`/ai/*`
+
+### 8.4 验收方式
+- [ ] 每个接口按旧 Node JSON 契约补最小回归测试
+- [ ] Maven 父 POM 问题解决前，先做静态对齐和用户侧运行验证
+- [ ] 所有修复不改 IP、不写死本地/服务器绝对路径

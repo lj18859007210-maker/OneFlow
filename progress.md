@@ -142,3 +142,29 @@
   - 所有权限列表表格
 - 更新 main.js 添加权限管理路由
 - 更新 App.vue 添加权限管理导航（仅管理员可见）
+
+---
+
+## 会话 2 - 2026-06-29
+### 目标
+对齐旧 Node 后端与新 Spring Boot 后端的接口契约，解决“大量接口不行”的系统性问题。
+
+### 已完成
+- [x] 明确根因：Spring Boot 迁移未完整复刻旧 Node 的请求参数和响应契约。
+- [x] 已修复 `/requirements/dashboard` 返回结构与统计口径。
+- [x] 已修复 `/requirements` 首页筛选参数缺失。
+- [x] 在 `task_plan.md` 追加“阶段 8：Node → Spring Boot 接口契约对齐”。
+- [x] 在 `findings.md` 记录当前根因、已修复契约、Maven 验证阻塞。
+
+### 当前进行中
+- [x] 生成前端调用、旧 Node 路由、新 Spring Controller 三方接口清单。
+- [x] 新增 `docs/api-contract-alignment.md` 记录高风险缺口和修复顺序。
+- [x] 补齐需求新增/编辑的开发人对象数组解析，写入旧 Node 兼容的 `developer` 与 `developerIds`。
+- [x] 补齐需求编辑时常用字段更新：实际日期、用时、能力、邮箱、JSON 数组字段等。
+- [x] 补齐审批接口 `actualDate` 写入。
+- [x] 修复 `/requirements/approval-list` 多开发人漏数据问题，并收窄为旧审批列表字段集。
+- [x] 修复 `/requirements/gantt` 缺少 `approvedAt` 导致导出实际工期为空的问题，并修复甘特开发人多选筛选。
+- [ ] 继续补齐需求流转/审批评论、通知、邮件等副作用。
+
+### 验证记录
+- `mvnw.cmd -f oneflow-api\pom.xml test -Dtest=RequirementControllerTest` 仍失败于父 POM 解析，不是业务测试失败。

@@ -132,12 +132,22 @@ class RequirementControllerTest {
                 .andExpect(jsonPath("$.total", greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.data[0].approvalStatus", is("pending")));
 
+        mockMvc.perform(get("/api/requirements/approval-list?page=1&pageSize=10&approvalStatus=&keyword=")
+                        .header("Authorization", "Bearer " + login("dev")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.total", is(3)))
+                .andExpect(jsonPath("$.data[0].platform").doesNotExist())
+                .andExpect(jsonPath("$.data[0].score").doesNotExist())
+                .andExpect(jsonPath("$.data[0].steps").doesNotExist());
+
         mockMvc.perform(get("/api/requirements/gantt?platform=OneFlow")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success", is(true)))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.platformStats.OneFlow.total", greaterThanOrEqualTo(1)));
+                .andExpect(jsonPath("$.platformStats.OneFlow.total", greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data[?(@.id == 'req-003')][0].approvedAt").exists());
 
         mockMvc.perform(get("/api/requirements/dashboard")
                         .header("Authorization", "Bearer " + adminToken))

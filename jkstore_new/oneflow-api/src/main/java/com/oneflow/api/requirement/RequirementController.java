@@ -234,7 +234,7 @@ public class RequirementController {
         }
         boolean approved = Boolean.TRUE.equals(body.get("approved"));
         String comment = body.get("comment") == null ? null : String.valueOf(body.get("comment"));
-        Map<String, Object> requirement = requirementRepository.approve(id, approved, comment);
+        Map<String, Object> requirement = requirementRepository.approve(id, approved, comment, body.get("actualDate"));
         if (requirement == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.<String>failure(404, "requirement not found"));

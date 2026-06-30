@@ -115,6 +115,9 @@ VALUES ('comment-001', 'req-001', 'u-admin', 'Admin', 'admin', 'note', 'Existing
 MERGE INTO audit_logs (id, userId, userName, userRole, action, resource, resourceId, details, ipAddress, userAgent, status, createdAt) KEY(id)
 VALUES ('audit-001', 'u-admin', 'Admin', 'admin', 'create', 'requirement', 'req-001', '{"body":{"title":"Existing Requirement"}}', '127.0.0.1', 'JUnit', 'success', CURRENT_TIMESTAMP);
 
+MERGE INTO audit_logs (id, userId, userName, userRole, action, resource, resourceId, details, ipAddress, userAgent, status, createdAt) KEY(id)
+VALUES ('audit-approve-003', 'u-admin', 'Admin', 'admin', 'approve', 'requirement', 'req-003', '{"body":{"approved":true}}', '127.0.0.1', 'JUnit', 'success', TIMESTAMP '2026-06-10 09:00:00');
+
 MERGE INTO notifications (id, userId, userName, type, title, content, resourceId, resourceType, isRead, readAt, createdAt) KEY(id)
 VALUES ('notice-001', 'u-user', 'Normal User', 'comment', 'New Comment', 'A comment was added', 'req-002', 'requirement', 0, NULL, CURRENT_TIMESTAMP);
 
@@ -156,6 +159,18 @@ MERGE INTO requirements (
   'req-002', 'Released Requirement', 'Released seed', 'Normal User', 'u-user', 'Developer', 'u-dev',
   'Portal', '集团迎检', DATE '2026-06-01', DATE '2026-06-02', '12小时', '6小时',
   360, 'normal@example.com', '[]', '中', 88, '已发布', 0,
+  '[]', '[]', 'approved', 'ok', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+);
+
+MERGE INTO requirements (
+  id, title, description, submitter, submitterId, developer, developerIds,
+  platform, capability, expectedDate, actualDate, avgDevTime, postDevAvgTime,
+  avgMonthlyCalls, senderEmail, ccEmails, priority, score, status, isDraft,
+  steps, noteImages, approvalStatus, approvalComment, publishedAt, createdAt, updatedAt
+) KEY(id) VALUES (
+  'req-003', 'Multi Developer Requirement', 'Multi developer seed', 'Normal User', 'u-user', 'Developer, Admin', 'u-dev, u-admin',
+  'OneFlow', '内部支撑', DATE '2026-06-15', DATE '2026-06-16', '8小时', '4小时',
+  80, 'normal@example.com', '[]', '中', 77, '已发布', 0,
   '[]', '[]', 'approved', 'ok', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 );
 
