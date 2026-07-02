@@ -43,6 +43,7 @@ body {
 
 .tech-sidebar {
   width: var(--sidebar-width);
+  height: 100vh;
   background: linear-gradient(180deg, #F8FBFF 0%, #E8F4FF 100%);
   border-right: 1px solid var(--tech-border);
   position: fixed;
@@ -50,9 +51,12 @@ body {
   top: 0;
   bottom: 0;
   z-index: 100;
+  display: flex;
+  flex-direction: column;
 }
 
 .tech-logo-wrap {
+  flex: 0 0 auto;
   padding: 14px;
   display: grid;
   gap: 12px;
@@ -227,7 +231,11 @@ body {
 }
 
 .tech-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 8px 16px;
+  padding-bottom: 18px;
 }
 
 .tech-nav-item {

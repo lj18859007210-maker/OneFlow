@@ -401,7 +401,6 @@ onMounted(async () => {
   z-index: 1000;
   padding: 24px;
   overflow-y: auto;
-  backdrop-filter: blur(5px);
 }
 
 .tech-modal {
@@ -410,7 +409,9 @@ onMounted(async () => {
   width: 100%;
   max-width: 900px;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
@@ -471,6 +472,9 @@ onMounted(async () => {
 }
 
 .tech-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 24px;
 }
 

@@ -307,13 +307,10 @@
       <!-- 全部通过后允许提交 -->
       <div v-if="completedSteps === steps.length" class="gate-final">
         <div class="tech-form-group">
-          <label class="tech-form-label"
-            >需求描述预览（AI 正在结构化整理...）</label
-          >
+          <label class="tech-form-label">{{ summaryTitle }}</label>
           <textarea
             v-model="form.description"
             class="tech-textarea"
-            readonly
             rows="10"
           ></textarea>
         </div>
@@ -419,6 +416,12 @@ const steps = ref([
 
 const completedSteps = computed(
   () => steps.value.filter((s) => s.state === "done").length,
+);
+
+const summaryTitle = computed(() =>
+  summaryLoading.value
+    ? "需求描述预览（AI 正在结构化整理...）"
+    : "需求描述预览（已整理，可编辑）",
 );
 
 function toggleStep(i) {
@@ -546,6 +549,7 @@ async function checkStep(i) {
 请判断这个回答的质量：
 - 如果回答太简短（少于15个字）、太情绪化（如"太卡了""不好看""很难用"）、没有具体场景或细节 → 返回JSON: {"pass":false,"nudge":"你给出的启发式追问，要结合用户上下文，语气友好"}
 - 如果回答够具体、包含实质内容（场景/痛点/数据） → 返回JSON: {"pass":true,"nudge":""}
+- 追问只能围绕用户已经写出的内容，不得编造业务背景、系统名称、数据、角色或原因。
 
 只返回JSON，不要其他内容。`;
 
@@ -615,7 +619,15 @@ async function finalSummary() {
     const qa = steps.value
       .map((s, i) => `Q${i + 1}: ${s.label}\nA: ${s.answer}`)
       .join("\n\n");
-    const prompt = `你是中国移动需求分析专家。请将以下需求问答整理成一份标准需求文档，格式如下：
+    const prompt = `你是中国移动需求分析专家。请将以下需求问答整理成一份标准需求文档。
+
+硬性要求：
+1. 只能基于用户在需求问答、补充备注、附带图片链接中明确提供的信息整理。
+2. 不得编造用户未说明的业务背景、系统名称、功能细节、数字、角色、流程、收益或原因。
+3. 某一项信息用户未提供或未提及，就写“用户未提供”或“未提及”，不要猜测补全。
+4. 可以优化表达、合并重复内容，但不能改变原意。
+
+格式如下：
 
 【需求背景】
 提取业务痛点
